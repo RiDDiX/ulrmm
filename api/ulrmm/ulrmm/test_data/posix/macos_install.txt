@@ -1,0 +1,7 @@
+# sample, not captured on a Mac: script output for documented softwareupdate -l, brew outdated --verbose and system_profiler -json formats
+I	apt:curl:amd64:1	127	apt is not available
+I	softwareupdate:macOS Sonoma 14.6.1-23G93::14.6.1	0	ok
+I	softwareupdate:Safari17.6SonomaAuto-17.6::17.6	0	ok
+I	brew:openssl@3::3.3.2	0	ok
+I	brew-cask:firefox::129.0	0	ok
+R	1

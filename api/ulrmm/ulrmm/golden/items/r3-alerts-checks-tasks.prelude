@@ -1,0 +1,77 @@
+import datetime as dt
+from django.utils import timezone
+from knox.models import AuthToken
+from knox import crypto
+def _mint(u, raw):
+    AuthToken(digest=crypto.hash_token(raw), token_key=raw[:8], user=u,
+              expiry=timezone.now() + dt.timedelta(days=30)).save(force_insert=True)
+    return raw
+
+import datetime as dt
+from django.utils import timezone
+from knox.models import AuthToken
+from rest_framework.authtoken.models import Token
+from accounts.models import Role, User
+from agents.models import Agent
+from alerts.models import Alert
+from autotasks.models import AutomatedTask
+from checks.models import Check
+from core.models import CustomField
+
+# --- an operator who may manage checks/tasks/alert templates but holds no script, command or server-script right
+flags = dict(can_list_agents=True, can_list_checks=True, can_manage_checks=True, can_run_checks=True, can_list_autotasks=True,
+             can_manage_autotasks=True, can_run_autotasks=True, can_list_alerts=True, can_manage_alerts=True,
+             can_list_alerttemplates=True, can_manage_alerttemplates=True, can_list_automation_policies=True,
+             can_manage_automation_policies=True, can_list_scripts=True)
+role = Role.objects.create(name="Parity no-script operator", **flags)
+user = User.objects.create_user(username="parity_noscript", email="noscript@parity.invalid", password="Parity-Pass-2026!",
+                                role=role, totp_key="JBSWY3DPEHPK3PXP")
+tok = _mint(user, 'c1c1c1c100000000000000000000000000000000000000000000000000000000')
+print("PARITY_VAR noscript_token", tok)
+
+# --- a client-A restricted role that may also manage policies: it manages only policies whose agents are all in scope
+from clients.models import Client
+mgr_flags = dict(flags, can_list_agents=True, can_edit_agent=True, can_send_cmd=True, can_run_scripts=True, can_list_clients=True,
+                 can_list_sites=True, can_manage_alerttemplates=False)
+mgr_role = Role.objects.create(name="Parity client A policy manager", **mgr_flags)
+mgr_role.can_view_clients.add(Client.objects.get(name="Nordwind Logistics"))
+mgr = User.objects.create_user(username="parity_polmgr", email="polmgr@parity.invalid", password="Parity-Pass-2026!",
+                               role=mgr_role, totp_key="JBSWY3DPEHPK3PXP")
+tok = _mint(mgr, 'c2c2c2c200000000000000000000000000000000000000000000000000000000')
+print("PARITY_VAR polmgr_token", tok)
+
+# --- a fixed API key for the superuser (header X-API-KEY): alert template server actions refuse key callers
+from accounts.models import APIKey
+APIKey.objects.create(name="parity-key", key="parity-api-key-0123456789abcdef", user=User.objects.get(username="admin"))
+
+# --- DRF agent tokens (what the Go agent sends as `Authorization: Token ...`) for the windows agents we need
+for pk in (1, 12):
+    ag = Agent.objects.get(pk=pk)
+    u = User.objects.filter(agent=ag).first() or User.objects.create_user(username=ag.agent_id, password=None, agent=ag)
+    t, _ = Token.objects.get_or_create(user=u, defaults={'key': 'bench0agent0token00120000000000000000000'} if pk == 12 else {})
+    print(f"PARITY_VAR agent{pk}_token", t.key)
+
+# --- legacy-shaped actions: a cmd action with no shell/timeout and a script action whose script is gone
+legacy = AutomatedTask.objects.create(agent_id=1, name="parity-legacy-actions", task_type="manual",
+                                      actions=[{"type": "cmd", "command": "echo legacy"},
+                                               {"type": "script", "script": 999999, "timeout": 30, "script_args": [], "env_vars": []},
+                                               {"type": "cmd", "command": "echo second", "shell": "powershell"}])
+print("PARITY_VAR legacy_task", legacy.pk)
+
+# --- collector task writing into the agent text custom field 23
+coll = AutomatedTask.objects.create(agent_id=1, name="parity-collector", task_type="manual", custom_field=CustomField.objects.get(pk=23),
+                                    actions=[{"type": "cmd", "command": "echo value", "shell": "cmd", "timeout": 30}])
+print("PARITY_VAR collector_task", coll.pk)
+
+# --- alerts whose result row is gone (notification tasks: 'result not found' vs DoesNotExist)
+a = Alert.objects.create(agent_id=1, assigned_task_id=70, alert_type="task", severity="error", message="parity-orphan-task-alert")
+print("PARITY_VAR orphan_task_alert", a.pk)
+b = Alert.objects.create(agent_id=1, assigned_check_id=244, alert_type="check", severity="error", message="parity-orphan-check-alert")
+print("PARITY_VAR orphan_check_alert", b.pk)
+
+from alerts.tasks import cache_agents_alert_template
+cache_agents_alert_template()
+from agents.models import Agent
+for a in Agent.objects.order_by('pk'):
+    a.get_checks_from_policies()
+print('overridden flags refreshed')

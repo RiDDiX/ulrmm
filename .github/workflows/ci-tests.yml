@@ -1,0 +1,118 @@
+name: Tests CI
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Tests
+    strategy:
+      matrix:
+        python-version: ["3.12.13"]
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: pipeline
+          POSTGRES_USER: pipeline
+          POSTGRES_PASSWORD: pipeline123456
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:8.2
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # golden data was recorded against this library state, bump together
+      # with a GOLDEN_RECORD run
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: RiDDiX/ulrmm-scripts
+          ref: 2244ac3a556fbf1208bc2b0af41c61c232fd721a
+          path: ulrmm-scripts
+          token: ${{ secrets.SCRIPTS_REPO_TOKEN || github.token }}
+
+      - name: Community scripts and nats-server stub
+        run: |
+          sudo mkdir -p /opt/ulrmm-community-scripts
+          sudo cp -r ulrmm-scripts/community_scripts.json ulrmm-scripts/scripts /opt/ulrmm-community-scripts/
+          printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/nats-server >/dev/null
+          sudo chmod +x /usr/local/bin/nats-server
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          check-latest: true
+
+      - name: Install requirements
+        working-directory: api/ulrmm
+        run: |
+          python --version
+          SETTINGS_FILE="ulrmm/settings.py"
+          SETUPTOOLS_VER=$(grep "^SETUPTOOLS_VER" "$SETTINGS_FILE" | awk -F'[= "]' '{print $5}')
+          WHEEL_VER=$(grep "^WHEEL_VER" "$SETTINGS_FILE" | awk -F'[= "]' '{print $5}')
+          pip install pip==25.1
+          pip install "setuptools==${SETUPTOOLS_VER}" "wheel==${WHEEL_VER}"
+          pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Codestyle black
+        working-directory: api
+        run: |
+          black --exclude migrations/ --check --diff ulrmm
+
+      - name: Lint with flake8
+        working-directory: api/ulrmm
+        run: |
+          flake8 --config .flake8 .
+
+      - name: Check for missing migrations
+        env:
+          GHACTIONS: "yes"
+        working-directory: api/ulrmm
+        run: |
+          python manage.py makemigrations --check --dry-run
+
+      - name: Run django tests
+        env:
+          GHACTIONS: "yes"
+        working-directory: api/ulrmm
+        run: |
+          pytest
+
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          directory: ./api/ulrmm
+          files: ./api/ulrmm/coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+  natsapi:
+    runs-on: ubuntu-latest
+    name: natsapi
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.3"
+
+      - name: Vet, build, test
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go vet ./...
+          go build -trimpath -o /dev/null .
+          go test ./...

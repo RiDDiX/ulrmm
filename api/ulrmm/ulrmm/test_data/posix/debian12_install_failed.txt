@@ -1,0 +1,2 @@
+I	apt:ulrmm-no-such-package:amd64:1.0	100	E: Unable to locate package ulrmm-no-such-package
+R	0

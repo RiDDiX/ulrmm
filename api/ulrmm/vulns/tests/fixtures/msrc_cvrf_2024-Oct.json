@@ -1,0 +1,73 @@
+{
+  "DocumentTitle": {"Value": "October 2024 Security Updates"},
+  "DocumentType": {"Value": "Security Update"},
+  "DocumentTracking": {
+    "Identification": {"ID": {"Value": "2024-Oct"}, "Alias": {"Value": "2024-Oct"}},
+    "Status": 2,
+    "Version": "1.0",
+    "InitialReleaseDate": "2024-10-08T07:00:00",
+    "CurrentReleaseDate": "2024-10-08T07:00:00"
+  },
+  "ProductTree": {
+    "FullProductName": [
+      {"ProductID": "12242", "Value": "Windows 11 Version 23H2 for x64-based Systems"},
+      {"ProductID": "11923", "Value": "Windows Server 2022"}
+    ]
+  },
+  "Vulnerability": [
+    {
+      "Title": {"Value": "Remote Desktop Protocol Server Remote Code Execution Vulnerability"},
+      "Notes": [{"Title": "Remote Desktop Protocol", "Type": 7, "Ordinal": "20"}],
+      "DiscoveryDateSpecified": false,
+      "ReleaseDateSpecified": false,
+      "CVE": "CVE-2024-43582",
+      "ProductStatuses": [{"ProductID": ["12242", "11923"], "Type": 3}],
+      "Threats": [
+        {"Description": {"Value": "Remote Code Execution"}, "ProductID": ["12242"], "Type": 0, "DateSpecified": false},
+        {"Description": {"Value": "Critical"}, "ProductID": ["12242"], "Type": 3, "DateSpecified": false},
+        {"Description": {"Value": "Important"}, "ProductID": ["11923"], "Type": 3, "DateSpecified": false},
+        {"Description": {"Value": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Less Likely"}, "Type": 1, "DateSpecified": false}
+      ],
+      "CVSSScoreSets": [
+        {"BaseScore": 8.1, "TemporalScore": 7.1, "Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C", "ProductID": ["12242"]},
+        {"BaseScore": 8.1, "TemporalScore": 7.1, "Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C", "ProductID": ["11923"]}
+      ],
+      "Remediations": [
+        {"Description": {"Value": "5044285"}, "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5044285", "Supercedence": "5043076", "ProductID": ["12242"], "Type": 2, "DateSpecified": false, "AffectedFiles": [], "RestartRequired": {"Value": "Yes"}, "SubType": "Security Update", "FixedBuild": "10.0.22631.4317"},
+        {"Description": {"Value": "5044281"}, "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5044281", "Supercedence": "5042881", "ProductID": ["11923"], "Type": 2, "DateSpecified": false, "AffectedFiles": [], "RestartRequired": {"Value": "Yes"}, "SubType": "Security Update", "FixedBuild": "10.0.20348.2762"},
+        {"Description": {"Value": "Release Notes"}, "URL": "https://support.microsoft.com/help/5044285", "ProductID": ["12242"], "Type": 2, "DateSpecified": false, "AffectedFiles": []}
+      ],
+      "Acknowledgments": [{"Name": [{"Value": "VictorV (Tang Tianwen) with Kunlun Lab"}], "URL": [""]}],
+      "RevisionHistory": [{"Number": "1.0", "Date": "2024-10-08T07:00:00", "Description": {"Value": "<p>Information published.</p>"}}]
+    },
+    {
+      "Title": {"Value": "Microsoft Management Console Remote Code Execution Vulnerability"},
+      "CVE": "CVE-2024-43572",
+      "Threats": [
+        {"Description": {"Value": "Remote Code Execution"}, "ProductID": ["12242"], "Type": 0},
+        {"Description": {"Value": "Important"}, "ProductID": ["12242"], "Type": 3}
+      ],
+      "CVSSScoreSets": [
+        {"BaseScore": 7.8, "TemporalScore": 7.2, "Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:H/RL:O/RC:C", "ProductID": ["12242"]}
+      ],
+      "Remediations": [
+        {"Description": {"Value": "5044285"}, "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5044285", "ProductID": ["12242"], "Type": 2, "SubType": "Security Update"},
+        {"Description": {"Value": "Disable the snap-in."}, "ProductID": ["12242"], "Type": 0}
+      ]
+    },
+    {
+      "Title": {"Value": "Windows Netlogon Elevation of Privilege Vulnerability"},
+      "CVE": "CVE-2024-38124",
+      "Threats": [{"Description": {"Value": "Important"}, "ProductID": ["11923"], "Type": 3}],
+      "CVSSScoreSets": [{"BaseScore": 9.0, "Vector": "CVSS:3.1/AV:A/AC:H/PR:N/UI:N/S:C/C:H/I:H/A:H", "ProductID": ["11923"]}],
+      "Remediations": [
+        {"Description": {"Value": "5044281"}, "ProductID": ["11923"], "Type": 2, "SubType": "Security Update"}
+      ]
+    },
+    {
+      "Title": {"Value": "not a cve"},
+      "CVE": "ADV990001",
+      "Remediations": [{"Description": {"Value": "5044285"}, "Type": 2}]
+    }
+  ]
+}

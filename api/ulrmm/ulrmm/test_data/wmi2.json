@@ -1,0 +1,174 @@
+{
+    "graphics": [
+        [
+            {
+                "Caption": "Basic Display Adapter",
+                "Name": "Basic Display Adapter",
+                "AdapterRAM": 4294967296,
+                "Status": "OK"
+            }
+        ]
+    ],
+    "os": [
+        [
+            {
+                "Caption": "Microsoft Windows Server 2022 Standard",
+                "Version": "10.0.20348",
+                "CSName": "DEMO-SRV01",
+                "OSArchitecture": "64-bit",
+                "Status": "OK"
+            }
+        ]
+    ],
+    "cpu": [
+        [
+            {
+                "Name": "Demo Server CPU 16-Core @ 2.10GHz",
+                "NumberOfCores": 16,
+                "NumberOfLogicalProcessors": 32,
+                "MaxClockSpeed": 2900,
+                "DeviceID": "CPU0"
+            }
+        ]
+    ],
+    "mem": [
+        [
+            {
+                "Capacity": 8589934592,
+                "DeviceLocator": "DIMM A",
+                "Speed": 3200,
+                "Manufacturer": "Generic"
+            }
+        ],
+        [
+            {
+                "Capacity": 8589934592,
+                "DeviceLocator": "DIMM B",
+                "Speed": 3200,
+                "Manufacturer": "Generic"
+            }
+        ]
+    ],
+    "usb": [
+        [
+            {
+                "Caption": "USB Root Hub (USB 3.0)",
+                "Status": "OK"
+            }
+        ]
+    ],
+    "bios": [
+        [
+            {
+                "SerialNumber": "DEMO-SN-0002",
+                "Manufacturer": "Rackworks",
+                "SMBIOSBIOSVersion": "1.4.2",
+                "ReleaseDate": "2024-02-01T00:00:00Z"
+            }
+        ]
+    ],
+    "disk": [
+        [
+            {
+                "Caption": "Virtual Disk 1TB",
+                "Size": "1099511627776",
+                "InterfaceType": "SCSI",
+                "MediaType": "Fixed hard disk media",
+                "Partitions": 3
+            }
+        ],
+        [
+            {
+                "Caption": "Generic USB Flash Disk",
+                "Size": "34359738368",
+                "InterfaceType": "USB",
+                "MediaType": "Removable Media",
+                "Partitions": 1
+            }
+        ]
+    ],
+    "comp_sys": [
+        [
+            {
+                "Model": "RW 2200",
+                "Manufacturer": "Rackworks",
+                "SystemFamily": "RW Series",
+                "Name": "DEMO-SRV01",
+                "Domain": "demo.lan",
+                "TotalPhysicalMemory": 17179869184
+            }
+        ]
+    ],
+    "base_board": [
+        [
+            {
+                "Manufacturer": "Rackworks",
+                "Product": "RW 2200 Mainboard",
+                "SerialNumber": "DEMO-SN-0002"
+            }
+        ]
+    ],
+    "comp_sys_prod": [
+        [
+            {
+                "Vendor": "Rackworks",
+                "Name": "RW 2200",
+                "Version": "RW Series",
+                "IdentifyingNumber": "DEMO-SN-0002"
+            }
+        ]
+    ],
+    "network_config": [
+        [
+            {
+                "Index": 0,
+                "Caption": "[00000000] Software Loopback Interface",
+                "Description": "Software Loopback Interface",
+                "IPEnabled": false,
+                "IPAddress": null,
+                "MACAddress": ""
+            }
+        ],
+        [
+            {
+                "Index": 1,
+                "Caption": "[00000001] Generic Gigabit Network Adapter",
+                "Description": "Generic Gigabit Network Adapter",
+                "IPEnabled": true,
+                "IPAddress": [
+                    "10.20.40.12",
+                    "fe80::a00:27ff:fe4e:66a1"
+                ],
+                "IPSubnet": [
+                    "255.255.255.0",
+                    "64"
+                ],
+                "DefaultIPGateway": [
+                    "10.20.40.1"
+                ],
+                "DHCPEnabled": true,
+                "DNSHostName": "DEMO-SRV01",
+                "MACAddress": "02:00:00:00:20:12"
+            }
+        ]
+    ],
+    "desktop_monitor": [
+        [
+            {
+                "Caption": "Generic PnP Monitor",
+                "ScreenWidth": 1920,
+                "ScreenHeight": 1080
+            }
+        ]
+    ],
+    "network_adapter": [
+        [
+            {
+                "Name": "Generic Gigabit Network Adapter",
+                "MACAddress": "02:00:00:00:20:12",
+                "NetEnabled": true,
+                "Speed": 1000000000
+            }
+        ]
+    ]
+}

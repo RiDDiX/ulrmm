@@ -1,0 +1,877 @@
+{
+ "/agents/": [
+  {
+   "agent_id": "DEMOAGENT04xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxFAB-PI-SENSO",
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "boot_time": 1793357045.081213,
+   "checks": {
+    "failing": 0,
+    "has_failing_checks": false,
+    "info": 0,
+    "passing": 0,
+    "total": 0,
+    "warning": 0
+   },
+   "client_name": "Fabrikam AG",
+   "cpu_model": [
+    "ARMv7 Processor rev 5 (v7l)"
+   ],
+   "custom_fields": [],
+   "description": "server at Main Office",
+   "goarch": "arm64",
+   "graphics": "No graphics cards",
+   "has_patches_pending": false,
+   "hostname": "fab-pi-sensor",
+   "italic": false,
+   "last_seen": "2026-11-02T10:04:05.081213Z",
+   "local_ips": "192.168.33.10/24, fe10::3332:4hgr:9634:1097/64",
+   "logged_username": "pi",
+   "maintenance_mode": false,
+   "make_model": "Raspberry Pi 2 Model B Rev 1.1",
+   "monitoring_type": "server",
+   "needs_reboot": false,
+   "operating_system": "Debian GNU/Linux 12 (bookworm), 64 bit v6.6.20+rpt-rpi-v8 (kernel)",
+   "overdue_dashboard_alert": false,
+   "overdue_email_alert": false,
+   "overdue_text_alert": false,
+   "pending_actions_count": 0,
+   "physical_disks": [
+    "MMC SSD mmcblk0 119.4 GB"
+   ],
+   "plat": "linux",
+   "public_ip": "203.0.113.14",
+   "serial_number": "10000000a1b2c3d4",
+   "site_name": "Main Office",
+   "status": "overdue",
+   "version": "2.11.0"
+  },
+  {
+   "agent_id": "DEMOAGENT00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-DC01",
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "boot_time": 1793357045.081213,
+   "checks": {
+    "failing": 0,
+    "has_failing_checks": false,
+    "info": 0,
+    "passing": 0,
+    "total": 0,
+    "warning": 0
+   },
+   "client_name": "Contoso GmbH",
+   "cpu_model": [
+    "Intel(R) Xeon(R) CPU E5-2620 v4 @ 2.10GHz, 8C/16T",
+    "Intel(R) Xeon(R) CPU E5-2620 v4 @ 2.10GHz, 8C/16T"
+   ],
+   "custom_fields": [
+    {
+     "agent": 1,
+     "field": 3,
+     "id": 1,
+     "value": "INV-000123"
+    },
+    {
+     "agent": 1,
+     "field": 4,
+     "id": 2,
+     "value": "2027-03-31T00:00"
+    },
+    {
+     "agent": 1,
+     "field": 5,
+     "id": 3,
+     "value": true
+    },
+    {
+     "agent": 1,
+     "field": 6,
+     "id": 4,
+     "value": [
+      "DNS",
+      "DHCP"
+     ]
+    },
+    {
+     "agent": 1,
+     "field": 7,
+     "id": 5,
+     "value": "4"
+    }
+   ],
+   "description": "server at Berlin HQ",
+   "goarch": "amd64",
+   "graphics": "NVIDIA Quadro P520, Intel(R) UHD Graphics 620",
+   "has_patches_pending": false,
+   "hostname": "CONTOSO-DC01",
+   "italic": false,
+   "last_seen": "2026-11-02T10:44:05.081213Z",
+   "local_ips": "172.17.9.121, 172.17.9.6, 172.17.9.122",
+   "logged_username": "CONTOSO\\svc-backup",
+   "maintenance_mode": false,
+   "make_model": "HP ProLiant DL380 Gen9",
+   "monitoring_type": "server",
+   "needs_reboot": false,
+   "operating_system": "Windows Server 2022 Standard, 64 bit v21H2 (build 20348.2340)",
+   "overdue_dashboard_alert": false,
+   "overdue_email_alert": false,
+   "overdue_text_alert": false,
+   "pending_actions_count": 0,
+   "physical_disks": [
+    "Microsoft Storage Space Device 3,690GB SCSI",
+    "ATA CT500MX500SSD1 SCSI Disk Device 466GB SCSI",
+    "ATA Crucial_CT500MX2 SCSI Disk Device 466GB SCSI"
+   ],
+   "plat": "windows",
+   "public_ip": "203.0.113.10",
+   "serial_number": "CZC1234XYZ",
+   "site_name": "Berlin HQ",
+   "status": "online",
+   "version": "2.11.0"
+  },
+  {
+   "agent_id": "DEMOAGENT01xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-WS01",
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "boot_time": 1793357045.081213,
+   "checks": {
+    "failing": 0,
+    "has_failing_checks": false,
+    "info": 0,
+    "passing": 0,
+    "total": 0,
+    "warning": 0
+   },
+   "client_name": "Contoso GmbH",
+   "cpu_model": [
+    "Intel(R) Xeon(R) CPU E5-2620 v4 @ 2.10GHz",
+    "Intel(R) Xeon(R) CPU E5-2620 v4 @ 2.10GHz"
+   ],
+   "custom_fields": [],
+   "description": "workstation at Berlin HQ",
+   "goarch": "amd64",
+   "graphics": "NVIDIA Quadro P520",
+   "has_patches_pending": false,
+   "hostname": "CONTOSO-WS014",
+   "italic": false,
+   "last_seen": "2026-11-02T10:34:05.081213Z",
+   "local_ips": "172.17.9.121, 172.17.9.6, 172.17.9.122",
+   "logged_username": "CONTOSO\\m.mueller",
+   "maintenance_mode": false,
+   "make_model": "HP ProLiant DL380 Gen9",
+   "monitoring_type": "workstation",
+   "needs_reboot": true,
+   "operating_system": "Windows 11 Pro, 64 bit v23H2 (build 22631.3447)",
+   "overdue_dashboard_alert": false,
+   "overdue_email_alert": false,
+   "overdue_text_alert": false,
+   "pending_actions_count": 0,
+   "physical_disks": [
+    "Microsoft Storage Space Device 3,690GB SCSI",
+    "ATA CT500MX500SSD1 SCSI Disk Device 466GB SCSI",
+    "ATA Crucial_CT500MX2 SCSI Disk Device 466GB SCSI"
+   ],
+   "plat": "windows",
+   "public_ip": "203.0.113.11",
+   "serial_number": "PF3ABCDE",
+   "site_name": "Berlin HQ",
+   "status": "offline",
+   "version": "2.11.0"
+  },
+  {
+   "agent_id": "DEMOAGENT02xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxFAB-WS-ACCT0",
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "boot_time": 1793357045.081213,
+   "checks": {
+    "failing": 0,
+    "has_failing_checks": false,
+    "info": 0,
+    "passing": 0,
+    "total": 0,
+    "warning": 0
+   },
+   "client_name": "Fabrikam AG",
+   "cpu_model": [
+    "AMD Ryzen 9 3900X 12-Core Processor            "
+   ],
+   "custom_fields": [],
+   "description": "workstation at Main Office",
+   "goarch": "amd64",
+   "graphics": "NVIDIA Quadro P520, Intel(R) UHD Graphics 620",
+   "has_patches_pending": false,
+   "hostname": "FAB-WS-ACCT02",
+   "italic": false,
+   "last_seen": "2026-11-02T10:24:05.081213Z",
+   "local_ips": "192.168.10.149, 192.168.10.114",
+   "logged_username": "FABRIKAM\\j.schmidt",
+   "maintenance_mode": false,
+   "make_model": "Gigabyte Technology Co., Ltd. X570 AORUS ULTRA",
+   "monitoring_type": "workstation",
+   "needs_reboot": false,
+   "operating_system": "Windows 10 Pro, 64 bit v22H2 (build 19045.4291)",
+   "overdue_dashboard_alert": false,
+   "overdue_email_alert": false,
+   "overdue_text_alert": false,
+   "pending_actions_count": 0,
+   "physical_disks": [
+    "Microsoft Storage Space Device 1,900GB SCSI",
+    "WDC WD60EFRX-68MYMN1 5,589GB IDE",
+    "Samsung SSD 860 EVO 500GB 466GB IDE"
+   ],
+   "plat": "windows",
+   "public_ip": "203.0.113.12",
+   "serial_number": "5CG9876QRS",
+   "site_name": "Main Office",
+   "status": "offline",
+   "version": "2.11.0"
+  },
+  {
+   "agent_id": "DEMOAGENT03xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-WEB0",
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "boot_time": 1793357045.081213,
+   "checks": {
+    "failing": 0,
+    "has_failing_checks": false,
+    "info": 0,
+    "passing": 0,
+    "total": 0,
+    "warning": 0
+   },
+   "client_name": "Contoso GmbH",
+   "cpu_model": [
+    "AMD Ryzen 9 3900X 12-Core Processor"
+   ],
+   "custom_fields": [
+    {
+     "agent": 4,
+     "field": 6,
+     "id": 6,
+     "value": [
+      "Web",
+      "DB"
+     ]
+    }
+   ],
+   "description": "server at Hamburg Branch",
+   "goarch": "amd64",
+   "graphics": "Cirrus Logic GD 5446",
+   "has_patches_pending": false,
+   "hostname": "contoso-web01",
+   "italic": false,
+   "last_seen": "2026-11-02T10:14:05.081213Z",
+   "local_ips": "203.121.23.54/24, fd70::253:70dc:fe65:143/64",
+   "logged_username": "root",
+   "maintenance_mode": false,
+   "make_model": "QEMU pc-i440fx-3.1",
+   "monitoring_type": "server",
+   "needs_reboot": false,
+   "operating_system": "Ubuntu 24.04 LTS, 64 bit v6.8.0-31-generic (kernel)",
+   "overdue_dashboard_alert": false,
+   "overdue_email_alert": false,
+   "overdue_text_alert": false,
+   "pending_actions_count": 0,
+   "physical_disks": [
+    "BUYVM SLAB SCSI HDD sda 512.0 GB",
+    "0x1af4  virtio HDD vda 20.0 GB"
+   ],
+   "plat": "linux",
+   "public_ip": "203.0.113.13",
+   "serial_number": "VMW-56-4d-a1-b2",
+   "site_name": "Hamburg Branch",
+   "status": "overdue",
+   "version": "2.11.0"
+  },
+  {
+   "agent_id": "DEMOAGENT05xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-MBP-",
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "boot_time": 1793357045.081213,
+   "checks": {
+    "failing": 0,
+    "has_failing_checks": false,
+    "info": 0,
+    "passing": 0,
+    "total": 0,
+    "warning": 0
+   },
+   "client_name": "Contoso GmbH",
+   "cpu_model": [
+    "Apple M1"
+   ],
+   "custom_fields": [
+    {
+     "agent": 6,
+     "field": 3,
+     "id": 7,
+     "value": "MAC-0042"
+    }
+   ],
+   "description": "workstation at Hamburg Branch",
+   "goarch": "arm64",
+   "graphics": "No graphics cards",
+   "has_patches_pending": false,
+   "hostname": "contoso-mbp-anna",
+   "italic": false,
+   "last_seen": "2026-11-02T09:54:05.081213Z",
+   "local_ips": "192.168.45.113/24, fe80::476:c390:c8dc:11af/64",
+   "logged_username": "anna",
+   "maintenance_mode": false,
+   "make_model": "MacBookAir10,1",
+   "monitoring_type": "workstation",
+   "needs_reboot": false,
+   "operating_system": "Darwin 14.4.1 arm64 23.4.0",
+   "overdue_dashboard_alert": false,
+   "overdue_email_alert": false,
+   "overdue_text_alert": false,
+   "pending_actions_count": 0,
+   "physical_disks": [
+    "Apple APPLE SSD AP0256Q SCSI SSD disk0 233.8 GB",
+    "Apple APPLE SSD AP0256Q SCSI SSD disk1 500.0 MB",
+    "Apple APPLE SSD AP0256Q SCSI SSD disk2 5.0 GB",
+    "Apple APPLE SSD AP0256Q SCSI SSD disk3 228.3 GB"
+   ],
+   "plat": "darwin",
+   "public_ip": "203.0.113.15",
+   "serial_number": "C02XYZ123ABC",
+   "site_name": "Hamburg Branch",
+   "status": "overdue",
+   "version": "2.11.0"
+  }
+ ],
+ "/agents/notes/": [
+  {
+   "agent_id": "DEMOAGENT00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-DC01",
+   "entry_time": "2026-11-02T10:44:05.116406Z",
+   "note": "Primary DC, do not reboot during business hours.",
+   "pk": 1,
+   "username": "admin"
+  },
+  {
+   "agent_id": "DEMOAGENT00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-DC01",
+   "entry_time": "2026-11-02T10:44:05.120654Z",
+   "note": "Backup job runs 02:00.",
+   "pk": 2,
+   "username": "admin"
+  },
+  {
+   "agent_id": "DEMOAGENT03xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-WEB0",
+   "entry_time": "2026-11-02T10:44:05.123414Z",
+   "note": "nginx + postgres, Ubuntu 24.04.",
+   "pk": 3,
+   "username": "admin"
+  }
+ ],
+ "/clients/": [
+  {
+   "agent_count": 4,
+   "alert_template": 1,
+   "block_policy_inheritance": false,
+   "custom_fields": [
+    {
+     "client": 1,
+     "field": 1,
+     "id": 1,
+     "value": "C-2024-0042"
+    }
+   ],
+   "failing_checks": {
+    "error": false,
+    "warning": false
+   },
+   "id": 1,
+   "maintenance_mode": false,
+   "name": "Contoso GmbH",
+   "server_policy": 1,
+   "sites": [
+    {
+     "agent_count": 2,
+     "alert_template": null,
+     "block_policy_inheritance": false,
+     "client": 1,
+     "client_name": "Contoso GmbH",
+     "custom_fields": [
+      {
+       "field": 2,
+       "id": 1,
+       "site": 1,
+       "value": "Gold"
+      }
+     ],
+     "failing_checks": {
+      "error": false,
+      "warning": false
+     },
+     "id": 1,
+     "maintenance_mode": false,
+     "name": "Berlin HQ",
+     "server_policy": null,
+     "workstation_policy": null
+    },
+    {
+     "agent_count": 2,
+     "alert_template": null,
+     "block_policy_inheritance": false,
+     "client": 1,
+     "client_name": "Contoso GmbH",
+     "custom_fields": [
+      {
+       "field": 2,
+       "id": 2,
+       "site": 2,
+       "value": "Bronze"
+      }
+     ],
+     "failing_checks": {
+      "error": false,
+      "warning": false
+     },
+     "id": 2,
+     "maintenance_mode": false,
+     "name": "Hamburg Branch",
+     "server_policy": null,
+     "workstation_policy": null
+    }
+   ],
+   "workstation_policy": null
+  },
+  {
+   "agent_count": 2,
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "custom_fields": [
+    {
+     "client": 2,
+     "field": 1,
+     "id": 2,
+     "value": "F-2025-0007"
+    }
+   ],
+   "failing_checks": {
+    "error": false,
+    "warning": false
+   },
+   "id": 2,
+   "maintenance_mode": false,
+   "name": "Fabrikam AG",
+   "server_policy": null,
+   "sites": [
+    {
+     "agent_count": 2,
+     "alert_template": null,
+     "block_policy_inheritance": false,
+     "client": 2,
+     "client_name": "Fabrikam AG",
+     "custom_fields": [],
+     "failing_checks": {
+      "error": false,
+      "warning": false
+     },
+     "id": 3,
+     "maintenance_mode": false,
+     "name": "Main Office",
+     "server_policy": null,
+     "workstation_policy": null
+    }
+   ],
+   "workstation_policy": null
+  }
+ ],
+ "/core/customfields/": [
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.131539Z",
+   "default_value_bool": false,
+   "default_value_string": null,
+   "default_values_multiple": [],
+   "hide_in_summary": false,
+   "hide_in_ui": false,
+   "id": 1,
+   "model": "client",
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.131550Z",
+   "name": "Contract ID",
+   "options": [],
+   "order": 0,
+   "required": false,
+   "type": "text"
+  },
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.135251Z",
+   "default_value_bool": false,
+   "default_value_string": "Silver",
+   "default_values_multiple": [],
+   "hide_in_summary": false,
+   "hide_in_ui": false,
+   "id": 2,
+   "model": "site",
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.135260Z",
+   "name": "Site Tier",
+   "options": [
+    "Gold",
+    "Silver",
+    "Bronze"
+   ],
+   "order": 0,
+   "required": false,
+   "type": "single"
+  },
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.139079Z",
+   "default_value_bool": false,
+   "default_value_string": null,
+   "default_values_multiple": [],
+   "hide_in_summary": false,
+   "hide_in_ui": false,
+   "id": 3,
+   "model": "agent",
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.139088Z",
+   "name": "Asset Tag",
+   "options": [],
+   "order": 0,
+   "required": false,
+   "type": "text"
+  },
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.141620Z",
+   "default_value_bool": false,
+   "default_value_string": null,
+   "default_values_multiple": [],
+   "hide_in_summary": false,
+   "hide_in_ui": false,
+   "id": 4,
+   "model": "agent",
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.141627Z",
+   "name": "Warranty Expires",
+   "options": [],
+   "order": 0,
+   "required": false,
+   "type": "datetime"
+  },
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.148422Z",
+   "default_value_bool": false,
+   "default_value_string": null,
+   "default_values_multiple": [],
+   "hide_in_summary": false,
+   "hide_in_ui": false,
+   "id": 5,
+   "model": "agent",
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.148440Z",
+   "name": "Backup Enabled",
+   "options": [],
+   "order": 0,
+   "required": false,
+   "type": "checkbox"
+  },
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.153530Z",
+   "default_value_bool": false,
+   "default_value_string": null,
+   "default_values_multiple": [],
+   "hide_in_summary": false,
+   "hide_in_ui": false,
+   "id": 6,
+   "model": "agent",
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.153544Z",
+   "name": "Roles",
+   "options": [
+    "DNS",
+    "DHCP",
+    "File",
+    "Web",
+    "DB"
+   ],
+   "order": 0,
+   "required": false,
+   "type": "multiple"
+  },
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.157659Z",
+   "default_value_bool": false,
+   "default_value_string": null,
+   "default_values_multiple": [],
+   "hide_in_summary": false,
+   "hide_in_ui": false,
+   "id": 7,
+   "model": "agent",
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.157668Z",
+   "name": "RAM Slots",
+   "options": [],
+   "order": 0,
+   "required": false,
+   "type": "number"
+  }
+ ],
+ "/core/keystore/": [
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.236632Z",
+   "id": 1,
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.236641Z",
+   "name": "smtp_relay",
+   "value": "mail.contoso.example"
+  },
+  {
+   "created_by": null,
+   "created_time": "2026-11-02T10:44:05.243342Z",
+   "id": 2,
+   "modified_by": null,
+   "modified_time": "2026-11-02T10:44:05.243352Z",
+   "name": "backup_token",
+   "value": "s3cr3t-demo-value"
+  }
+ ],
+ "/scripts/": [
+  {
+   "args": [
+    "--json"
+   ],
+   "category": "Info",
+   "default_timeout": 30,
+   "description": "Prints hostname and uptime",
+   "env_vars": [],
+   "favorite": false,
+   "filename": null,
+   "hidden": false,
+   "id": 5,
+   "name": "Uptime (Deno)",
+   "run_as_user": false,
+   "script_type": "userdefined",
+   "shell": "deno",
+   "supported_platforms": [],
+   "syntax": null
+  },
+  {
+   "args": [],
+   "category": "Maintenance",
+   "default_timeout": 60,
+   "description": "Stops spooler, clears queue, restarts",
+   "env_vars": [],
+   "favorite": false,
+   "filename": null,
+   "hidden": false,
+   "id": 1,
+   "name": "Clear Print Spooler",
+   "run_as_user": false,
+   "script_type": "userdefined",
+   "shell": "cmd",
+   "supported_platforms": [
+    "windows"
+   ],
+   "syntax": null
+  },
+  {
+   "args": [
+    "--verbose"
+   ],
+   "category": "Maintenance",
+   "default_timeout": 90,
+   "description": "Lists temp dir files",
+   "env_vars": [
+    "PYTHONUNBUFFERED=1"
+   ],
+   "favorite": false,
+   "filename": null,
+   "hidden": false,
+   "id": 3,
+   "name": "Show Temp Dir",
+   "run_as_user": false,
+   "script_type": "userdefined",
+   "shell": "python",
+   "supported_platforms": [
+    "windows",
+    "linux",
+    "darwin"
+   ],
+   "syntax": null
+  },
+  {
+   "args": [
+    "-Threshold 90",
+    "-Drive {{agent.Asset Tag}}"
+   ],
+   "category": "Monitoring",
+   "default_timeout": 120,
+   "description": "Warns when a drive exceeds a threshold",
+   "env_vars": [
+    "REPORT_MODE=short"
+   ],
+   "favorite": false,
+   "filename": null,
+   "hidden": false,
+   "id": 2,
+   "name": "Disk Usage Report",
+   "run_as_user": true,
+   "script_type": "userdefined",
+   "shell": "powershell",
+   "supported_platforms": [
+    "windows"
+   ],
+   "syntax": null
+  },
+  {
+   "args": [],
+   "category": "Patching",
+   "default_timeout": 300,
+   "description": "apt/brew pending updates",
+   "env_vars": [
+    "DEBIAN_FRONTEND=noninteractive",
+    "HOMEBREW_NO_AUTO_UPDATE=1"
+   ],
+   "favorite": false,
+   "filename": null,
+   "hidden": false,
+   "id": 4,
+   "name": "Pending Package Updates",
+   "run_as_user": false,
+   "script_type": "userdefined",
+   "shell": "shell",
+   "supported_platforms": [
+    "linux",
+    "darwin"
+   ],
+   "syntax": null
+  }
+ ],
+ "/scripts/1/": {
+  "args": [],
+  "category": "Maintenance",
+  "default_timeout": 60,
+  "description": "Stops spooler, clears queue, restarts",
+  "env_vars": [],
+  "favorite": false,
+  "filename": null,
+  "hidden": false,
+  "id": 1,
+  "name": "Clear Print Spooler",
+  "run_as_user": false,
+  "script_body": "echo Clear Print Spooler",
+  "shell": "cmd",
+  "supported_platforms": [
+   "windows"
+  ],
+  "syntax": null
+ },
+ "/scripts/2/": {
+  "args": [
+   "-Threshold 90",
+   "-Drive {{agent.Asset Tag}}"
+  ],
+  "category": "Monitoring",
+  "default_timeout": 120,
+  "description": "Warns when a drive exceeds a threshold",
+  "env_vars": [
+   "REPORT_MODE=short"
+  ],
+  "favorite": false,
+  "filename": null,
+  "hidden": false,
+  "id": 2,
+  "name": "Disk Usage Report",
+  "run_as_user": true,
+  "script_body": "param([int]$Threshold = 80, [string]$Drive = \"C\")\nGet-PSDrive -PSProvider FileSystem | ForEach-Object { \"{0} {1:N1}GB free\" -f $_.Name, ($_.Free/1GB) }\n",
+  "shell": "powershell",
+  "supported_platforms": [
+   "windows"
+  ],
+  "syntax": null
+ },
+ "/scripts/3/": {
+  "args": [
+   "--verbose"
+  ],
+  "category": "Maintenance",
+  "default_timeout": 90,
+  "description": "Lists temp dir files",
+  "env_vars": [
+   "PYTHONUNBUFFERED=1"
+  ],
+  "favorite": false,
+  "filename": null,
+  "hidden": false,
+  "id": 3,
+  "name": "Show Temp Dir",
+  "run_as_user": false,
+  "script_body": "echo Show Temp Dir",
+  "shell": "python",
+  "supported_platforms": [
+   "windows",
+   "linux",
+   "darwin"
+  ],
+  "syntax": null
+ },
+ "/scripts/4/": {
+  "args": [],
+  "category": "Patching",
+  "default_timeout": 300,
+  "description": "apt/brew pending updates",
+  "env_vars": [
+   "DEBIAN_FRONTEND=noninteractive",
+   "HOMEBREW_NO_AUTO_UPDATE=1"
+  ],
+  "favorite": false,
+  "filename": null,
+  "hidden": false,
+  "id": 4,
+  "name": "Pending Package Updates",
+  "run_as_user": false,
+  "script_body": "echo Pending Package Updates",
+  "shell": "shell",
+  "supported_platforms": [
+   "linux",
+   "darwin"
+  ],
+  "syntax": null
+ },
+ "/scripts/5/": {
+  "args": [
+   "--json"
+  ],
+  "category": "Info",
+  "default_timeout": 30,
+  "description": "Prints hostname and uptime",
+  "env_vars": [],
+  "favorite": false,
+  "filename": null,
+  "hidden": false,
+  "id": 5,
+  "name": "Uptime (Deno)",
+  "run_as_user": false,
+  "script_body": "echo Uptime (Deno)",
+  "shell": "deno",
+  "supported_platforms": [],
+  "syntax": null
+ },
+ "/scripts/snippets/": [
+  {
+   "code": "function Write-Log($m) { \"$(Get-Date -f s) $m\" }",
+   "desc": "Write-Log helper",
+   "id": 1,
+   "name": "Logger",
+   "shell": "powershell"
+  },
+  {
+   "code": "[ \"$(id -u)\" -eq 0 ] || { echo \"need root\"; exit 1; }",
+   "desc": "Abort if not root",
+   "id": 2,
+   "name": "RequireRoot",
+   "shell": "shell"
+  }
+ ]
+}

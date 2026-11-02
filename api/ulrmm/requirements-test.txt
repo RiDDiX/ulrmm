@@ -1,0 +1,15 @@
+# pytest with django support, workers and coverage
+pytest==9.1.1
+pytest-django==4.12.0
+pytest-xdist==3.8.0
+pytest-cov==7.1.0
+# test data factories, frozen clocks, coverage core
+model_bakery==1.23.5
+time-machine==3.2.0
+coverage==7.15.2
+# lint and format checks run in the same job
+black==26.10.1
+flake8==7.3.0
+refurb==2.3.1
+# asgi server used by the websocket tests
+daphne==4.2.3

@@ -1,0 +1,174 @@
+{
+    "graphics": [
+        [
+            {
+                "Caption": "Demo Graphics 620",
+                "Name": "Demo Graphics 620",
+                "AdapterRAM": 4294967296,
+                "Status": "OK"
+            }
+        ]
+    ],
+    "os": [
+        [
+            {
+                "Caption": "Microsoft Windows 11 Pro",
+                "Version": "10.0.22631",
+                "CSName": "DEMO-WS01",
+                "OSArchitecture": "64-bit",
+                "Status": "OK"
+            }
+        ]
+    ],
+    "cpu": [
+        [
+            {
+                "Name": "Demo CPU 6-Core @ 2.90GHz",
+                "NumberOfCores": 6,
+                "NumberOfLogicalProcessors": 12,
+                "MaxClockSpeed": 2900,
+                "DeviceID": "CPU0"
+            }
+        ]
+    ],
+    "mem": [
+        [
+            {
+                "Capacity": 8589934592,
+                "DeviceLocator": "DIMM A",
+                "Speed": 3200,
+                "Manufacturer": "Generic"
+            }
+        ],
+        [
+            {
+                "Capacity": 8589934592,
+                "DeviceLocator": "DIMM B",
+                "Speed": 3200,
+                "Manufacturer": "Generic"
+            }
+        ]
+    ],
+    "usb": [
+        [
+            {
+                "Caption": "USB Root Hub (USB 3.0)",
+                "Status": "OK"
+            }
+        ]
+    ],
+    "bios": [
+        [
+            {
+                "SerialNumber": "DEMO-SN-0001",
+                "Manufacturer": "Demo Systems",
+                "SMBIOSBIOSVersion": "1.4.2",
+                "ReleaseDate": "2024-02-01T00:00:00Z"
+            }
+        ]
+    ],
+    "disk": [
+        [
+            {
+                "Caption": "Demo NVMe SSD 512GB",
+                "Size": "549755813888",
+                "InterfaceType": "SCSI",
+                "MediaType": "Fixed hard disk media",
+                "Partitions": 3
+            }
+        ],
+        [
+            {
+                "Caption": "Generic USB Flash Disk",
+                "Size": "34359738368",
+                "InterfaceType": "USB",
+                "MediaType": "Removable Media",
+                "Partitions": 1
+            }
+        ]
+    ],
+    "comp_sys": [
+        [
+            {
+                "Model": "Office Desk 400",
+                "Manufacturer": "Demo Systems",
+                "SystemFamily": "Office Desk",
+                "Name": "DEMO-WS01",
+                "Domain": "demo.lan",
+                "TotalPhysicalMemory": 17179869184
+            }
+        ]
+    ],
+    "base_board": [
+        [
+            {
+                "Manufacturer": "Demo Systems",
+                "Product": "Board D400",
+                "SerialNumber": "DEMO-SN-0001"
+            }
+        ]
+    ],
+    "comp_sys_prod": [
+        [
+            {
+                "Vendor": "Demo Systems",
+                "Name": "Office Desk 400",
+                "Version": "Office Desk",
+                "IdentifyingNumber": "DEMO-SN-0001"
+            }
+        ]
+    ],
+    "network_config": [
+        [
+            {
+                "Index": 0,
+                "Caption": "[00000000] Software Loopback Interface",
+                "Description": "Software Loopback Interface",
+                "IPEnabled": false,
+                "IPAddress": null,
+                "MACAddress": ""
+            }
+        ],
+        [
+            {
+                "Index": 1,
+                "Caption": "[00000001] Generic Gigabit Network Adapter",
+                "Description": "Generic Gigabit Network Adapter",
+                "IPEnabled": true,
+                "IPAddress": [
+                    "10.20.30.41",
+                    "fe80::a00:27ff:fe4e:66a1"
+                ],
+                "IPSubnet": [
+                    "255.255.255.0",
+                    "64"
+                ],
+                "DefaultIPGateway": [
+                    "10.20.30.1"
+                ],
+                "DHCPEnabled": true,
+                "DNSHostName": "DEMO-WS01",
+                "MACAddress": "02:00:00:00:10:41"
+            }
+        ]
+    ],
+    "desktop_monitor": [
+        [
+            {
+                "Caption": "Generic PnP Monitor",
+                "ScreenWidth": 1920,
+                "ScreenHeight": 1080
+            }
+        ]
+    ],
+    "network_adapter": [
+        [
+            {
+                "Name": "Generic Gigabit Network Adapter",
+                "MACAddress": "02:00:00:00:10:41",
+                "NetEnabled": true,
+                "Speed": 1000000000
+            }
+        ]
+    ]
+}

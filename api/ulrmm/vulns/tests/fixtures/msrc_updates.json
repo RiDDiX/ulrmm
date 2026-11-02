@@ -1,0 +1,50 @@
+{
+  "@odata.context": "https://api.msrc.microsoft.com/cvrf/v3.0/$metadata#updates",
+  "value": [
+    {
+      "ID": "2024-Aug",
+      "Alias": "2024-Aug",
+      "DocumentTitle": "August 2024 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2024-08-13T07:00:00Z",
+      "CurrentReleaseDate": "2024-09-17T07:00:00Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2024-Aug"
+    },
+    {
+      "ID": "2024-Oct",
+      "Alias": "2024-Oct",
+      "DocumentTitle": "October 2024 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2024-10-08T07:00:00Z",
+      "CurrentReleaseDate": "2024-10-08T07:00:00Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2024-Oct"
+    },
+    {
+      "ID": "2024-Jul",
+      "Alias": "2024-Jul",
+      "DocumentTitle": "July 2024 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2024-07-09T07:00:00Z",
+      "CurrentReleaseDate": "2024-07-23T07:00:00Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2024-Jul"
+    },
+    {
+      "ID": "2024-Sep",
+      "Alias": "2024-Sep",
+      "DocumentTitle": "September 2024 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2024-09-10T07:00:00Z",
+      "CurrentReleaseDate": "2024-10-01T07:00:00Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2024-Sep"
+    },
+    {
+      "ID": "../evil",
+      "Alias": "evil",
+      "DocumentTitle": "not a month",
+      "Severity": null,
+      "InitialReleaseDate": "2030-01-01T07:00:00Z",
+      "CurrentReleaseDate": "2030-01-01T07:00:00Z",
+      "CvrfUrl": "https://example.com/evil"
+    }
+  ]
+}

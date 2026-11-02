@@ -1,0 +1,86 @@
+# extra roles, users with fixed knox tokens and the API keys of the core items
+import datetime as dt
+import hashlib
+
+from django.utils import timezone
+from knox import crypto
+from knox.models import AuthToken
+from knox.settings import CONSTANTS
+
+from accounts.models import APIKey, Role, User
+from clients.models import Client
+
+TOTP = "JBSWY3DPEHPK3PXP"
+nordwind = Client.objects.get(name__startswith="Nordwind")
+
+
+def role(name, clients=(), **perms):
+    r, _ = Role.objects.get_or_create(name=name, defaults=perms)
+    if clients:
+        r.can_view_clients.set(clients)
+    return r
+
+
+def user(name, r=None, active=True, token=None, **extra):
+    u = User.objects.filter(username=name).first()
+    if not u:
+        u = User.objects.create_user(
+            username=name, email=f"{name}@bench.invalid", password="Bench-Pass-2026!",
+            role=r, is_active=active, totp_key=TOTP, **extra,
+        )
+    if token:
+        AuthToken.objects.filter(digest=crypto.hash_token(token)).delete()
+        AuthToken.objects.create  # noqa
+        AuthToken(
+            digest=crypto.hash_token(token), token_key=token[: CONSTANTS.TOKEN_KEY_LENGTH],
+            user=u, expiry=timezone.now() + dt.timedelta(days=30),
+        ).save(force_insert=True)
+    return u
+
+
+def key(name, plain, u, expired=False):
+    APIKey.objects.filter(name=name).delete()
+    k = APIKey(name=name, key=plain, user=u)
+    if expired:
+        k.expiration = timezone.now() - dt.timedelta(days=1)
+    k.save()
+
+
+r_run_a = role("Bench urlrun A", clients=[nordwind], can_run_urlactions=True)
+r_run_all = role("Bench urlrun all", can_run_urlactions=True, can_view_global_keystore=True)
+r_scripts = role("Bench scripts", can_run_server_scripts=True, can_manage_scripts=True, can_list_scripts=True, can_use_webterm=True)
+r_maint = role("Bench maint", can_do_server_maint=True)
+r_none = role("Bench empty")
+
+user("bench_urlrun_a", r_run_a, token="a1a1a1a1" + "0" * 56)
+user("bench_urlrun_all", r_run_all, token="a2a2a2a2" + "0" * 56)
+user("bench_scripts", r_scripts, token="a3a3a3a3" + "0" * 56)
+user("bench_maint", r_maint, token="a4a4a4a4" + "0" * 56)
+user("bench_web", r_scripts, token="aaaaaaaa" + "0" * 56)
+user("bench_empty", r_none, token="a5a5a5a5" + "0" * 56)
+u_off = user("bench_inactive", r_none, active=False)
+# a password-only user without TOTP (enrolment not finished)
+u_nototp = User.objects.filter(username="bench_nototp").first() or User.objects.create_user(
+    username="bench_nototp", email="nototp@bench.invalid", password="Bench-Pass-2026!", role=r_none
+)
+AuthToken.objects.filter(digest=crypto.hash_token("a6a6a6a6" + "0" * 56)).delete()
+AuthToken(digest=crypto.hash_token("a6a6a6a6" + "0" * 56), token_key="a6a6a6a6", user=u_nototp,
+          expiry=timezone.now() + dt.timedelta(days=30)).save(force_insert=True)
+
+admin = User.objects.get(username="admin")
+key("bench-admin", "bench-api-key-admin-000000000001", admin)
+key("bench-clienta", "bench-api-key-clienta-0000000002", User.objects.get(username="bench_clienta"))
+key("bench-installer", "bench-api-key-installer-00000003", User.objects.get(username="bench_installer"))
+key("bench-expired", "bench-api-key-expired-000000004", admin, expired=True)
+key("bench-inactive", "bench-api-key-inactive-00000005", u_off)
+# short-lived tokens (1h left) to watch knox's auto refresh, and a token of the inactive user
+for tok, u, ttl in (("a7a7a7a7", User.objects.get(username="bench_empty"), 1), ("a8a8a8a8", u_nototp, 1),
+                    ("a9a9a9a9", u_off, 24 * 30)):
+    full = tok + "0" * 56
+    AuthToken.objects.filter(digest=crypto.hash_token(full)).delete()
+    AuthToken(digest=crypto.hash_token(full), token_key=tok, user=u,
+              expiry=timezone.now() + dt.timedelta(hours=ttl)).save(force_insert=True)
+AuthToken.objects.filter(digest=crypto.hash_token("b0b0b0b0" + "0" * 56)).delete()
+AuthToken(digest=crypto.hash_token("b0b0b0b0" + "0" * 56), token_key="b0b0b0b0", user=admin,
+          expiry=timezone.now() - dt.timedelta(hours=1)).save(force_insert=True)
+print("bench users ok", User.objects.count(), APIKey.objects.count())

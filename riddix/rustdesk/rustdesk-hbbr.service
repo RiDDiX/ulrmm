@@ -1,0 +1,25 @@
+# Von riddix/rustdesk/install-rustdesk-server.sh installiert.
+[Unit]
+Description=RustDesk Relay Server (hbbr)
+After=network-online.target rustdesk-hbbs.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rustdesk
+Group=rustdesk
+WorkingDirectory=/opt/rustdesk
+# liest den Schluessel, den hbbs angelegt hat
+ExecStart=/opt/rustdesk/bin/hbbr -k _
+UMask=0077
+Restart=always
+RestartSec=10
+LimitNOFILE=1000000
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/rustdesk
+
+[Install]
+WantedBy=multi-user.target

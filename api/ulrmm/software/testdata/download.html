@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+var downloadInformation = new Array();
+downloadInformation[0] = new Object();
+downloadInformation[0].updateID ='ffe0d3f3-52b3-4e26-b9d6-13b5e77bd11d';
+downloadInformation[0].isHotFix =false;
+downloadInformation[0].enTitle ='Intel Net Driver Update (12.19.2.66)';
+downloadInformation[0].sizeLanguage ='';
+downloadInformation[0].files = new Array();
+downloadInformation[0].files[0] = new Object();
+downloadInformation[0].files[0].url = 'https://catalog.s.download.windowsupdate.com/c/msdownload/update/driver/drvs/2026/02/3de915d8-3c4d-4341-a002-840a5d8be101_97f01c46b968a3faa7e4a342a4b1dfb88ed86bbe.cab';
+downloadInformation[0].files[0].digest = 'l/AcRrloo/qn5KNCpLHfuI7Ya74=';
+downloadInformation[0].files[0].sha256 = 'qTvOBuvcgebUujKxwiwQFak1DSAoUDWd0oPC/jUFA38=';
+downloadInformation[0].files[0].architectures = '';
+downloadInformation[0].files[0].languages = '';
+downloadInformation[0].files[0].longLanguages = '';
+downloadInformation[0].files[0].fileName = '3de915d8-3c4d-4341-a002-840a5d8be101_97f01c46b968a3faa7e4a342a4b1dfb88ed86bbe.cab';
+downloadInformation[0].files[0].defaultFileNameLength = 127;
+downloadInformation[0].allFilesExist = false;
+var minFilePathLength =127;
+var eulaInfo =  new Array();
+var eulaInfo = '';
+   
+
+        // Gets the import, sku, ssl, portnumber info from request
+        var contentImport = '';
+        var sku = '';       
+        var serverName = '';
+        var ssl = '';
+        var portNumber = '';
+        var isScopedView =  '';
+        var WsusVersion = '';
+
+        // Get the information from server including stings that need to be passed to js
+        var hotfixUpdatesPresent = 'False'.toLowerCase();
+        var doneStatus = 'Done';
+        var failedStatus = 'Failed';
+        var canceledStatus = 'Canceled';
+        var locationRequiredText ='Please select a download location';
+
+        var internetExplorer = false;
+        var downloadManager;
+
+        function LoggingSuccessfulWSUSImport(updateid, IsSuccess, additionalinfo) {
+            var wsusinfo = sku + "," + serverName + "," + ssl + "," + portNumber + "," + WsusVersion;
+            if (additionalinfo == "") {
+                PageMethods.LoggingSuccessfulWSUSImport(updateid, IsSuccess,wsusinfo);
+            }
+            else {
+                PageMethods.LoggingSuccessfulWSUSImport(updateid, IsSuccess,wsusinfo + "," +  additionalinfo);
+            }
+        }
+
+        /// <summary>
+        ///   Page load
+        /// </summary>
+        function pageLoad() {
+            if (internetExplorer) {
+                // Any IE specific initialization.
+            } else {
+                // Replace the placeholder <div> with a list of updates and their files (as links) for download.
+                var downloadFilesDiv = $get('downloadFiles');
+                if (downloadInformation != null && downloadInformation.length > 0) {
+                    for (var updateIndex = 0; updateIndex < downloadInformation.length; updateIndex++) {
+                        var updateElement = document.createElement("div");
+                        updateElement.innerText = downloadInformation[updateIndex].enTitle;
+                        updateElement.className = "textTopTitlePadding textBold textSubHeadingColor";
+                        downloadFilesDiv.appendChild(updateElement);
+
+                        var files = downloadInformation[0].files;
+</script>
+</head>
+<body></body>
+</html>

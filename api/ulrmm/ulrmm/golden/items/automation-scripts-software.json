@@ -1,0 +1,6547 @@
+[
+ {
+  "id": "automation-scripts-software-001",
+  "desc": "policy list as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-002",
+  "desc": "policy list as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-003",
+  "desc": "policy list as site",
+  "token": "site",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-004",
+  "desc": "policy list as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-005",
+  "desc": "policy list as apikey_far",
+  "token": "apikey_far",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-006",
+  "desc": "policy list refused for noperm",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-007",
+  "desc": "policy list refused for acctmgr",
+  "token": "acctmgr",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-008",
+  "desc": "policy list refused for none",
+  "token": "none",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-009",
+  "desc": "DELETE on the policy list route -> 405",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-010",
+  "desc": "policy 1 detail as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-011",
+  "desc": "policy 2 detail as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/2/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-012",
+  "desc": "policy 3 detail as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/3/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-013",
+  "desc": "policy 4 detail as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/4/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-014",
+  "desc": "policy 999 detail -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/999/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-015",
+  "desc": "policy 1 detail as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-016",
+  "desc": "policy 4 detail as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/4/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-017",
+  "desc": "policy 1 detail as site",
+  "token": "site",
+  "method": "GET",
+  "path": "/automation/policies/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-018",
+  "desc": "policy detail as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/automation/policies/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-019",
+  "desc": "PATCH on policy detail -> 405",
+  "token": "admin",
+  "method": "PATCH",
+  "path": "/automation/policies/4/",
+  "body": {
+   "desc": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-020",
+  "desc": "policy 1 related as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/1/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-021",
+  "desc": "policy 2 related as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/2/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-022",
+  "desc": "policy 4 related as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/4/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-023",
+  "desc": "related for missing policy 999 (OLD 200 {name: ''})",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/999/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-024",
+  "desc": "policy 2 related as clienta (role-filtered lists)",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/2/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-025",
+  "desc": "policy 1 related as site user",
+  "token": "site",
+  "method": "GET",
+  "path": "/automation/policies/1/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-026",
+  "desc": "policy related as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/automation/policies/1/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-027",
+  "desc": "policy overview as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/overview/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-028",
+  "desc": "policy overview as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/overview/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-029",
+  "desc": "policy overview as site",
+  "token": "site",
+  "method": "GET",
+  "path": "/automation/policies/overview/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-030",
+  "desc": "policy overview as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/automation/policies/overview/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-031",
+  "desc": "policy 1 checks alias as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/1/checks/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-032",
+  "desc": "policy 4 (unassigned) checks alias as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/4/checks/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-033",
+  "desc": "policy 1 tasks alias as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/policies/1/tasks/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-034",
+  "desc": "policy 4 tasks alias as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/4/tasks/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-035",
+  "desc": "policy check 235 status as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/checks/235/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-036",
+  "desc": "policy check 235 status as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/checks/235/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-037",
+  "desc": "policy check 235 status as site",
+  "token": "site",
+  "method": "GET",
+  "path": "/automation/checks/235/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-038",
+  "desc": "agent check 251 status (accepted today)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/checks/251/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-039",
+  "desc": "unknown check 99999 status -> []",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/checks/99999/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-040",
+  "desc": "check status as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/automation/checks/226/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-041",
+  "desc": "policy task 61 status as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/tasks/61/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-042",
+  "desc": "policy task 61 status as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/tasks/61/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-043",
+  "desc": "policy task 61 status as site",
+  "token": "site",
+  "method": "GET",
+  "path": "/automation/tasks/61/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-044",
+  "desc": "agent task 40 status (accepted today)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/tasks/40/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-045",
+  "desc": "unknown task 99999 status -> []",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/tasks/99999/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-046",
+  "desc": "GET on tasks/<id>/run/ lists results (same class)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/tasks/61/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-047",
+  "desc": "task status as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/automation/tasks/61/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-048",
+  "desc": "run p1 task 52 as admin",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/tasks/52/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-049",
+  "desc": "POST on tasks/<id>/status/ also runs",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/tasks/61/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-050",
+  "desc": "run p1 task 52 as clienta (p1 reaches only client A)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/tasks/52/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-051",
+  "desc": "run p2 task 61 as clienta (p2 reaches client B) -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/tasks/61/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-052",
+  "desc": "run p4 task 70 as clienta (unassigned policy)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/tasks/70/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-053",
+  "desc": "run task as site user (no manage) -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/automation/tasks/52/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-054",
+  "desc": "run task as readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/automation/tasks/52/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-055",
+  "desc": "run agent task 40 -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/tasks/40/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-056",
+  "desc": "run unknown task 99999 -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/tasks/99999/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-057",
+  "desc": "create policy as admin",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench new policy",
+   "desc": "created by the bench",
+   "active": true,
+   "enforced": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-058",
+  "desc": "create duplicate name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench new policy",
+   "desc": "created by the bench",
+   "active": true,
+   "enforced": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-059",
+  "desc": "create {} (OLD: nameless policy)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-060",
+  "desc": "create with created_by in body",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench audit field",
+   "created_by": "mallory",
+   "modified_by": "mallory"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-061",
+  "desc": "copy p1 as admin (checks + tasks copied)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench copy of p1",
+   "desc": "copy",
+   "active": false,
+   "copyId": 1
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "checks_check(check_type,disk) where policy_id=(select id from automation_policy where name='Bench copy of p1')",
+    "autotasks_automatedtask(name,task_type) where policy_id=(select id from automation_policy where name='Bench copy of p1')"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-062",
+  "desc": "copy from missing policy 999 -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench copy 999",
+   "copyId": 999
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-063",
+  "desc": "copy with copyId 'abc' (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench copy abc",
+   "copyId": "abc"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-064",
+  "desc": "copy with copyId list (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench copy list",
+   "copyId": [
+    1
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-065",
+  "desc": "copy with copyId null (OLD 404)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench copy null",
+   "copyId": null
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-066",
+  "desc": "copy p2 as clienta (p2 reaches A)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench clienta copy p2",
+   "copyId": 2
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-067",
+  "desc": "copy p4 (unassigned) as clienta",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench clienta copy p4",
+   "copyId": 4
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-068",
+  "desc": "create policy as clienta",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench clienta policy"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-069",
+  "desc": "create policy as site user (no manage) -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench site policy"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-070",
+  "desc": "create with excluded_agents of client B as clienta",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench clienta excl",
+   "excluded_agents": [
+    12
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy_excluded_agents(policy_id,agent_id) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-071",
+  "desc": "create with unknown alert_template -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench bad at",
+   "alert_template": 999
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-072",
+  "desc": "update p4 desc as admin",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "desc": "bench edit"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-073",
+  "desc": "update p4 name to an existing name -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "name": "Servers - baseline"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-074",
+  "desc": "update missing policy 500 -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/500/",
+  "body": {
+   "desc": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-075",
+  "desc": "update without body on missing policy -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/500/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-076",
+  "desc": "update p4 created_by (writable on OLD)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "created_by": "mallory",
+   "modified_by": "eve"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-077",
+  "desc": "update p4 exclusions",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "excluded_agents": [
+    1,
+    12
+   ],
+   "excluded_sites": [
+    2
+   ],
+   "excluded_clients": [
+    3
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy_excluded_agents(policy_id,agent_id) where true",
+    "automation_policy_excluded_sites(policy_id,site_id) where true",
+    "automation_policy_excluded_clients(policy_id,client_id) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-078",
+  "desc": "update p1 alert_template to 8",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/1/",
+  "body": {
+   "alert_template": 8
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-079",
+  "desc": "update p1 active false",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/1/",
+  "body": {
+   "active": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-080",
+  "desc": "update p3 (has patch row) as admin",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/policies/3/",
+  "body": {
+   "desc": "admin may"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-081",
+  "desc": "update p3 (patch row) as clienta -> 403 patch flag",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/3/",
+  "body": {
+   "desc": "no"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-082",
+  "desc": "update p2 (patch row 25) as clienta -> 403 patch flag",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/2/",
+  "body": {
+   "desc": "no"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-083",
+  "desc": "update p1 (reaches only A) as clienta",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/1/",
+  "body": {
+   "desc": "clienta edit"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-084",
+  "desc": "update p4 (unassigned) as clienta",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "desc": "clienta p4"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-085",
+  "desc": "update p4 as site user (no manage) -> 403",
+  "token": "site",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "desc": "no"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-086",
+  "desc": "update p4 excluded_agents with client B agent as clienta",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "excluded_agents": [
+    12
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy_excluded_agents(policy_id,agent_id) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-087",
+  "desc": "setup p4 -> Main Office servers; p4 detail as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/4/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from clients.models import Site\nSite.objects.filter(pk=3).update(server_policy_id=4)\nprint('p4 -> Main Office servers')"
+ },
+ {
+  "id": "automation-scripts-software-088",
+  "desc": "p4 (reaches only B) related as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/4/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-089",
+  "desc": "policy list as clienta while p4 reaches only B",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-090",
+  "desc": "update p4 (reaches only B) as clienta",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "desc": "foreign"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-091",
+  "desc": "copy p4 (reaches only B) as clienta -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench copy foreign",
+   "copyId": 4
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-092",
+  "desc": "run p4 task 70 (reaches only B) as clienta -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/tasks/70/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-093",
+  "desc": "run p4 task 70 as admin",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/tasks/70/run/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-094",
+  "desc": "delete p4 (reaches only B) as clienta",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/automation/policies/4/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-095",
+  "desc": "grant patch flag to role 13; update p3 (unassigned, patch row) as clienta",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/3/",
+  "body": {
+   "desc": "with flag"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  },
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=13).update(can_manage_patch_policies=True)\nprint('granted')"
+ },
+ {
+  "id": "automation-scripts-software-096",
+  "desc": "update p2 (reaches A and B) as clienta with patch flag",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/2/",
+  "body": {
+   "desc": "with flag"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-097",
+  "desc": "patch policy POST on p2 as clienta with flag",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/patchpolicy/",
+  "body": {
+   "policy": 2,
+   "critical": "approve"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-098",
+  "desc": "patch policy PUT row 25 (p2) as clienta with flag",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/patchpolicy/25/",
+  "body": {
+   "critical": "ignore"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where policy_id is not null"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-099",
+  "desc": "patch policy PUT row 1 (p3 unassigned) as clienta with flag",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/patchpolicy/1/",
+  "body": {
+   "low": "approve"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-100",
+  "desc": "patch reset client 2 (out of scope) as clienta with flag -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "client": 2
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-101",
+  "desc": "patch reset site 4 (out of scope) as clienta with flag -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "site": 4
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-102",
+  "desc": "patch reset site 1 (Hamburg, agent 7 has no row) as clienta with flag (OLD 500)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "site": 1
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where agent_id in (1,2,3,4,5,6,7,17,18,24,25)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-103",
+  "desc": "patch policy DELETE row 25 (p2) as clienta with flag",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/automation/patchpolicy/25/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-104",
+  "desc": "delete p3 as clienta with flag (unassigned)",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/automation/policies/3/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-105",
+  "desc": "delete p4 as admin",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/automation/policies/4/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true",
+    "checks_check(id) where policy_id=4",
+    "autotasks_automatedtask(id) where policy_id=4"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-106",
+  "desc": "delete missing policy 999 -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/automation/policies/999/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-107",
+  "desc": "delete p3 (patch row) as clienta -> 403",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/automation/policies/3/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-108",
+  "desc": "delete p1 as site user -> 403",
+  "token": "site",
+  "method": "DELETE",
+  "path": "/automation/policies/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-109",
+  "desc": "delete p2 (default for nothing, patch row) as admin",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/automation/policies/2/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true",
+    "clients_client(id,workstation_policy_id,server_policy_id) where true",
+    "winupdate_winupdatepolicy(id) where policy_id=2"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-110",
+  "desc": "delete p1 as clienta (reaches only A)",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/automation/policies/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\",active,enforced,alert_template_id,created_by,modified_by) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-111",
+  "desc": "patch policy create on p4",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/",
+  "body": {
+   "policy": 4,
+   "critical": "approve",
+   "important": "approve",
+   "moderate": "ignore",
+   "low": "ignore",
+   "other": "approve",
+   "run_time_hour": 3,
+   "run_time_frequency": "daily",
+   "run_time_days": [
+    0,
+    3,
+    5
+   ],
+   "run_time_day": "15",
+   "reboot_after_install": "always"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where policy_id=4"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-112",
+  "desc": "patch policy create on p1 with agent key (ignored)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/",
+  "body": {
+   "policy": 1,
+   "agent": 1,
+   "critical": "approve",
+   "important": "approve",
+   "moderate": "ignore",
+   "low": "ignore",
+   "other": "approve",
+   "run_time_hour": 3,
+   "run_time_frequency": "daily",
+   "run_time_days": [
+    0,
+    3,
+    5
+   ],
+   "run_time_day": "15",
+   "reboot_after_install": "always"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where policy_id=1"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-113",
+  "desc": "second patch policy on p2 (OLD accepts)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/",
+  "body": {
+   "policy": 2,
+   "critical": "approve",
+   "important": "approve",
+   "moderate": "ignore",
+   "low": "ignore",
+   "other": "approve",
+   "run_time_hour": 3,
+   "run_time_frequency": "daily",
+   "run_time_days": [
+    0,
+    3,
+    5
+   ],
+   "run_time_day": "15",
+   "reboot_after_install": "always"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where policy_id=2"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-114",
+  "desc": "patch policy create for missing policy -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/",
+  "body": {
+   "policy": 999,
+   "critical": "approve",
+   "important": "approve",
+   "moderate": "ignore",
+   "low": "ignore",
+   "other": "approve",
+   "run_time_hour": 3,
+   "run_time_frequency": "daily",
+   "run_time_days": [
+    0,
+    3,
+    5
+   ],
+   "run_time_day": "15",
+   "reboot_after_install": "always"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-115",
+  "desc": "patch policy create without policy key (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/",
+  "body": {
+   "critical": "approve",
+   "important": "approve",
+   "moderate": "ignore",
+   "low": "ignore",
+   "other": "approve",
+   "run_time_hour": 3,
+   "run_time_frequency": "daily",
+   "run_time_days": [
+    0,
+    3,
+    5
+   ],
+   "run_time_day": "15",
+   "reboot_after_install": "always"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-116",
+  "desc": "patch policy create with invalid choice -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/",
+  "body": {
+   "policy": 3,
+   "critical": "maybe"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-117",
+  "desc": "patch policy create as clienta (no patch flag) -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/patchpolicy/",
+  "body": {
+   "policy": 4,
+   "critical": "approve",
+   "important": "approve",
+   "moderate": "ignore",
+   "low": "ignore",
+   "other": "approve",
+   "run_time_hour": 3,
+   "run_time_frequency": "daily",
+   "run_time_days": [
+    0,
+    3,
+    5
+   ],
+   "run_time_day": "15",
+   "reboot_after_install": "always"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-118",
+  "desc": "GET on patchpolicy/ -> 405",
+  "token": "admin",
+  "method": "GET",
+  "path": "/automation/patchpolicy/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-119",
+  "desc": "patch policy update row 25 (p2)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/patchpolicy/25/",
+  "body": {
+   "critical": "ignore",
+   "run_time_day": "3"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where id=25"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-120",
+  "desc": "patch policy update agent row 7 -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/patchpolicy/7/",
+  "body": {
+   "critical": "ignore"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-121",
+  "desc": "patch policy update missing 999 -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/patchpolicy/999/",
+  "body": {
+   "critical": "ignore"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-122",
+  "desc": "patch policy update invalid value -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/automation/patchpolicy/1/",
+  "body": {
+   "run_time_frequency": "hourly"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-123",
+  "desc": "patch policy update as clienta -> 403",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/patchpolicy/1/",
+  "body": {
+   "critical": "ignore"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-124",
+  "desc": "patch policy delete agent row 7 -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/automation/patchpolicy/7/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-125",
+  "desc": "patch policy delete row 1 (p3)",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/automation/patchpolicy/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(id) where policy_id is not null"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-126",
+  "desc": "patch policy delete as clienta -> 403",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/automation/patchpolicy/25/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-127",
+  "desc": "patch reset site 4 (Practice, rows ok)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "site": 4
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where agent_id in (15,16)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-128",
+  "desc": "patch reset client 3 (Lehmann)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "client": 3
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-129",
+  "desc": "patch reset client 2 (agent 12 has two rows, OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "client": 2
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where agent_id in (11,12,13,14)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-130",
+  "desc": "patch reset site 2 (agent 9 has no row, OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "site": 2
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where agent_id in (8,9,10)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-131",
+  "desc": "patch reset all agents (OLD 500 mid-loop)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "winupdate_winupdatepolicy(id,agent_id,policy_id,critical,important,moderate,low,other,run_time_hour,run_time_frequency,run_time_days,run_time_day,reboot_after_install,reprocess_failed_inherit) where agent_id is not null"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-132",
+  "desc": "patch reset client 'abc' (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "client": "abc"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-133",
+  "desc": "patch reset missing site 999",
+  "token": "admin",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "site": 999
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-134",
+  "desc": "patch reset as clienta (no patch flag) -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "site": 4
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-135",
+  "desc": "patch reset as site user -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "site": 2
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-136",
+  "desc": "Policy.related_agents per policy",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from automation.models import Policy\n        for p in Policy.objects.order_by('pk'):\n            print(p.pk, p.name, sorted(p.related_agents().values_list('pk', flat=True)), p.is_default_server_policy, p.is_default_workstation_policy)\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-137",
+  "desc": "Policy.get_policy_checks / get_policy_tasks per agent",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from agents.models import Agent\n        from automation.models import Policy\n        for a in Agent.objects.order_by('pk'):\n            chks = Policy.get_policy_checks(a)\n            print(a.pk, sorted((c.pk, c.check_type, c.policy_id) for c in chks), sorted(t.pk for t in Policy.get_policy_tasks(a)))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-138",
+  "desc": "related_agents with exclusions and site assignment",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from agents.models import Agent\n        from clients.models import Client, Site\n        from automation.models import Policy\n        p4 = Policy.objects.get(pk=4)\n        Site.objects.filter(pk=3).update(workstation_policy=p4)\n        Client.objects.filter(pk=1).update(server_policy=p4)\n        print('assigned', sorted(p4.related_agents().values_list('pk', flat=True)))\n        p4.excluded_agents.add(Agent.objects.get(pk=1))\n        print('excl agent 1', sorted(p4.related_agents().values_list('pk', flat=True)))\n        p4.excluded_sites.add(Site.objects.get(pk=2))\n        print('excl site 2', sorted(p4.related_agents().values_list('pk', flat=True)))\n        p4.excluded_clients.add(Client.objects.get(pk=2))\n        print('excl client 2', sorted(p4.related_agents().values_list('pk', flat=True)))\n        for pk in (1, 9, 12, 13, 17):\n            print(pk, p4.is_agent_excluded(Agent.objects.get(pk=pk)))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-139",
+  "desc": "default server policy reach",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from core.models import CoreSettings\n        from automation.models import Policy\n        p4 = Policy.objects.get(pk=4)\n        CoreSettings.objects.update(server_policy=p4)\n        print(sorted(p4.related_agents().values_list('pk', flat=True)), p4.is_default_server_policy)\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-140",
+  "desc": "Policy.save / delete clear the policy caches",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from django.core.cache import cache\n        from automation.models import Policy\n        KEYS = ('core_settings', 'site_workstation_1', 'site_server_1', 'agent_x')\n        def arm():\n            for k in KEYS:\n                cache.set(k, 1, 60)\n        def gone(tag):\n            print(tag, [k for k in KEYS if cache.get(k) is None])\n        p = Policy.objects.get(pk=4)\n        arm(); p.desc = 'x'; p.save(); gone('desc only')\n        arm(); p.excluded_agents.add(1); p.save(); gone('exclusion')\n        arm(); p.active = False; p.save(); gone('active')\n        arm(); p.enforced = True; p.save(); gone('enforced')\n        arm(); p.delete(); gone('delete')\n        for k in KEYS:\n            cache.delete(k)\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-141",
+  "desc": "Policy.save alert template change queues one cache task",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from unittest import mock\n        from automation.models import Policy\n        p = Policy.objects.get(pk=2)\n        with mock.patch('alerts.tasks.cache_agents_alert_template.delay') as d:\n            p.alert_template_id = 8; p.save(); print('template set', d.call_count)\n            p.desc = 'y'; p.save(); print('desc', d.call_count)\n            p.active = False; p.save(); print('active with template', d.call_count)\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-142",
+  "desc": "Policy save with preset pk that has no row",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from automation.models import Policy\n        try:\n            Policy(pk=777, name='Bench preset pk').save()\n            print('saved', Policy.objects.filter(pk=777).exists())\n        except Exception as e:\n            print('error', type(e).__name__)\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-143",
+  "desc": "audit rows of policy add/modify/delete",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from logs.models import AuditLog\n        from ulrmm.middleware import request_local\n        from automation.models import Policy\n        from automation.serializers import PolicySerializer\n        request_local.username = 'benchuser'\n        p = Policy.objects.create(name='Bench audited')\n        p.desc = 'changed'; p.save()\n        p.delete()\n        for a in AuditLog.objects.filter(username='benchuser').order_by('id'):\n            print(a.action, a.object_type, a.message, sorted((a.after_value or {}).keys()), sorted((a.before_value or {}).keys()))\n        print(sorted(PolicySerializer(Policy.objects.get(pk=1)).data.keys()))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-144",
+  "desc": "run_win_policy_autotasks_task (run_win_task mocked)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from unittest import mock\n        from automation.tasks import run_win_policy_autotasks_task\n        with mock.patch('autotasks.models.AutomatedTask.run_win_task') as m:\n            for t in (52, 61, 70, 40, 99999):\n                r = run_win_policy_autotasks_task(task=t)\n                print(t, r, sorted(c.args[0].pk for c in m.call_args_list))\n                m.reset_mock()\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-145",
+  "desc": "policy serializer key sets",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from automation import serializers as S\n        from automation.models import Policy\n        from accounts.models import User\n        from clients.models import Client\n        p = Policy.objects.get(pk=2)\n        u = User.objects.get(pk=1)\n        print(sorted(S.PolicyTableSerializer(p, context={'user': u}).data.keys()))\n        print(sorted(S.PolicyRelatedSerializer(p, context={'user': u}).data.keys()))\n        print(sorted(S.PolicyCheckStatusSerializer.Meta.fields if isinstance(S.PolicyCheckStatusSerializer.Meta.fields, list) else []))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-146",
+  "desc": "script list as admin (default filters)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-147",
+  "desc": "script list showCommunityScripts=false",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/?showCommunityScripts=false",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-148",
+  "desc": "script list showCommunityScripts=0 (still community)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/?showCommunityScripts=0",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-149",
+  "desc": "script list showCommunityScripts= (empty -> user only)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/?showCommunityScripts=",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-150",
+  "desc": "script list showHiddenScripts=true",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/?showHiddenScripts=true",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-151",
+  "desc": "script list user only + hidden",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/?showCommunityScripts=false&showHiddenScripts=true",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-152",
+  "desc": "script list user-only as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/scripts/?showCommunityScripts=false&showHiddenScripts=true",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-153",
+  "desc": "script list user-only as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/scripts/?showCommunityScripts=false&showHiddenScripts=true",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-154",
+  "desc": "script list refused for noperm",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/scripts/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-155",
+  "desc": "script list refused for none",
+  "token": "none",
+  "method": "GET",
+  "path": "/scripts/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-156",
+  "desc": "script 226 detail as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/226/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-157",
+  "desc": "script 228 detail as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/228/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-158",
+  "desc": "script 229 detail as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/229/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-159",
+  "desc": "script 226 detail as readonly (env secrets)",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/scripts/226/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-160",
+  "desc": "script 226 detail as clienta (manager)",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/scripts/226/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-161",
+  "desc": "script 999 detail -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/999/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-162",
+  "desc": "script detail as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/scripts/226/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-163",
+  "desc": "PATCH on script detail -> 405",
+  "token": "admin",
+  "method": "PATCH",
+  "path": "/scripts/226/",
+  "body": {
+   "name": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-164",
+  "desc": "download 226 (no param)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/226/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-165",
+  "desc": "download 226 ?with_snippets=false",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/226/download/?with_snippets=false",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-166",
+  "desc": "download 226 ?with_snippets=",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/226/download/?with_snippets=",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-167",
+  "desc": "download 226 ?with_snippets=0",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/226/download/?with_snippets=0",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-168",
+  "desc": "download 227 (bad-regex snippet, OLD 500)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/227/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-169",
+  "desc": "download 227 with_snippets=false",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/227/download/?with_snippets=false",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-170",
+  "desc": "download script 224 (extension by shell)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/224/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-171",
+  "desc": "download script 225 (extension by shell)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/225/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-172",
+  "desc": "download script 228 (extension by shell)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/228/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-173",
+  "desc": "download script 229 (extension by shell)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/229/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-174",
+  "desc": "download as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/scripts/225/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-175",
+  "desc": "download as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/scripts/225/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-176",
+  "desc": "download missing 999 -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/999/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-177",
+  "desc": "POST on download -> 405",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/225/download/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-178",
+  "desc": "download nushell / deno / slash name",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/224/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from scripts.models import Script\nScript.objects.filter(pk=224).update(name='bench/../x\\\\y', shell='nushell')\nScript.objects.filter(pk=225).update(shell='deno')\nprint('ok')"
+ },
+ {
+  "id": "automation-scripts-software-179",
+  "desc": "download deno script",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/225/download/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-180",
+  "desc": "create script as admin",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench new script",
+   "description": "desc",
+   "shell": "python",
+   "args": [
+    "-a",
+    "{{agent.hostname}}"
+   ],
+   "category": "Bench",
+   "script_body": "  print('hi')\n",
+   "default_timeout": 13344556,
+   "syntax": "x",
+   "filename": "bench.py",
+   "supported_platforms": [
+    "linux"
+   ],
+   "run_as_user": true,
+   "env_vars": [
+    "BENCH_KEY=v=1",
+    "EMPTY="
+   ],
+   "variables": [
+    {
+     "name": "TARGET",
+     "label": "Target",
+     "type": "string"
+    },
+    {
+     "name": "COUNT",
+     "label": "Count",
+     "type": "integer",
+     "default": "-3",
+     "required": true,
+     "help": "h"
+    },
+    {
+     "name": "PICK",
+     "label": "Pick",
+     "type": "select",
+     "options": [
+      "a",
+      "b"
+     ],
+     "default": "b"
+    },
+    {
+     "name": "PW",
+     "label": "Password",
+     "type": "password"
+    }
+   ]
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,description,shell,script_type,args,env_vars,favorite,category,script_body,default_timeout,hidden,supported_platforms,run_as_user,variables,guid,created_by,modified_by) where id=(select max(id) from scripts_script)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-181",
+  "desc": "create script {} (OLD nameless)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,description,shell,script_type,args,env_vars,favorite,category,script_body,default_timeout,hidden,supported_platforms,run_as_user,variables,guid,created_by,modified_by) where id=(select max(id) from scripts_script)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-182",
+  "desc": "create script with unknown platform",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench plat",
+   "supported_platforms": [
+    "solaris"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-183",
+  "desc": "create script with script_type builtin, guid, created_by (all ignored on OLD; no RF changes this)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench sneaky",
+   "script_type": "builtin",
+   "guid": "x",
+   "code_base64": "eA==",
+   "created_by": "mallory"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,description,shell,script_type,args,env_vars,favorite,category,script_body,default_timeout,hidden,supported_platforms,run_as_user,variables,guid,created_by,modified_by) where id=(select max(id) from scripts_script)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-184",
+  "desc": "create script invalid shell -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench fish",
+   "shell": "fish"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-185",
+  "desc": "create script env denied PATH -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench env",
+   "env_vars": [
+    "PATH=/tmp"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-186",
+  "desc": "create script env denied lower-case prefix -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench env",
+   "env_vars": [
+    "dyld_insert=x"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-187",
+  "desc": "create script env invalid name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench env",
+   "env_vars": [
+    "1BAD=x"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-188",
+  "desc": "create script env no equals (name only, accepted)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench env",
+   "env_vars": [
+    "NOEQ"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-189",
+  "desc": "create script env trailing newline -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench env",
+   "env_vars": [
+    "GOOD\n=x"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-190",
+  "desc": "create script env allowed names (PATHNAME, HOMEDIR, 64 chars)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench env ok",
+   "env_vars": [
+    "PATHNAME=a",
+    "HOMEDIR=b",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=c"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,description,shell,script_type,args,env_vars,favorite,category,script_body,default_timeout,hidden,supported_platforms,run_as_user,variables,guid,created_by,modified_by) where id=(select max(id) from scripts_script)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-191",
+  "desc": "create script variables not a list -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": {
+    "a": 1
+   }
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-192",
+  "desc": "create script variables 31 items -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "V0",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V1",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V2",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V3",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V4",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V5",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V6",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V7",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V8",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V9",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V10",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V11",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V12",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V13",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V14",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V15",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V16",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V17",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V18",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V19",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V20",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V21",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V22",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V23",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V24",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V25",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V26",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V27",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V28",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V29",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "V30",
+     "label": "l",
+     "type": "string"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-193",
+  "desc": "create script variables duplicate -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "string"
+    },
+    {
+     "name": "a",
+     "label": "l",
+     "type": "string"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-194",
+  "desc": "create script variables bad type -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "color"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-195",
+  "desc": "create script variables required not bool -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "string",
+     "required": "yes"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-196",
+  "desc": "create script variables password default -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "password",
+     "default": "x"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-197",
+  "desc": "create script variables checkbox default -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "checkbox",
+     "default": "yes"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-198",
+  "desc": "create script variables integer unicode digits -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "integer",
+     "default": "٣"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-199",
+  "desc": "create script variables select no options -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "select"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-200",
+  "desc": "create script variables select default not option -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "select",
+     "options": [
+      "a"
+     ],
+     "default": "b"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-201",
+  "desc": "create script variables options on string -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench vars",
+   "variables": [
+    {
+     "name": "A",
+     "label": "l",
+     "type": "string",
+     "options": [
+      "a"
+     ]
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-202",
+  "desc": "create script with every variable type",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench all types",
+   "variables": [
+    {
+     "name": "S",
+     "label": "s",
+     "type": "string",
+     "default": "x"
+    },
+    {
+     "name": "T",
+     "label": "t",
+     "type": "text"
+    },
+    {
+     "name": "I",
+     "label": "i",
+     "type": "integer",
+     "default": "42"
+    },
+    {
+     "name": "D",
+     "label": "d",
+     "type": "decimal",
+     "default": "-1.25"
+    },
+    {
+     "name": "C",
+     "label": "c",
+     "type": "checkbox",
+     "default": "true"
+    },
+    {
+     "name": "IP",
+     "label": "ip",
+     "type": "ip"
+    },
+    {
+     "name": "DT",
+     "label": "dt",
+     "type": "date"
+    },
+    {
+     "name": "DTT",
+     "label": "dtt",
+     "type": "datetime"
+    }
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,description,shell,script_type,args,env_vars,favorite,category,script_body,default_timeout,hidden,supported_platforms,run_as_user,variables,guid,created_by,modified_by) where id=(select max(id) from scripts_script)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-203",
+  "desc": "create script as clienta",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench clienta script",
+   "script_body": "echo"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,description,shell,script_type,args,env_vars,favorite,category,script_body,default_timeout,hidden,supported_platforms,run_as_user,variables,guid,created_by,modified_by) where id=(select max(id) from scripts_script)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-204",
+  "desc": "create script as site user (no manage) -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench site script"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-205",
+  "desc": "create script as readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench ro script"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-206",
+  "desc": "audit row of script create (env values)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/",
+  "body": {
+   "name": "Bench audited script",
+   "env_vars": [
+    "SECRET_KEY_X=plain-value"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-207",
+  "desc": "edit user script 226",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/226/",
+  "body": {
+   "name": "Bench snippet user edited",
+   "description": "e",
+   "default_timeout": 5
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,description,default_timeout,modified_by) where id=226",
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-208",
+  "desc": "edit 226 with denied env -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/226/",
+  "body": {
+   "env_vars": [
+    "COMSPEC=x"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-209",
+  "desc": "edit missing script 999 -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/999/",
+  "body": {
+   "name": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-210",
+  "desc": "edit builtin 229 favorite",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/229/",
+  "body": {
+   "favorite": true,
+   "name": "ignored"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,favorite,hidden) where id=229"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-211",
+  "desc": "edit builtin 229 hidden",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/229/",
+  "body": {
+   "hidden": true
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,favorite,hidden) where id=229"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-212",
+  "desc": "edit builtin 229 favorite + hidden (OLD only favorite)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/229/",
+  "body": {
+   "favorite": false,
+   "hidden": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(name,favorite,hidden) where id=229"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-213",
+  "desc": "edit builtin 229 name -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/229/",
+  "body": {
+   "name": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-214",
+  "desc": "edit builtin 229 variables -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/229/",
+  "body": {
+   "variables": []
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-215",
+  "desc": "edit 225 (used by policy checks) clears cache",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/225/",
+  "body": {
+   "description": "used by p1/p2"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from django.core.cache import cache\ncache.set('agent_benchprobe', 1, 600)\nprint('set')"
+ },
+ {
+  "id": "automation-scripts-software-216",
+  "desc": "cache cleared after editing a policy-check script",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.core.cache import cache\nprint(cache.get('agent_benchprobe'))",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-217",
+  "desc": "edit 224 (no policy check) keeps cache",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/224/",
+  "body": {
+   "description": "no policy check"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from django.core.cache import cache\ncache.set('agent_benchprobe', 1, 600)\nprint('set')"
+ },
+ {
+  "id": "automation-scripts-software-218",
+  "desc": "cache kept after editing a script without policy checks",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.core.cache import cache\nprint(cache.get('agent_benchprobe'))",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-219",
+  "desc": "edit 226 as clienta",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/scripts/226/",
+  "body": {
+   "category": "Clienta"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-220",
+  "desc": "edit 226 as readonly -> 403",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/scripts/226/",
+  "body": {
+   "category": "no"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-221",
+  "desc": "edit 226 env with masked value round trip",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/226/",
+  "body": {
+   "env_vars": [
+    "API_PASSWORD=********",
+    "MODE=slow"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(env_vars) where id=226"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-222",
+  "desc": "delete hidden user script 228",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/scripts/228/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_script(id) where id=228"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-223",
+  "desc": "delete builtin 229 -> 400",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/scripts/229/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-224",
+  "desc": "delete missing 999 -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/scripts/999/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-225",
+  "desc": "delete 226 as readonly -> 403",
+  "token": "readonly",
+  "method": "DELETE",
+  "path": "/scripts/226/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-226",
+  "desc": "delete 225 used by checks (OLD cascades)",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/scripts/225/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "checks_check(id) where script_id=225",
+    "scripts_script(id) where id=225"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-227",
+  "desc": "delete 224 used by alert template 7 (OLD nulls the action)",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/scripts/224/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "alerts_alerttemplate(id,action_id,resolved_action_id) where id in (7,8,9)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-228",
+  "desc": "delete 227 as clienta",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/scripts/227/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-229",
+  "desc": "snippet list as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/snippets/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-230",
+  "desc": "snippet list as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/scripts/snippets/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-231",
+  "desc": "snippet list as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/scripts/snippets/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-232",
+  "desc": "snippet list unauthenticated -> 401",
+  "token": "none",
+  "method": "GET",
+  "path": "/scripts/snippets/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-233",
+  "desc": "snippet 1 detail",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/snippets/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-234",
+  "desc": "snippet 999 -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/snippets/999/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-235",
+  "desc": "create snippet",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/snippets/",
+  "body": {
+   "name": "Bench new snip",
+   "desc": "d",
+   "code": "  echo x  \n",
+   "shell": "shell"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_scriptsnippet(id,name,\"desc\",code,shell) where true",
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-236",
+  "desc": "create snippet duplicate name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/snippets/",
+  "body": {
+   "name": "Bench Snip",
+   "code": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-237",
+  "desc": "create snippet {} -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/snippets/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-238",
+  "desc": "create snippet name 41 chars -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/snippets/",
+  "body": {
+   "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+   "code": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-239",
+  "desc": "create snippet bad shell -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/snippets/",
+  "body": {
+   "name": "Bench fish snip",
+   "code": "x",
+   "shell": "fish"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-240",
+  "desc": "create snippet as clienta",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/scripts/snippets/",
+  "body": {
+   "name": "Bench clienta snip",
+   "code": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-241",
+  "desc": "edit snippet 1",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/snippets/1/",
+  "body": {
+   "desc": "edited"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_scriptsnippet(id,name,\"desc\",code,shell) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-242",
+  "desc": "edit snippet 1 rename to existing -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/snippets/1/",
+  "body": {
+   "name": "bench[x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-243",
+  "desc": "edit snippet 999 -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/scripts/snippets/999/",
+  "body": {
+   "desc": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-244",
+  "desc": "delete snippet 4",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/scripts/snippets/4/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "scripts_scriptsnippet(id,name,\"desc\",code,shell) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-245",
+  "desc": "delete snippet as site user -> 403",
+  "token": "site",
+  "method": "DELETE",
+  "path": "/scripts/snippets/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-246",
+  "desc": "test script as admin on NW-DC01 (natsdown)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-247",
+  "desc": "test script denied env name -> 400, no audit row with PATH",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "PATH=/x"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id) where before_value::text like '%PATH=%'"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-248",
+  "desc": "test script missing keys (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-249",
+  "desc": "test script empty body (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-250",
+  "desc": "test script bad-regex snippet (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "print({{bench[x}})",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-251",
+  "desc": "test script args as string (OLD iterates chars)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": "abc",
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-252",
+  "desc": "test script global keystore placeholder as clienta",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "{{global.bench_secret}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "K={{global.bench_secret}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-253",
+  "desc": "test script on posix agent as site user",
+  "token": "site",
+  "method": "POST",
+  "path": "/scripts/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "echo {{bench.snip(1)+}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "shell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-254",
+  "desc": "test script out-of-scope agent as clienta -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/scripts/demo11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-255",
+  "desc": "test script out-of-scope agent as site user -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-256",
+  "desc": "test script as readonly (no run) -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-257",
+  "desc": "test script unknown agent -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-258",
+  "desc": "test script short agent id -> resolver 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/dytthgc/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-259",
+  "desc": "GET on test route -> 405",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-260",
+  "desc": "test script with run-only role -> 403 (TestScriptPerms)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=13).update(can_manage_scripts=False, can_send_cmd=False)\nprint('ok')"
+ },
+ {
+  "id": "automation-scripts-software-261",
+  "desc": "test script with run + manage scripts (no send_cmd)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=13).update(can_manage_scripts=True, can_send_cmd=False)\nprint('ok')",
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-262",
+  "desc": "test script with manage + send_cmd but no run -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output {{Bench Snip}}",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "{{agent.hostname}}"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1",
+    "BENCH_B={{agent.hostname}}"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=13).update(can_run_scripts=False, can_send_cmd=True)\nprint('ok')"
+ },
+ {
+  "id": "automation-scripts-software-263",
+  "desc": "library sync, no library configured -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/community/sync/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-264",
+  "desc": "library sync as clienta (manager) -> 400 no library",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/scripts/community/sync/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-265",
+  "desc": "library sync as readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/scripts/community/sync/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-266",
+  "desc": "library sync unauthenticated -> 401",
+  "token": "none",
+  "method": "POST",
+  "path": "/scripts/community/sync/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-267",
+  "desc": "GET on library sync -> 405",
+  "token": "admin",
+  "method": "GET",
+  "path": "/scripts/community/sync/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-268",
+  "desc": "library sync while the lock is held -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/community/sync/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from django.core.cache import cache\nprint(cache.add('community_scripts_sync', 1, 600))"
+ },
+ {
+  "id": "automation-scripts-software-269",
+  "desc": "lock still held after a refused sync",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.core.cache import cache\nprint(cache.get('community_scripts_sync'))\ncache.delete('community_scripts_sync')",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-270",
+  "desc": "library sync from a local bare repo, then resync after a change (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import json, os, shutil, subprocess\n        base = '/tmp/parlib-{{SIDE}}'\n        shutil.rmtree(base, ignore_errors=True)\n        os.makedirs(base + '/work/scripts')\n        genv = {**os.environ, 'GIT_AUTHOR_NAME': 'bench', 'GIT_AUTHOR_EMAIL': 'bench@x', 'GIT_COMMITTER_NAME': 'bench',\n                'GIT_COMMITTER_EMAIL': 'bench@x', 'GIT_AUTHOR_DATE': '2026-10-01T00:00:00Z', 'GIT_COMMITTER_DATE': '2026-10-01T00:00:00Z'}\n        def g(*a, cwd=base + '/work'):\n            subprocess.run(['git', *a], cwd=cwd, env=genv, check=True, capture_output=True)\n        def write(manifest, files):\n            for f in os.listdir(base + '/work/scripts'):\n                os.remove(base + '/work/scripts/' + f)\n            for n, body in files.items():\n                open(base + '/work/scripts/' + n, 'w').write(body)\n            json.dump(manifest, open(base + '/work/community_scripts.json', 'w'))\n            g('add', '-A'); g('commit', '-q', '-m', 'lib')\n        g('init', '-q', '-b', 'main')\n        M1 = [{'guid': 'bench-lib-1', 'filename': 'one.sh', 'name': 'Bench lib one', 'description': 'd', 'shell': 'shell',\n               'category': 'Bench lib', 'args': ['-a'], 'env': ['MODE=x'], 'supported_platforms': ['linux'],\n               'variables': [{'name': 'WARN', 'label': 'Warn', 'type': 'integer'}]},\n              {'guid': 'bench-guid-0001', 'filename': 'two.ps1', 'name': 'Bench builtin library', 'description': 'now from lib', 'shell': 'powershell'},\n              {'guid': 'bench-lib-bad', 'filename': 'bad.sh', 'name': 'Bench lib bad', 'description': 'd', 'shell': 'fish'}]\n        write(M1, {'one.sh': 'echo one\\n', 'two.ps1': 'Write-Output two\\n', 'bad.sh': 'echo bad\\n'})\n        g('clone', '-q', '--bare', base + '/work', base + '/lib.git', cwd=base)\n        \n        def first():\n            pass\n        def second():\n            write(M1[:1], {'one.sh': 'echo one v2\\n'})\n            g('push', '-q', base + '/lib.git', 'main')\n        STEPS = [first, second]\n        \n        from django.test import override_settings\n        from rest_framework.test import APIClient\n        from accounts.models import User\n        from logs.models import AuditLog\n        from scripts.models import Script\n        c = APIClient()\n        c.force_authenticate(user=User.objects.get(pk=1))\n        with override_settings(SCRIPTS_DIR=base + '/dst', ULRMM_SCRIPTS_GIT_URL='file://' + base + '/lib.git', ALLOWED_HOSTS=['*']):\n            for step in STEPS:\n                step()\n                r = c.post('/scripts/community/sync/', format='json')\n                print(r.status_code, json.dumps(r.data, sort_keys=True))\n                print(sorted(Script.objects.filter(guid__startswith='bench').values_list('guid', 'name', 'script_type', 'category')))\n                a = AuditLog.objects.order_by('-id').first()\n                print(a.action, a.object_type, a.message, json.dumps(a.after_value, sort_keys=True))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-271",
+  "desc": "library sync with a broken manifest (not loaded, rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import json, os, shutil, subprocess\n        base = '/tmp/parlib-{{SIDE}}'\n        shutil.rmtree(base, ignore_errors=True)\n        os.makedirs(base + '/work/scripts')\n        genv = {**os.environ, 'GIT_AUTHOR_NAME': 'bench', 'GIT_AUTHOR_EMAIL': 'bench@x', 'GIT_COMMITTER_NAME': 'bench',\n                'GIT_COMMITTER_EMAIL': 'bench@x', 'GIT_AUTHOR_DATE': '2026-10-01T00:00:00Z', 'GIT_COMMITTER_DATE': '2026-10-01T00:00:00Z'}\n        def g(*a, cwd=base + '/work'):\n            subprocess.run(['git', *a], cwd=cwd, env=genv, check=True, capture_output=True)\n        def write(manifest, files):\n            for f in os.listdir(base + '/work/scripts'):\n                os.remove(base + '/work/scripts/' + f)\n            for n, body in files.items():\n                open(base + '/work/scripts/' + n, 'w').write(body)\n            json.dump(manifest, open(base + '/work/community_scripts.json', 'w'))\n            g('add', '-A'); g('commit', '-q', '-m', 'lib')\n        g('init', '-q', '-b', 'main')\n        M1 = [{'guid': 'bench-lib-1', 'filename': 'one.sh', 'name': 'Bench lib one', 'description': 'd', 'shell': 'shell',\n               'category': 'Bench lib', 'args': ['-a'], 'env': ['MODE=x'], 'supported_platforms': ['linux'],\n               'variables': [{'name': 'WARN', 'label': 'Warn', 'type': 'integer'}]},\n              {'guid': 'bench-guid-0001', 'filename': 'two.ps1', 'name': 'Bench builtin library', 'description': 'now from lib', 'shell': 'powershell'},\n              {'guid': 'bench-lib-bad', 'filename': 'bad.sh', 'name': 'Bench lib bad', 'description': 'd', 'shell': 'fish'}]\n        write(M1, {'one.sh': 'echo one\\n', 'two.ps1': 'Write-Output two\\n', 'bad.sh': 'echo bad\\n'})\n        g('clone', '-q', '--bare', base + '/work', base + '/lib.git', cwd=base)\n        \n        def broken():\n            open(base + '/work/community_scripts.json', 'w').write('{\"not\": \"a list\"}')\n            g('add', '-A'); g('commit', '-q', '-m', 'broken'); g('push', '-q', base + '/lib.git', 'main')\n        STEPS = [broken]\n        \n        from django.test import override_settings\n        from rest_framework.test import APIClient\n        from accounts.models import User\n        from logs.models import AuditLog\n        from scripts.models import Script\n        c = APIClient()\n        c.force_authenticate(user=User.objects.get(pk=1))\n        with override_settings(SCRIPTS_DIR=base + '/dst', ULRMM_SCRIPTS_GIT_URL='file://' + base + '/lib.git', ALLOWED_HOSTS=['*']):\n            for step in STEPS:\n                step()\n                r = c.post('/scripts/community/sync/', format='json')\n                print(r.status_code, json.dumps(r.data, sort_keys=True))\n                print(sorted(Script.objects.filter(guid__startswith='bench').values_list('guid', 'name', 'script_type', 'category')))\n                a = AuditLog.objects.order_by('-id').first()\n                print(a.action, a.object_type, a.message, json.dumps(a.after_value, sort_keys=True))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-272",
+  "desc": "library sync with credentials in the url / missing remote (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import json\n        from django.test import override_settings\n        from rest_framework.test import APIClient\n        from accounts.models import User\n        c = APIClient()\n        c.force_authenticate(user=User.objects.get(pk=1))\n        for url in ('https://user:pw@git.bench.invalid/x/ulrmm-scripts.git', 'file:///tmp/parlib-none-{{SIDE}}/missing.git'):\n            with override_settings(SCRIPTS_DIR='/tmp/parlib-empty-{{SIDE}}', ULRMM_SCRIPTS_GIT_URL=url, ALLOWED_HOSTS=['*']):\n                r = c.post('/scripts/community/sync/', format='json')\n                print(r.status_code, r.data)\n        with override_settings(SCRIPTS_DIR='/tmp/parlib-empty-{{SIDE}}', ULRMM_SCRIPTS_GIT_URL='', ULRMM_GIT_URL='file:///tmp/parlib-none-{{SIDE}}/ulrmm.git', ALLOWED_HOSTS=['*']):\n            r = c.post('/scripts/community/sync/', format='json')\n            print(r.status_code, r.data)\n        import shutil; shutil.rmtree('/tmp/parlib-empty-{{SIDE}}', ignore_errors=True)\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)",
+    "(?s)fetch failed: .*"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-273",
+  "desc": "library sync into a non-empty non-git directory (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import json, os, shutil, subprocess\n        base = '/tmp/parlib-{{SIDE}}'\n        shutil.rmtree(base, ignore_errors=True)\n        os.makedirs(base + '/work/scripts')\n        genv = {**os.environ, 'GIT_AUTHOR_NAME': 'bench', 'GIT_AUTHOR_EMAIL': 'bench@x', 'GIT_COMMITTER_NAME': 'bench',\n                'GIT_COMMITTER_EMAIL': 'bench@x', 'GIT_AUTHOR_DATE': '2026-10-01T00:00:00Z', 'GIT_COMMITTER_DATE': '2026-10-01T00:00:00Z'}\n        def g(*a, cwd=base + '/work'):\n            subprocess.run(['git', *a], cwd=cwd, env=genv, check=True, capture_output=True)\n        def write(manifest, files):\n            for f in os.listdir(base + '/work/scripts'):\n                os.remove(base + '/work/scripts/' + f)\n            for n, body in files.items():\n                open(base + '/work/scripts/' + n, 'w').write(body)\n            json.dump(manifest, open(base + '/work/community_scripts.json', 'w'))\n            g('add', '-A'); g('commit', '-q', '-m', 'lib')\n        g('init', '-q', '-b', 'main')\n        M1 = [{'guid': 'bench-lib-1', 'filename': 'one.sh', 'name': 'Bench lib one', 'description': 'd', 'shell': 'shell',\n               'category': 'Bench lib', 'args': ['-a'], 'env': ['MODE=x'], 'supported_platforms': ['linux'],\n               'variables': [{'name': 'WARN', 'label': 'Warn', 'type': 'integer'}]},\n              {'guid': 'bench-guid-0001', 'filename': 'two.ps1', 'name': 'Bench builtin library', 'description': 'now from lib', 'shell': 'powershell'},\n              {'guid': 'bench-lib-bad', 'filename': 'bad.sh', 'name': 'Bench lib bad', 'description': 'd', 'shell': 'fish'}]\n        write(M1, {'one.sh': 'echo one\\n', 'two.ps1': 'Write-Output two\\n', 'bad.sh': 'echo bad\\n'})\n        g('clone', '-q', '--bare', base + '/work', base + '/lib.git', cwd=base)\n        \n        os.makedirs(base + '/dst'); open(base + '/dst/keep.txt', 'w').write('user file')\n        STEPS = [lambda: None]\n        \n        from django.test import override_settings\n        from rest_framework.test import APIClient\n        from accounts.models import User\n        from logs.models import AuditLog\n        from scripts.models import Script\n        c = APIClient()\n        c.force_authenticate(user=User.objects.get(pk=1))\n        with override_settings(SCRIPTS_DIR=base + '/dst', ULRMM_SCRIPTS_GIT_URL='file://' + base + '/lib.git', ALLOWED_HOSTS=['*']):\n            for step in STEPS:\n                step()\n                r = c.post('/scripts/community/sync/', format='json')\n                print(r.status_code, json.dumps(r.data, sort_keys=True))\n                print(sorted(Script.objects.filter(guid__startswith='bench').values_list('guid', 'name', 'script_type', 'category')))\n                a = AuditLog.objects.order_by('-id').first()\n                print(a.action, a.object_type, a.message, json.dumps(a.after_value, sort_keys=True))\n        \n        print('keep.txt exists', os.path.exists(base + '/dst/keep.txt'))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-274",
+  "desc": "loader: unreadable / invalid manifests (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import io, json, os, shutil, contextlib\n        from django.test import override_settings\n        from scripts.models import Script\n        base = '/tmp/parload-{{SIDE}}'\n        shutil.rmtree(base, ignore_errors=True)\n        os.makedirs(base + '/scripts')\n        def run(manifest, files, raw=None):\n            for n, body in files.items():\n                p = base + '/scripts/' + n\n                if body is None:\n                    os.symlink('/etc/hostname', p)\n                else:\n                    open(p, 'w').write(body)\n            with open(base + '/community_scripts.json', 'w') as f:\n                f.write(raw if raw is not None else json.dumps(manifest))\n            out = io.StringIO()\n            with override_settings(SCRIPTS_DIR=base), contextlib.redirect_stdout(out):\n                r = Script.load_community_scripts()\n            print(json.dumps(r, sort_keys=True))\n            for line in out.getvalue().splitlines():\n                print('  |', line)\n        \n        with override_settings(SCRIPTS_DIR=base + '/nope'):\n            print(json.dumps(Script.load_community_scripts(), sort_keys=True))\n        run(None, {}, raw='not json')\n        run(None, {}, raw='{\"a\": 1}')\n        run([], {})\n        run(['x', {'guid': 'g1'}], {})\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-275",
+  "desc": "loader: entry validation errors (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import io, json, os, shutil, contextlib\n        from django.test import override_settings\n        from scripts.models import Script\n        base = '/tmp/parload-{{SIDE}}'\n        shutil.rmtree(base, ignore_errors=True)\n        os.makedirs(base + '/scripts')\n        def run(manifest, files, raw=None):\n            for n, body in files.items():\n                p = base + '/scripts/' + n\n                if body is None:\n                    os.symlink('/etc/hostname', p)\n                else:\n                    open(p, 'w').write(body)\n            with open(base + '/community_scripts.json', 'w') as f:\n                f.write(raw if raw is not None else json.dumps(manifest))\n            out = io.StringIO()\n            with override_settings(SCRIPTS_DIR=base), contextlib.redirect_stdout(out):\n                r = Script.load_community_scripts()\n            print(json.dumps(r, sort_keys=True))\n            for line in out.getvalue().splitlines():\n                print('  |', line)\n        \n        ok = {'guid': 'bench-ok', 'filename': 'ok.sh', 'name': 'Bench ok', 'description': 'd', 'shell': 'shell'}\n        entries = [ok,\n            dict(ok, guid='bench-ok', name='dup guid'),\n            dict(ok, guid='bench-args', args='x'),\n            dict(ok, guid='bench-env', env=[1]),\n            dict(ok, guid='bench-plat', supported_platforms=[None]),\n            dict(ok, guid='bench-nul', description='a\\u0000b'),\n            dict(ok, guid='bench-path', filename='../ok.sh'),\n            dict(ok, guid='bench-link', filename='link.sh'),\n            dict(ok, guid='bench-missing-file', filename='nofile.sh'),\n            dict(ok, guid='bench-nulfile', filename='nul.sh'),\n            dict(ok, guid='bench-shell', shell='fish'),\n            dict(ok, guid='bench-vars', variables=[{'name': '1A', 'label': 'l', 'type': 'string'}]),\n            dict(ok, guid='bench-timeout', default_timeout='abc'),\n            {'guid': 'bench-short', 'name': 'only name'},\n        ]\n        run(entries, {'ok.sh': 'echo ok\\n', 'link.sh': None, 'nul.sh': 'a\\u0000b'})\n        print(sorted(Script.objects.filter(guid__startswith='bench').values_list('guid', 'script_type', 'category')))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-276",
+  "desc": "loader: retire referenced, delete unreferenced, revive retired (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import io, json, os, shutil, contextlib\n        from django.test import override_settings\n        from scripts.models import Script\n        base = '/tmp/parload-{{SIDE}}'\n        shutil.rmtree(base, ignore_errors=True)\n        os.makedirs(base + '/scripts')\n        def run(manifest, files, raw=None):\n            for n, body in files.items():\n                p = base + '/scripts/' + n\n                if body is None:\n                    os.symlink('/etc/hostname', p)\n                else:\n                    open(p, 'w').write(body)\n            with open(base + '/community_scripts.json', 'w') as f:\n                f.write(raw if raw is not None else json.dumps(manifest))\n            out = io.StringIO()\n            with override_settings(SCRIPTS_DIR=base), contextlib.redirect_stdout(out):\n                r = Script.load_community_scripts()\n            print(json.dumps(r, sort_keys=True))\n            for line in out.getvalue().splitlines():\n                print('  |', line)\n        \n        from checks.models import Check\n        b229 = Script.objects.get(pk=229)\n        Check.objects.filter(pk=231).update(script=b229)\n        n_builtin = Script.objects.filter(script_type='builtin').count()\n        lib = {'guid': 'bench-lib-x', 'filename': 'x.sh', 'name': 'Bench lib x', 'description': 'd', 'shell': 'shell'}\n        run([lib], {'x.sh': 'echo x\\n'})\n        print('builtin before', n_builtin, 'after', Script.objects.filter(script_type='builtin').count())\n        print(Script.objects.filter(pk=229).values_list('script_type', 'category').first())\n        run([lib, {'guid': 'bench-guid-0001', 'filename': 'x.sh', 'name': 'Bench builtin library', 'description': 'back', 'shell': 'shell'}], {})\n        print(Script.objects.filter(guid='bench-guid-0001').values_list('pk', 'script_type', 'category', 'description').first())\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-277",
+  "desc": "loader: real library dir (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import io, contextlib, json\n        from scripts.models import Script\n        out = io.StringIO()\n        with contextlib.redirect_stdout(out):\n            r = Script.load_community_scripts()\n        print(json.dumps(r, sort_keys=True))\n        lines = out.getvalue().splitlines()\n        print(len(lines), sorted(set(l.split(':')[0] for l in lines)))\n        print(Script.objects.filter(script_type='builtin').count(), list(Script.objects.filter(pk__in=[1, 2]).values_list('pk', 'favorite', 'hidden').order_by('pk')))\n        print(Script.objects.filter(pk=229).values_list('script_type', 'category').first())\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-278",
+  "desc": "load_community_scripts command (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import io\n        from django.core.management import call_command\n        out = io.StringIO()\n        call_command('load_community_scripts', stdout=out)\n        lines = out.getvalue().splitlines()\n        print(lines[0], '|', lines[-1], len(lines))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-279",
+  "desc": "load_community_scripts command with a missing dir (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import io, contextlib\n        from django.test import override_settings\n        from django.core.management import call_command\n        out = io.StringIO()\n        with override_settings(SCRIPTS_DIR='/tmp/parnone-{{SIDE}}'), contextlib.redirect_stdout(out):\n            call_command('load_community_scripts', stdout=out)\n        print(out.getvalue())\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-280",
+  "desc": "check_env_vars cases",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nfrom scripts.models import Script, check_env_vars\nfrom rest_framework.exceptions import ValidationError\nb = Script.objects.get(pk=229)\nu = Script.objects.get(pk=226)\nfor ev, s in [(None, None), ([], None), (['A=1'], None), (['PATH=x'], None), (['path=x'], None), (['PSModulePath=x'], None),\n              (['DOTNET_ROOT=x'], None), (['PATHNAME=x'], None), (['A' * 64 + '=x'], None), (['A' * 65 + '=x'], None),\n              ([5], None), (['=x'], None), (['NOEQ'], None), (['TARGET=x'], b), (['target=x'], b), (['MODE=y'], b),\n              (['OTHER=1'], b), (['OTHER=1'], u), (['GOOD\\n=1'], None)]:\n    try:\n        check_env_vars(ev, s) if s else check_env_vars(ev)\n        print(repr(ev)[:40], 'ok')\n    except ValidationError as e:\n        print(repr(ev)[:40], 'error', e.detail)\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-281",
+  "desc": "clean_variables normalisation",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport json\nfrom scripts.models import clean_variables\nfor v in [[], [{'name': 'A', 'label': 'l', 'type': 'string'}],\n          [{'help': 'h', 'options': ['x', 'y'], 'default': 'y', 'required': True, 'type': 'select', 'label': 'L', 'name': 'B'}],\n          [{'name': 'N', 'label': 'n', 'type': 'integer', 'default': ''}], [{'name': 'P', 'label': 'p', 'type': 'password', 'default': ''}],\n          'x', [{'name': None, 'label': 'l', 'type': 'string'}], [{'name': 'A', 'label': '', 'type': 'string'}],\n          [{'name': 'A', 'label': 'l', 'type': 'select', 'options': ['']}], [{'name': 'A', 'label': 'l', 'type': 'select', 'options': ['a'] * 51}],\n          [{'name': 'A', 'label': 'l', 'type': 'string', 'help': 'a\\u0000'}], [{'name': 'A', 'label': 'l', 'type': 'string', 'default': 5}]]:\n    try:\n        print(json.dumps(clean_variables(v)))\n    except ValueError as e:\n        print('ValueError', e)\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-282",
+  "desc": "parse_script_args / parse_script_env_vars on agents",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from agents.models import Agent\n        from core.models import CustomField\n        from scripts.models import Script\n        a1 = Agent.objects.get(pk=1)\n        a17 = Agent.objects.get(pk=17)\n        args = ['-H', '{{agent.hostname}}', '{{client.name}}', '{{site.name}}', '{{agent.public_ip}}', '{{nope.nope}}', '{{agent.hostname}}-{{agent.plat}}',\n                'plain', '{{global.bench_api_url}}', '{{agent.monitoring_type}}', '{{agent.needs_reboot}}']\n        for sh in ('powershell', 'cmd', 'shell', 'python'):\n            print(sh, Script.parse_script_args(a1, sh, args))\n        print('none', Script.parse_script_args(None, 'shell', ['{{global.bench_api_url}}', '{{agent.hostname}}']))\n        print('empty', Script.parse_script_args(a1, 'shell', []), Script.parse_script_args(a1, 'shell', None))\n        env = ['A={{agent.hostname}}', 'B=x=y', 'EMPTY=', 'NOEQ', 'PATH=x', 'LD_X=1', '1BAD=1', 'C={{nope.nope}}', 5, 'D={{client.name}}']\n        for sh in ('powershell', 'cmd', 'shell'):\n            print(sh, Script.parse_script_env_vars(a1, sh, env))\n        print('real', Script.parse_script_env_vars(a17, 'shell', env), Script.parse_script_args(a17, 'shell', args))\n        for cf in CustomField.objects.order_by('pk'):\n            print(cf.pk, cf.model, Script.parse_script_args(a17, 'shell', ['{{%s.%s}}' % (cf.model, cf.name)]))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-283",
+  "desc": "placeholder values with backslashes (regex replacement)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        from agents.models import Agent\n        from scripts.models import Script\n        a = Agent.objects.get(pk=1)\n        Agent.objects.filter(pk=1).update(description='C:\\\\new\\\\1 path')\n        a.refresh_from_db()\n        print(Script.parse_script_args(a, 'powershell', ['-P', 'x{{agent.description}}y']))\n        print(Script.parse_script_env_vars(a, 'shell', ['P={{agent.description}}']))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-284",
+  "desc": "replace_with_snippets cases",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nfrom scripts.models import Script\nfor code in ['no snippets', '{{Bench Snip}}', 'a {{ Bench Snip }} b', '{{Bench Snip}} {{bench$^|*?}}', '{{bench.snip(1)+}}',\n             '{{missing}}', 'x\\n{{Bench Snip}}\\n{{bench$^|*?}}\\n', '{{bench[x}}']:\n    try:\n        print(repr(code), '->', repr(Script.replace_with_snippets(code)))\n    except Exception as e:\n        print(repr(code), '->', type(e).__name__)\nfor pk in (226, 227, 228, 229):\n    s = Script.objects.get(pk=pk)\n    try:\n        print(pk, repr(s.code)[:300])\n    except Exception as e:\n        print(pk, type(e).__name__)\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-285",
+  "desc": "Script.serialize (audit) env values",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nfrom scripts.models import Script\nd = Script.serialize(Script.objects.get(pk=226))\nprint(sorted(d.keys()))\nprint(d['env_vars'])\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-286",
+  "desc": "ScriptCheckSerializer / table serializer keys",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nfrom scripts.serializers import ScriptCheckSerializer, ScriptTableSerializer, ScriptSerializer, ScriptSnippetSerializer\nfrom scripts.models import Script, ScriptSnippet\ns = Script.objects.get(pk=225)\nprint(dict(ScriptCheckSerializer(s).data))\nprint(list(ScriptTableSerializer(s).data.keys()))\nprint(list(ScriptSerializer(s).data.keys()))\nprint(list(ScriptSnippetSerializer(ScriptSnippet.objects.get(pk=1)).data.keys()))\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-287",
+  "desc": "bulk_command_task payloads (NATS mocked, rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import contextlib, json\n        from unittest import mock\n        import scripts.tasks as T, ulrmm.nats_utils as N\n        cap = []\n        async def fake(*, items):\n            cap.extend(items)\n        with contextlib.ExitStack() as st:\n            st.enter_context(mock.patch.object(N, 'abulk_nats_command', fake))\n            if hasattr(T, 'abulk_nats_command'):\n                st.enter_context(mock.patch.object(T, 'abulk_nats_command', fake))\n            T.bulk_command_task(agent_pks=[1, 9, 999], cmd='whoami', shell='cmd', timeout=30, username='bench', run_as_user=True)\n        from agents.models import AgentHistory\n        hist = {h.pk: (h.agent_id, h.type, h.command, h.script_id, h.username, h.custom_field_id, h.collector_all_output, h.save_to_agent_note)\n                for h in AgentHistory.objects.filter(pk__gt=128)}\n        for aid, d in sorted(cap, key=lambda x: x[0]):\n            hid = d.pop('id', None)\n            print(aid, json.dumps(d, sort_keys=True), hist.get(hid))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-288",
+  "desc": "bulk_script_task payloads (NATS mocked, rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import contextlib, json\n        from unittest import mock\n        import scripts.tasks as T, ulrmm.nats_utils as N\n        cap = []\n        async def fake(*, items):\n            cap.extend(items)\n        with contextlib.ExitStack() as st:\n            st.enter_context(mock.patch.object(N, 'abulk_nats_command', fake))\n            if hasattr(T, 'abulk_nats_command'):\n                st.enter_context(mock.patch.object(T, 'abulk_nats_command', fake))\n            T.bulk_script_task(script_pk=226, agent_pks=[1, 8], args=['-X', '{{agent.hostname}}'], timeout=40, username='bench', env_vars=['E1={{agent.hostname}}', 'PATH=x'], custom_field_pk=19, collector_all_output=True, save_to_agent_note=False)\n        from agents.models import AgentHistory\n        hist = {h.pk: (h.agent_id, h.type, h.command, h.script_id, h.username, h.custom_field_id, h.collector_all_output, h.save_to_agent_note)\n                for h in AgentHistory.objects.filter(pk__gt=128)}\n        for aid, d in sorted(cap, key=lambda x: x[0]):\n            hid = d.pop('id', None)\n            print(aid, json.dumps(d, sort_keys=True), hist.get(hid))\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-289",
+  "desc": "bulk_script_task with unknown custom field (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import scripts.tasks as T\n        try:\n            T.bulk_script_task(script_pk=224, agent_pks=[1], timeout=1, username='bench', custom_field_pk=99999)\n            print('no error')\n        except Exception as e:\n            print(type(e).__name__)\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-290",
+  "desc": "chocos list as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/chocos/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-291",
+  "desc": "chocos list as noperm (any authenticated user)",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/software/chocos/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-292",
+  "desc": "chocos list unauthenticated -> 401",
+  "token": "none",
+  "method": "GET",
+  "path": "/software/chocos/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-293",
+  "desc": "POST on chocos -> 405",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/chocos/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-294",
+  "desc": "chocos without a row -> {}",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/software/chocos/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from software.models import ChocoSoftware\nChocoSoftware.objects.all().delete()\nprint('deleted')"
+ },
+ {
+  "id": "automation-scripts-software-295",
+  "desc": "load_chocos restores the list",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io\nfrom django.core.management import call_command\nfrom software.models import ChocoSoftware\nout = io.StringIO()\ncall_command('load_chocos', stdout=out)\nprint(out.getvalue().strip(), ChocoSoftware.objects.count(), len(ChocoSoftware.objects.last().chocos))\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-296",
+  "desc": "chocos list after load_chocos",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/chocos/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-297",
+  "desc": "all installed software as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-298",
+  "desc": "all installed software as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/software/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-299",
+  "desc": "all installed software as site",
+  "token": "site",
+  "method": "GET",
+  "path": "/software/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-300",
+  "desc": "all installed software as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/software/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-301",
+  "desc": "POST /software/ without agent (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/",
+  "body": {
+   "name": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-302",
+  "desc": "PUT /software/ without agent (OLD 500)",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/software/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-303",
+  "desc": "agent software NW-DC01 as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-304",
+  "desc": "agent software BLP-WS01 duplicate rows as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/demo11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-305",
+  "desc": "agent software nw-br-gw posix as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-306",
+  "desc": "agent software {} object as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/mfWuJbBWZelygEfNzmwedWLhZXfjraWHuFHTgWAn/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-307",
+  "desc": "agent software no row as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/BuSOuxBGzopDPInnOLmRlAbSCvBsXJFSwWNMHxee/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-308",
+  "desc": "agent software unknown agent as admin -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-309",
+  "desc": "agent software unknown agent as clienta -> 404",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/software/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-310",
+  "desc": "agent software short id -> resolver 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/dytthgc/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-311",
+  "desc": "agent software in scope as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-312",
+  "desc": "agent software out of scope as clienta -> 403",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/software/demo11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-313",
+  "desc": "agent software in scope as site user",
+  "token": "site",
+  "method": "GET",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-314",
+  "desc": "agent software out of scope as site user -> 403",
+  "token": "site",
+  "method": "GET",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-315",
+  "desc": "choco install on windows agent (natsdown -> action deleted)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": {
+   "name": "googlechrome"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_pendingaction(agent_id,action_type,status,details) where id=(select max(id) from logs_pendingaction)",
+    "logs_auditlog(username,action,object_type,agent_id) where agent_id='demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' and (message || coalesce(before_value::text,'') || coalesce(after_value::text,'')) ilike '%googlechrome%'"
+   ]
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-316",
+  "desc": "choco install on posix agent -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": {
+   "name": "googlechrome"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-317",
+  "desc": "choco install without name (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": {},
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-318",
+  "desc": "choco install with invalid package name",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": {
+   "name": "bad;name & calc"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-319",
+  "desc": "choco install as clienta in scope",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": {
+   "name": "7zip"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-320",
+  "desc": "choco install as clienta out of scope -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/software/demo11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": {
+   "name": "7zip"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-321",
+  "desc": "choco install as readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": {
+   "name": "7zip"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-322",
+  "desc": "refresh windows agent (natsdown -> 400)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "software_installedsoftware(id) where agent_id=1"
+   ]
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-323",
+  "desc": "refresh posix agent nw-br-gw (queued)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "software_installedsoftware(id,software) where agent_id=9"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-324",
+  "desc": "refresh real agent (queued)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/software/EFKCbGoaQCrvcQOOFOZwNCsjCqhIuANEKiJNWeTa/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-325",
+  "desc": "refresh darwin agent (queued)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/software/demo06xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-326",
+  "desc": "refresh posix agent as site user in scope (queued)",
+  "token": "site",
+  "method": "PUT",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-327",
+  "desc": "refresh as site user out of scope -> 403",
+  "token": "site",
+  "method": "PUT",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-328",
+  "desc": "refresh as readonly -> 403",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-329",
+  "desc": "DELETE on agent software -> 405",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-330",
+  "desc": "posix uninstall {} -> 400 strings",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {},
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-331",
+  "desc": "posix uninstall unknown source -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "yum"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-332",
+  "desc": "posix uninstall app source on linux -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "Bench",
+   "source": "app",
+   "location": "/Applications/Bench.app"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-333",
+  "desc": "posix uninstall invalid name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "curl; rm -rf /",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-334",
+  "desc": "posix uninstall offline agent -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-335",
+  "desc": "posix uninstall as readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-336",
+  "desc": "posix uninstall as clienta without send_cmd -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=13).update(can_send_cmd=False)\nprint('ok')"
+ },
+ {
+  "id": "automation-scripts-software-337",
+  "desc": "posix uninstall curl on online agent (stored target)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "dpkg",
+   "location": "/evil"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  },
+  "setup": "from django.utils import timezone\nfrom agents.models import Agent\nAgent.objects.filter(pk__in=[7, 9, 17]).update(last_seen=timezone.now())\nprint('online')"
+ },
+ {
+  "id": "automation-scripts-software-338",
+  "desc": "posix uninstall package not in inventory -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "vim",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-339",
+  "desc": "posix uninstall protected libc6 -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "libc6",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-340",
+  "desc": "posix uninstall wrong source for stored row -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "rpm"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-341",
+  "desc": "posix uninstall as site user in scope",
+  "token": "site",
+  "method": "POST",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-342",
+  "desc": "posix uninstall out of scope as site user -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/software/EFKCbGoaQCrvcQOOFOZwNCsjCqhIuANEKiJNWeTa/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-343",
+  "desc": "posix uninstall on real agent",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/EFKCbGoaQCrvcQOOFOZwNCsjCqhIuANEKiJNWeTa/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-344",
+  "desc": "darwin app uninstall without location -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo06xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "Google Chrome",
+   "source": "app"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-345",
+  "desc": "darwin app uninstall wrong location -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo06xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "Google Chrome",
+   "source": "app",
+   "location": "/Applications/Other.app"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-346",
+  "desc": "darwin app uninstall stored location",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo06xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "Google Chrome",
+   "source": "app",
+   "location": "/Applications/Google Chrome.app"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-347",
+  "desc": "uninstall unknown agent -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz/uninstall/",
+  "body": {
+   "name": "curl",
+   "source": "dpkg"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-348",
+  "desc": "GET on uninstall -> 405",
+  "token": "admin",
+  "method": "GET",
+  "path": "/software/demo08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-349",
+  "desc": "windows uninstall with unknown agent identity -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "7-Zip 19.00 (x64)",
+   "command": "\"C:\\Program Files\\7-Zip\\Uninstall.exe\" /S",
+   "timeout": 1800,
+   "run_as_user": false
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-350",
+  "desc": "windows uninstall 7-Zip",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "7-Zip 19.00 (x64)",
+   "command": "\"C:\\Program Files\\7-Zip\\Uninstall.exe\" /S",
+   "timeout": 1800,
+   "run_as_user": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "agents_agenthistory(agent_id,type,command,username) where id=(select max(id) from agents_agenthistory)",
+    "logs_auditlog(username,action,object_type,agent_id,message,before_value,after_value) where id=(select max(id) from logs_auditlog)"
+   ]
+  },
+  "setup": "from ulrmm.agent_ident import agent_ident\nfrom agents.models import Agent\nAgent.objects.filter(pk__in=[1, 8]).update(agent_ident=agent_ident()['identSvcName'])\nprint('ident set')",
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-351",
+  "desc": "windows uninstall of the agent itself -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "UniversalLocal RMM Agent",
+   "command": "\"C:\\Program Files\\ULRMM Agent\\unins000.exe\" /VERYSILENT",
+   "timeout": 1800,
+   "run_as_user": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-352",
+  "desc": "windows uninstall other unins in another dir",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "7-Zip 19.00 (x64)",
+   "command": "\"C:\\Bench\\unins000.exe\" /SILENT",
+   "timeout": 1800,
+   "run_as_user": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-353",
+  "desc": "windows uninstall missing keys (OLD 500)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "x"
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "automation-scripts-software-354",
+  "desc": "windows uninstall timeout as string",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "7-Zip 19.00 (x64)",
+   "command": "\"C:\\Program Files\\7-Zip\\Uninstall.exe\" /S",
+   "timeout": "abc",
+   "run_as_user": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-355",
+  "desc": "windows uninstall as clienta in scope",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "7-Zip 19.00 (x64)",
+   "command": "\"C:\\Program Files\\7-Zip\\Uninstall.exe\" /S",
+   "timeout": 1800,
+   "run_as_user": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-356",
+  "desc": "windows uninstall out of scope as clienta -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/software/demo11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "7-Zip 19.00 (x64)",
+   "command": "\"C:\\Program Files\\7-Zip\\Uninstall.exe\" /S",
+   "timeout": 1800,
+   "run_as_user": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-357",
+  "desc": "windows uninstall as site user out of scope -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "7-Zip 19.00 (x64)",
+   "command": "\"C:\\Program Files\\7-Zip\\Uninstall.exe\" /S",
+   "timeout": 1800,
+   "run_as_user": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-358",
+  "desc": "windows uninstall as readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "7-Zip 19.00 (x64)",
+   "command": "\"C:\\Program Files\\7-Zip\\Uninstall.exe\" /S",
+   "timeout": 1800,
+   "run_as_user": false
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-359",
+  "desc": "find_software command",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io\nfrom django.core.management import call_command\nfor term in ('curl', '7-zip', 'google', 'nothing-like-this'):\n    out = io.StringIO()\n    call_command('find_software', term, stdout=out)\n    print(term, sorted(out.getvalue().splitlines()))\n",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-360",
+  "desc": "find_software with an item without name (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import io\n        from django.core.management import call_command\n        from software.models import InstalledSoftware\n        InstalledSoftware.objects.filter(pk=34).update(software=[{'version': '1'}])\n        out = io.StringIO()\n        try:\n            call_command('find_software', 'curl', stdout=out)\n            print('ok', sorted(out.getvalue().splitlines()))\n        except Exception as e:\n            print(type(e).__name__)\n        raise _RB\nexcept _RB:\n    pass\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-361",
+  "desc": "InstalledSoftware filter_by_role / str",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nfrom accounts.models import User\nfrom software.models import InstalledSoftware, ChocoSoftware\nfor pk in (1, 24, 25, 26):\n    print(pk, sorted(InstalledSoftware.objects.filter_by_role(User.objects.get(pk=pk)).values_list('pk', flat=True)))\nprint(str(InstalledSoftware.objects.get(pk=32)))\nprint(str(ChocoSoftware.objects.last()).split(' - ')[0])\n",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-362",
+  "desc": "policy 1 detail as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/automation/policies/1/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-363",
+  "desc": "policy 1 related as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/automation/policies/1/related/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-364",
+  "desc": "policy overview as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/automation/policies/overview/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-365",
+  "desc": "policy check 235 status as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/automation/checks/235/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-366",
+  "desc": "policy task 61 status as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/automation/tasks/61/status/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-367",
+  "desc": "policy 1 detail as rolesuper (Role.is_superuser branch)",
+  "token": "rolesuper",
+  "method": "GET",
+  "path": "/automation/policies/1/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-368",
+  "desc": "script 226 detail as rolesuper",
+  "token": "rolesuper",
+  "method": "GET",
+  "path": "/scripts/226/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-369",
+  "desc": "agent software NW-DC01 as rolesuper",
+  "token": "rolesuper",
+  "method": "GET",
+  "path": "/software/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-370",
+  "desc": "policy 1 checks alias as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/1/checks/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-371",
+  "desc": "policy 1 tasks alias as clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/automation/policies/1/tasks/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "unordered": true
+ },
+ {
+  "id": "automation-scripts-software-372",
+  "desc": "policy 1 checks alias as site (p1 reaches #9 in Bremen and agents outside)",
+  "token": "site",
+  "method": "GET",
+  "path": "/automation/policies/1/checks/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "automation-scripts-software-373",
+  "desc": "policy 1 tasks alias as site",
+  "token": "site",
+  "method": "GET",
+  "path": "/automation/policies/1/tasks/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "unordered": true
+ },
+ {
+  "id": "automation-scripts-software-374",
+  "desc": "create with excluded_sites of client B as clienta (OLD 200)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench clienta excl site",
+   "excluded_sites": [
+    3
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy_excluded_sites(policy_id,site_id) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-375",
+  "desc": "create with excluded_clients [2] as clienta (OLD 200)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/policies/",
+  "body": {
+   "name": "Bench clienta excl client",
+   "excluded_clients": [
+    2
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy_excluded_clients(policy_id,client_id) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-376",
+  "desc": "update p4 excluded_sites with client B site as clienta (OLD 200)",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "excluded_sites": [
+    3
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy_excluded_sites(policy_id,site_id) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-377",
+  "desc": "update p4 excluded_clients [2] as clienta (OLD 200)",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "excluded_clients": [
+    2
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy_excluded_clients(policy_id,client_id) where true"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-378",
+  "desc": "run p1 task 52 as clienta without can_run_autotasks (OLD 200, NEW 403)",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/automation/tasks/52/run/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=13).update(can_run_autotasks=False)\nprint('revoked')"
+ },
+ {
+  "id": "automation-scripts-software-379",
+  "desc": "update unassigned p4 as site role with manage flag (TestPatchPolicyScope quirk: 200)",
+  "token": "site",
+  "method": "PUT",
+  "path": "/automation/policies/4/",
+  "body": {
+   "desc": "site edit"
+  },
+  "reset_before": true,
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=14).update(can_manage_automation_policies=True)\nprint('granted')",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id,name,\"desc\") where id=4"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-380",
+  "desc": "delete unassigned p4 as site role with manage flag (200)",
+  "token": "site",
+  "method": "DELETE",
+  "path": "/automation/policies/4/",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "automation_policy(id) where id=4"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-381",
+  "desc": "patch reset client 1 (owning client) as site role with patch flag (agent 9 has no row: OLD 500)",
+  "token": "site",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "client": 1
+  },
+  "reset_before": true,
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=14).update(can_manage_automation_policies=True, can_manage_patch_policies=True)\nprint('granted')",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(agent_id,critical,important,moderate,low,other,run_time_frequency,reboot_after_install,reprocess_failed_inherit) where agent_id in (8,9,10)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-382",
+  "desc": "patch reset client 2 as site role with patch flag -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "client": 2
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(agent_id,critical,important,moderate,low,other,run_time_frequency,reboot_after_install,reprocess_failed_inherit) where agent_id in (8,9,10)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-383",
+  "desc": "patch reset site 2 as site role with patch flag (agent 9 has no row: OLD 500)",
+  "token": "site",
+  "method": "POST",
+  "path": "/automation/patchpolicy/reset/",
+  "body": {
+   "site": 2
+  },
+  "reset_before": true,
+  "setup": "from accounts.models import Role\nRole.objects.filter(pk=14).update(can_manage_automation_policies=True, can_manage_patch_policies=True)\nprint('granted')",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "winupdate_winupdatepolicy(agent_id,critical,important,moderate,low,other,run_time_frequency,reboot_after_install,reprocess_failed_inherit) where agent_id in (8,9,10)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-384",
+  "desc": "delete 228 referenced only by task 70 action (OLD 200, dangling pk; NEW 400)",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/scripts/228/",
+  "body": null,
+  "reset_before": true,
+  "setup": "from autotasks.models import AutomatedTask\nAutomatedTask.objects.filter(pk=70).update(actions=[{'name': 'Bench hidden user', 'type': 'script', 'script': 228, 'timeout': 30, 'env_vars': [], 'script_args': []}])\nprint('pointed')",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "autotasks_automatedtask(id,actions) where id=70",
+    "scripts_script(id) where id=228"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-385",
+  "desc": "test script timeout 99999 (OLD 200 natsdown, NEW 400)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output bench",
+   "timeout": 99999,
+   "args": [
+    "-Name",
+    "x"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-386",
+  "desc": "test script shell fish (OLD 200 natsdown, NEW 400)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": "Write-Output bench",
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "x"
+   ],
+   "shell": "fish",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-387",
+  "desc": "test script code as object (OLD 500, NEW 400)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/scripts/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/test/",
+  "body": {
+   "code": {
+    "a": 1
+   },
+   "timeout": 5,
+   "args": [
+    "-Name",
+    "x"
+   ],
+   "shell": "powershell",
+   "run_as_user": false,
+   "env_vars": [
+    "BENCH_A=1"
+   ]
+  },
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "timeout": 60
+ },
+ {
+  "id": "automation-scripts-software-388",
+  "desc": "windows software refresh with non-list replies (nats_cmd mocked, rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  },
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import json\n        from unittest import mock\n        from django.test import override_settings\n        from rest_framework.test import APIClient\n        from accounts.models import User\n        from agents.models import Agent\n        from software.models import InstalledSoftware\n        c = APIClient()\n        c.force_authenticate(user=User.objects.get(pk=1))\n        a = Agent.objects.get(pk=1)\n        def stored():\n            return [s if not isinstance(s, list) else ('list', len(s)) for s in\n                    InstalledSoftware.objects.filter(agent=a).order_by('pk').values_list('software', flat=True)]\n        print('before', stored())\n        for reply in ('junk', {'a': 1}, 'timeout', 'natsdown', [{'name': 'Bench App', 'version': '1'}]):\n            async def fake(self, *args, _r=reply, **kw):\n                return _r\n            with mock.patch.object(Agent, 'nats_cmd', fake), override_settings(ALLOWED_HOSTS=['*']):\n                r = c.put('/software/' + a.agent_id + '/', format='json')\n            print(json.dumps(reply), r.status_code, json.dumps(r.data, sort_keys=True), stored())\n        raise _RB\nexcept _RB:\n    pass\n"
+ },
+ {
+  "id": "automation-scripts-software-389",
+  "desc": "darwin app uninstall with an invalid stored location (400 'The stored software target is invalid')",
+  "token": "admin",
+  "method": "POST",
+  "path": "/software/demo06xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/uninstall/",
+  "body": {
+   "name": "Bench Nested",
+   "source": "app",
+   "location": "/Applications/Sub/Bench Nested.app"
+  },
+  "reset_before": true,
+  "setup": "from django.utils import timezone\nfrom agents.models import Agent\nfrom software.models import InstalledSoftware\nAgent.objects.filter(pk=7).update(last_seen=timezone.now())\ns = InstalledSoftware.objects.get(pk=29)\ns.software = s.software + [{'name': 'Bench Nested', 'source': 'app', 'version': '1', 'location': '/Applications/Sub/Bench Nested.app'}]\ns.save(update_fields=['software'])\nprint('stored')",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,action,object_type,agent_id,message) where id=(select max(id) from logs_auditlog)"
+   ]
+  }
+ },
+ {
+  "id": "automation-scripts-software-390",
+  "desc": "load_community_scripts while the sync lock is held (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "body": null,
+  "reset_before": false,
+  "compare": {
+   "status": true,
+   "body": "text",
+   "mask": [
+    "/tmp/par[a-z]*-(old|new)"
+   ]
+  },
+  "shell": "from django.db import transaction\nclass _RB(Exception):\n    pass\ntry:\n    with transaction.atomic():\n        import io\n        from django.core.cache import cache\n        from django.core.management import call_command\n        print('lock', cache.add('community_scripts_sync', 1, 600))\n        out = io.StringIO()\n        try:\n            call_command('load_community_scripts', stdout=out)\n        finally:\n            cache.delete('community_scripts_sync')\n        lines = out.getvalue().splitlines()\n        print(lines[0] if lines else '', '|', lines[-1] if lines else '', len(lines))\n        raise _RB\nexcept _RB:\n    pass\n"
+ }
+]

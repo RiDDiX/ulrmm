@@ -1,0 +1,62 @@
+[
+    {
+        "name": "Demo Archiver 24.1 (x64)",
+        "size": "4.1 MB",
+        "source": "",
+        "version": "24.1",
+        "location": "C:\\Program Files\\Demo Archiver\\",
+        "publisher": "Demo Tools",
+        "uninstall": "\"C:\\Program Files\\Demo Archiver\\uninstall.exe\"",
+        "install_date": "2024-03-02 00:00:00 +0000 UTC"
+    },
+    {
+        "name": "Demo Browser",
+        "size": "310.5 MB",
+        "source": "",
+        "version": "126.0.2",
+        "location": "C:\\Program Files\\Demo Browser\\",
+        "publisher": "Demo Web Foundation",
+        "uninstall": "\"C:\\Program Files\\Demo Browser\\uninstall.exe\"",
+        "install_date": "2024-06-11 00:00:00 +0000 UTC"
+    },
+    {
+        "name": "Demo Office Suite",
+        "size": "1.9 GB",
+        "source": "",
+        "version": "2024.2",
+        "location": "C:\\Program Files\\Demo Office\\",
+        "publisher": "Demo Office Group",
+        "uninstall": "\"C:\\Program Files\\Demo Office\\uninstall.exe\"",
+        "install_date": "2024-01-20 00:00:00 +0000 UTC"
+    },
+    {
+        "name": "Demo PDF Reader",
+        "size": "182.0 MB",
+        "source": "",
+        "version": "8.3.0",
+        "location": "C:\\Program Files\\Demo PDF\\",
+        "publisher": "Demo Documents",
+        "uninstall": "\"C:\\Program Files\\Demo PDF\\uninstall.exe\"",
+        "install_date": "2024-05-07 00:00:00 +0000 UTC"
+    },
+    {
+        "name": "Demo Text Editor",
+        "size": "17.4 MB",
+        "source": "",
+        "version": "3.9.1",
+        "location": "C:\\Program Files\\Demo Editor\\",
+        "publisher": "Demo Tools",
+        "uninstall": "\"C:\\Program Files\\Demo Editor\\uninstall.exe\"",
+        "install_date": "2023-11-28 00:00:00 +0000 UTC"
+    },
+    {
+        "name": "Demo VPN Client",
+        "size": "56.2 MB",
+        "source": "",
+        "version": "5.0.4",
+        "location": "C:\\Program Files\\Demo VPN\\",
+        "publisher": "Demo Networks",
+        "uninstall": "\"C:\\Program Files\\Demo VPN\\uninstall.exe\"",
+        "install_date": "2024-04-15 00:00:00 +0000 UTC"
+    }
+]

@@ -1,0 +1,1 @@
+{"queries": [{"package": {"ecosystem": "Debian:12", "name": "openssh"}, "version": "1:9.2p1-2+deb12u2"}, {"package": {"ecosystem": "Debian:12", "name": "sudo"}, "version": "1.9.13p3-1+deb12u1"}, {"package": {"ecosystem": "Debian:12", "name": "ulrmm-none"}, "version": "1.0"}]}
