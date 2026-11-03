@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.black-formatter",
+    "vue.volar",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "golang.go"
+  ]
+}

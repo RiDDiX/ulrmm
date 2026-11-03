@@ -1,0 +1,4 @@
+U	apt	libc6	amd64	2.39-0ubuntu8.8	2.39-0ubuntu8.9	Important	noble-security		
+U	apt	base-files	amd64	13ubuntu10.4	13ubuntu10.5		noble-updates		
+U	apt	libc-bin	amd64	2.39-0ubuntu8.8	2.39-0ubuntu8.9	Important	noble-security		
+R	0

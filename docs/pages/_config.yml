@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
+# SPDX-License-Identifier: FSL-1.1-ALv2
+
+# documentation site, built by riddix/scripts/docs_site.py and the pages workflow
+title: UniversalLocal RMM
+description: Self-hosted remote monitoring and management
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+search_enabled: true
+heading_anchors: true
+# panel colours and layout: _sass/color_schemes/ulrmm.scss, assets/css/ulrmm.css
+color_scheme: ulrmm
+aux_links:
+  GitHub: https://github.com/RiDDiX/ulrmm
+  Sponsor: https://github.com/sponsors/RiDDiX
+footer_content: "UniversalLocal RMM, licensed under FSL-1.1-ALv2. Built from the repository's README."

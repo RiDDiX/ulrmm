@@ -1,0 +1,16 @@
+[run]
+include = *.py
+# tests, migrations and the server entry points are not measured
+omit =
+    **/migrations/*
+    **/test*.py
+    */baker_recipes.py
+    */__pycache__/*
+    */env/*
+    /usr/local/lib/*
+    manage.py
+    ulrmm/asgi.py
+    ulrmm/wsgi.py
+
+[report]
+show_missing = True

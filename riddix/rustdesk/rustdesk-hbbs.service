@@ -1,0 +1,26 @@
+# Von riddix/rustdesk/install-rustdesk-server.sh installiert, @HOST@ wird dort ersetzt.
+[Unit]
+Description=RustDesk ID/Rendezvous Server (hbbs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rustdesk
+Group=rustdesk
+WorkingDirectory=/opt/rustdesk
+# -k _: nur Clients mit unserem Schluessel; hbbs legt das Schluesselpaar beim
+# ersten Start in WorkingDirectory an
+ExecStart=/opt/rustdesk/bin/hbbs -k _ -r @HOST@:21117
+UMask=0077
+Restart=always
+RestartSec=10
+LimitNOFILE=1000000
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/rustdesk
+
+[Install]
+WantedBy=multi-user.target

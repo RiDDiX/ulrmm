@@ -1,0 +1,66 @@
+# django itself and the rest api layer on top
+Django==5.2.18
+djangorestframework==3.18.3
+drf-spectacular==0.29.0
+sqlparse==0.6.0
+# login, token auth, cors and list filtering
+django-allauth[socialaccount]==65.21.1
+django-rest-knox==4.2.0
+django-cors-headers==4.9.0
+django-filter==25.1
+# asgi servers, websockets and the channel layer
+asgiref==3.9.1
+channels==4.3.2
+channels_redis==4.3.0
+uvicorn[standard]==0.52.1
+# classic wsgi server and the websocket client
+uWSGI==2.0.31
+websockets==13.1
+# background jobs on redis (celery and friends)
+celery[redis]==5.6.3
+hiredis==3.3.0
+vine==5.1.0
+filelock==4.2.1
+# postgres driver and agent messaging over nats
+psycopg[binary]==3.3.4
+nats-py==2.15.0
+msgpack==1.2.4
+# crypto, certificates, otp and qr codes
+cryptography==50.0.0
+pycparser==2.22
+certifi==2026.10.19
+# one time passwords and enrolment qr codes
+pyotp==2.9.0
+qrcode==8.2
+# outbound http clients and url handling
+requests==2.34.2
+urllib3==2.8.0
+aiohttp==3.14.4
+brotli==1.2.1
+# url parsing, validation and client ip detection
+tldextract==5.3.1
+validators==0.24.0
+python-ipware==2.0.2
+# sms notifications and snmp polling
+twilio==8.13.0
+pysnmp==7.1.29
+pyasn1==0.6.5
+# report rendering: tables, charts, templates, pdf
+pandas==2.3.3
+plotly==6.5.0
+kaleido==1.2.0
+jinja2==3.1.6
+# markdown and pdf output for generated reports
+Markdown==3.10.2
+weasyprint==70.0
+# iso image building and pe section parsing
+pycdlib==1.22.0
+ocxsect==0.1.5
+# generic helpers pulled in directly
+packaging==25.0
+psutil==7.2.2
+pyparsing==3.2.3
+regex==2026.9.10
+# python 2/3 shims and import helpers still pinned
+six==1.17.0
+zipp==3.23.0

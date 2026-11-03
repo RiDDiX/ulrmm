@@ -1,0 +1,24 @@
+// SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
+// SPDX-License-Identifier: FSL-1.1-ALv2
+
+// Dashboard colours for the theme. Values the theme passes through Sass colour
+// functions stay literal (light mode); assets/css/ulrmm.css defines the
+// var(--rmm-*) tokens and covers the rest for dark mode.
+$color-scheme: light;
+$body-font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+  Roboto, "Helvetica Neue", Arial, sans-serif;
+$mono-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+$body-background-color: var(--rmm-bg);
+$body-heading-color: var(--rmm-text);
+$body-text-color: var(--rmm-text-body);
+$link-color: #1d4ed8;
+$nav-child-link-color: var(--rmm-nav-text-muted);
+$sidebar-color: var(--rmm-nav-bg);
+$base-button-color: #ffffff;
+$btn-primary-color: #2563eb;
+$code-background-color: var(--rmm-surface-2);
+$feedback-color: #253f63;
+$table-background-color: var(--rmm-surface);
+$search-background-color: var(--rmm-surface);
+$search-result-preview-color: var(--rmm-text-muted);
+$border-color: #e2e8f0;

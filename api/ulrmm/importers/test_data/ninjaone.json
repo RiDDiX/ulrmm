@@ -1,0 +1,628 @@
+{
+ "/v2/device-custom-fields": [
+  {
+   "active": true,
+   "apiPermission": "READ_WRITE",
+   "createTime": 1767080000.0,
+   "definitionScope": [
+    "NODE"
+   ],
+   "description": "",
+   "endUserPermission": "HIDDEN",
+   "entityType": "NODE",
+   "label": "Asset Tag",
+   "name": "assetTag",
+   "scriptPermission": "READ_WRITE",
+   "system": false,
+   "technicianPermission": "EDITABLE",
+   "type": "TEXT",
+   "updateTime": 1767080000.0
+  },
+  {
+   "active": true,
+   "apiPermission": "READ_ONLY",
+   "createTime": 1767080000.0,
+   "definitionScope": [
+    "NODE"
+   ],
+   "description": "",
+   "endUserPermission": "HIDDEN",
+   "entityType": "NODE",
+   "label": "Critical",
+   "name": "isCritical",
+   "scriptPermission": "READ_ONLY",
+   "system": false,
+   "technicianPermission": "EDITABLE",
+   "type": "CHECKBOX",
+   "updateTime": 1767080000.0
+  }
+ ],
+ "/v2/device/1001/custom-fields": {
+  "assetTag": "AT-SYN-0001",
+  "costCenter": "CC-100",
+  "isCritical": false,
+  "warrantyExpires": 1830297600000
+ },
+ "/v2/device/1004/custom-fields": {
+  "assetTag": "AT-SYN-0004",
+  "costCenter": "CC-200",
+  "isCritical": true
+ },
+ "/v2/devices-detailed": [
+  {
+   "approvalStatus": "APPROVED",
+   "created": 1785222999.0,
+   "deviceType": "AgentDevice",
+   "displayName": "WS-ALPHA01",
+   "dnsName": "ws-alpha01.example.com",
+   "id": 1001,
+   "ipAddresses": [
+    "192.0.2.11"
+   ],
+   "lastContact": 1792999940.0,
+   "lastLoggedInUser": "EXAMPLE\\jdoe",
+   "lastUpdate": 1792999880.0,
+   "locationId": 201,
+   "macAddresses": [
+    "00:00:5E:00:53:11"
+   ],
+   "memory": {
+    "capacity": 17179869184
+   },
+   "netbiosName": "WS-ALPHA01",
+   "nodeClass": "WINDOWS_WORKSTATION",
+   "nodeRoleId": 1,
+   "notes": [
+    {
+     "text": "Synthetic note for WS-ALPHA01"
+    }
+   ],
+   "offline": false,
+   "organizationId": 101,
+   "os": {
+    "architecture": "64-bit",
+    "buildNumber": "26100",
+    "language": "English",
+    "lastBootTime": 1792827200.0,
+    "locale": "en-US",
+    "manufacturer": "Microsoft Corporation",
+    "name": "Windows 11 Pro Edition",
+    "needsReboot": false,
+    "releaseId": "24H2"
+   },
+   "processors": [
+    {
+     "architecture": "64-bit",
+     "clockSpeed": 3200000000,
+     "maxClockSpeed": 4500000000,
+     "name": "Example CPU 8-Core",
+     "numCores": 8,
+     "numLogicalCores": 16
+    }
+   ],
+   "publicIP": "203.0.113.2",
+   "rolePolicyId": 11,
+   "system": {
+    "biosSerialNumber": "SYN-WS-0001",
+    "chassisType": "DESKTOP",
+    "domain": "corp.example.com",
+    "domainRole": "MEMBER_WORKSTATION",
+    "manufacturer": "Example Hardware Inc.",
+    "model": "EX-Desk 400",
+    "name": "WS-ALPHA01",
+    "numberOfProcessors": 1,
+    "serialNumber": "SYN-WS-0001",
+    "totalPhysicalMemory": 17179869184,
+    "virtualMachine": false
+   },
+   "systemName": "WS-ALPHA01",
+   "tags": [],
+   "uid": "1b0c2f3e-0000-4000-8000-000000001001",
+   "userData": {},
+   "volumes": [
+    {
+     "capacity": 512110190592,
+     "fileSystem": "NTFS",
+     "freeSpace": 201863462912,
+     "label": "System",
+     "name": "C:"
+    }
+   ]
+  },
+  {
+   "approvalStatus": "APPROVED",
+   "created": 1785222998.0,
+   "deviceType": "AgentDevice",
+   "displayName": "SRV-DC01",
+   "dnsName": "srv-dc01.example.com",
+   "id": 1002,
+   "ipAddresses": [
+    "192.0.2.10"
+   ],
+   "lastContact": 1792999940.0,
+   "lastLoggedInUser": "EXAMPLE\\jdoe",
+   "lastUpdate": 1792999880.0,
+   "locationId": 201,
+   "macAddresses": [
+    "00:00:5E:00:53:10"
+   ],
+   "memory": {
+    "capacity": 17179869184
+   },
+   "netbiosName": "SRV-DC01",
+   "nodeClass": "WINDOWS_SERVER",
+   "nodeRoleId": 2,
+   "notes": [
+    {
+     "text": "Synthetic note for SRV-DC01"
+    }
+   ],
+   "offline": false,
+   "organizationId": 101,
+   "os": {
+    "architecture": "64-bit",
+    "buildNumber": "26100",
+    "language": "English",
+    "lastBootTime": 1792827200.0,
+    "locale": "en-US",
+    "manufacturer": "Microsoft Corporation",
+    "name": "Windows Server 2025 Standard Edition",
+    "needsReboot": true,
+    "releaseId": "24H2"
+   },
+   "processors": [
+    {
+     "architecture": "64-bit",
+     "clockSpeed": 3200000000,
+     "maxClockSpeed": 4500000000,
+     "name": "Example CPU 8-Core",
+     "numCores": 8,
+     "numLogicalCores": 16
+    }
+   ],
+   "publicIP": "203.0.113.2",
+   "rolePolicyId": 12,
+   "system": {
+    "biosSerialNumber": "SYN-SRV-0002",
+    "chassisType": "UNKNOWN",
+    "domain": "corp.example.com",
+    "domainRole": "PRIMARY_DOMAIN_CONTROLLER",
+    "manufacturer": "Example Virtual Corp.",
+    "model": "Virtual Machine",
+    "name": "SRV-DC01",
+    "numberOfProcessors": 1,
+    "serialNumber": "SYN-SRV-0002",
+    "totalPhysicalMemory": 17179869184,
+    "virtualMachine": true
+   },
+   "systemName": "SRV-DC01",
+   "tags": [],
+   "uid": "1b0c2f3e-0000-4000-8000-000000001002",
+   "userData": {},
+   "volumes": [
+    {
+     "capacity": 512110190592,
+     "fileSystem": "NTFS",
+     "freeSpace": 201863462912,
+     "label": "System",
+     "name": "C:"
+    }
+   ]
+  },
+  {
+   "approvalStatus": "APPROVED",
+   "created": 1785222997.0,
+   "deviceType": "AgentDevice",
+   "displayName": "mac-north01",
+   "dnsName": "mac-north01.example.com",
+   "id": 1003,
+   "ipAddresses": [
+    "192.0.2.21"
+   ],
+   "lastContact": 1792999940.0,
+   "lastLoggedInUser": "jdoe",
+   "lastUpdate": 1792999880.0,
+   "locationId": 202,
+   "macAddresses": [
+    "00:00:5E:00:53:21"
+   ],
+   "memory": {
+    "capacity": 17179869184
+   },
+   "netbiosName": "MAC-NORTH01",
+   "nodeClass": "MAC",
+   "nodeRoleId": 3,
+   "notes": [
+    {
+     "text": "Synthetic note for mac-north01"
+    }
+   ],
+   "offline": false,
+   "organizationId": 101,
+   "os": {
+    "architecture": "arm64",
+    "buildNumber": "25B78",
+    "language": "English",
+    "lastBootTime": 1792827200.0,
+    "locale": "en-US",
+    "manufacturer": "Apple Inc.",
+    "name": "macOS 26.1",
+    "needsReboot": false
+   },
+   "processors": [
+    {
+     "architecture": "arm64",
+     "clockSpeed": 3200000000,
+     "maxClockSpeed": 4500000000,
+     "name": "Example CPU 8-Core",
+     "numCores": 8,
+     "numLogicalCores": 16
+    }
+   ],
+   "publicIP": "203.0.113.2",
+   "rolePolicyId": 13,
+   "system": {
+    "chassisType": "LAPTOP",
+    "manufacturer": "Apple Inc.",
+    "model": "MacBookPro18,3",
+    "name": "mac-north01",
+    "numberOfProcessors": 1,
+    "serialNumber": "SYNMAC0003",
+    "totalPhysicalMemory": 17179869184,
+    "virtualMachine": false
+   },
+   "systemName": "mac-north01",
+   "tags": [],
+   "uid": "1b0c2f3e-0000-4000-8000-000000001003",
+   "userData": {},
+   "volumes": [
+    {
+     "capacity": 512110190592,
+     "fileSystem": "apfs",
+     "freeSpace": 201863462912,
+     "label": "System",
+     "name": "/"
+    }
+   ]
+  },
+  {
+   "approvalStatus": "APPROVED",
+   "created": 1785222996.0,
+   "deviceType": "AgentDevice",
+   "displayName": "web01",
+   "dnsName": "web01.example.net",
+   "id": 1004,
+   "ipAddresses": [
+    "198.51.100.10"
+   ],
+   "lastContact": 1792999940.0,
+   "lastLoggedInUser": "jdoe",
+   "lastUpdate": 1792999880.0,
+   "locationId": 203,
+   "macAddresses": [
+    "00:00:5E:00:53:40"
+   ],
+   "memory": {
+    "capacity": 17179869184
+   },
+   "netbiosName": "WEB01",
+   "nodeClass": "LINUX_SERVER",
+   "nodeRoleId": 4,
+   "notes": [
+    {
+     "text": "Synthetic note for web01"
+    }
+   ],
+   "offline": false,
+   "organizationId": 102,
+   "os": {
+    "architecture": "x86_64",
+    "buildNumber": "13",
+    "language": "English",
+    "lastBootTime": 1792827200.0,
+    "locale": "C.UTF-8",
+    "manufacturer": "Debian",
+    "name": "Debian GNU/Linux 13 (trixie)",
+    "needsReboot": false
+   },
+   "processors": [
+    {
+     "architecture": "x86_64",
+     "clockSpeed": 3200000000,
+     "maxClockSpeed": 4500000000,
+     "name": "Example CPU 8-Core",
+     "numCores": 8,
+     "numLogicalCores": 16
+    }
+   ],
+   "publicIP": "203.0.113.3",
+   "rolePolicyId": 14,
+   "system": {
+    "chassisType": "UNKNOWN",
+    "manufacturer": "Example Hardware Inc.",
+    "model": "EX-Rack 1U",
+    "name": "web01",
+    "numberOfProcessors": 1,
+    "serialNumber": "SYN-LNX-0004",
+    "totalPhysicalMemory": 17179869184,
+    "virtualMachine": false
+   },
+   "systemName": "web01",
+   "tags": [],
+   "uid": "1b0c2f3e-0000-4000-8000-000000001004",
+   "userData": {},
+   "volumes": [
+    {
+     "capacity": 512110190592,
+     "fileSystem": "ext4",
+     "freeSpace": 201863462912,
+     "label": "System",
+     "name": "/"
+    }
+   ]
+  },
+  {
+   "approvalStatus": "PENDING",
+   "created": 1785222995.0,
+   "deviceType": "AgentDevice",
+   "displayName": "ubuntu-ws05",
+   "dnsName": "ubuntu-ws05.example.net",
+   "id": 1005,
+   "ipAddresses": [
+    "198.51.100.25"
+   ],
+   "lastContact": 1792999940.0,
+   "lastLoggedInUser": "jdoe",
+   "lastUpdate": 1792999880.0,
+   "locationId": 203,
+   "macAddresses": [
+    "00:00:5E:00:53:45"
+   ],
+   "memory": {
+    "capacity": 17179869184
+   },
+   "netbiosName": "UBUNTU-WS05",
+   "nodeClass": "LINUX_WORKSTATION",
+   "nodeRoleId": 5,
+   "notes": [
+    {
+     "text": "Synthetic note for ubuntu-ws05"
+    }
+   ],
+   "offline": false,
+   "organizationId": 102,
+   "os": {
+    "architecture": "x86_64",
+    "buildNumber": "24.04",
+    "language": "English",
+    "lastBootTime": 1792827200.0,
+    "locale": "en_US.UTF-8",
+    "manufacturer": "Canonical",
+    "name": "Ubuntu 24.04.3 LTS",
+    "needsReboot": false
+   },
+   "processors": [
+    {
+     "architecture": "x86_64",
+     "clockSpeed": 3200000000,
+     "maxClockSpeed": 4500000000,
+     "name": "Example CPU 8-Core",
+     "numCores": 8,
+     "numLogicalCores": 16
+    }
+   ],
+   "publicIP": "203.0.113.3",
+   "rolePolicyId": 15,
+   "system": {
+    "chassisType": "LAPTOP",
+    "manufacturer": "Example Hardware Inc.",
+    "model": "EX-Book 14",
+    "name": "ubuntu-ws05",
+    "numberOfProcessors": 1,
+    "serialNumber": "SYN-LNX-0005",
+    "totalPhysicalMemory": 17179869184,
+    "virtualMachine": false
+   },
+   "systemName": "ubuntu-ws05",
+   "tags": [],
+   "uid": "1b0c2f3e-0000-4000-8000-000000001005",
+   "userData": {},
+   "volumes": [
+    {
+     "capacity": 512110190592,
+     "fileSystem": "ext4",
+     "freeSpace": 201863462912,
+     "label": "System",
+     "name": "/"
+    }
+   ]
+  },
+  {
+   "approvalStatus": "APPROVED",
+   "created": 1785222994.0,
+   "deviceType": "AgentDevice",
+   "displayName": "WS-BETA06",
+   "dnsName": "ws-beta06.example.org",
+   "id": 1006,
+   "ipAddresses": [
+    "198.51.100.36"
+   ],
+   "lastContact": 1792740800.0,
+   "lastLoggedInUser": "EXAMPLE\\jdoe",
+   "lastUpdate": 1792740800.0,
+   "locationId": 203,
+   "macAddresses": [
+    "00:00:5E:00:53:36"
+   ],
+   "memory": {
+    "capacity": 17179869184
+   },
+   "netbiosName": "WS-BETA06",
+   "nodeClass": "WINDOWS_WORKSTATION",
+   "nodeRoleId": 1,
+   "notes": [
+    {
+     "text": "Synthetic note for WS-BETA06"
+    }
+   ],
+   "offline": true,
+   "organizationId": 102,
+   "os": {
+    "architecture": "64-bit",
+    "buildNumber": "19045",
+    "language": "German",
+    "lastBootTime": 1792827200.0,
+    "locale": "de-DE",
+    "manufacturer": "Microsoft Corporation",
+    "name": "Windows 10 Pro Edition",
+    "needsReboot": false,
+    "releaseId": "22H2"
+   },
+   "processors": [
+    {
+     "architecture": "64-bit",
+     "clockSpeed": 3200000000,
+     "maxClockSpeed": 4500000000,
+     "name": "Example CPU 8-Core",
+     "numCores": 8,
+     "numLogicalCores": 16
+    }
+   ],
+   "publicIP": "203.0.113.3",
+   "rolePolicyId": 11,
+   "system": {
+    "biosSerialNumber": "SYN-WS-0006",
+    "chassisType": "DESKTOP",
+    "domain": "WORKGROUP",
+    "domainRole": "STANDALONE_WORKSTATION",
+    "manufacturer": "Example Hardware Inc.",
+    "model": "EX-Mini 100",
+    "name": "WS-BETA06",
+    "numberOfProcessors": 1,
+    "serialNumber": "SYN-WS-0006",
+    "totalPhysicalMemory": 17179869184,
+    "virtualMachine": false
+   },
+   "systemName": "WS-BETA06",
+   "tags": [],
+   "uid": "1b0c2f3e-0000-4000-8000-000000001006",
+   "userData": {},
+   "volumes": [
+    {
+     "capacity": 512110190592,
+     "fileSystem": "NTFS",
+     "freeSpace": 201863462912,
+     "label": "System",
+     "name": "C:"
+    }
+   ]
+  }
+ ],
+ "/v2/organizations-detailed": [
+  {
+   "description": "Fictional test organization",
+   "id": 101,
+   "locations": [
+    {
+     "address": "1 Example Street, Example City",
+     "description": "HQ",
+     "id": 201,
+     "name": "Head Office",
+     "userData": {}
+    },
+    {
+     "address": "2 Example Road, Example Town",
+     "description": "",
+     "id": 202,
+     "name": "Branch North",
+     "userData": {}
+    }
+   ],
+   "name": "Synthetic Bakery Ltd",
+   "nodeApprovalMode": "AUTOMATIC",
+   "policies": [
+    {
+     "nodeRoleId": 1,
+     "policyId": 11
+    },
+    {
+     "nodeRoleId": 2,
+     "policyId": 12
+    },
+    {
+     "nodeRoleId": 3,
+     "policyId": 13
+    },
+    {
+     "nodeRoleId": 4,
+     "policyId": 14
+    },
+    {
+     "nodeRoleId": 5,
+     "policyId": 15
+    }
+   ],
+   "settings": {
+    "trayicon": {
+     "enabled": true,
+     "options": {},
+     "product": "TRAYICON",
+     "targets": []
+    }
+   },
+   "userData": {}
+  },
+  {
+   "description": "Fictional test organization",
+   "id": 102,
+   "locations": [
+    {
+     "address": "3 Example Park, Example Village",
+     "description": "Main warehouse",
+     "id": 203,
+     "name": "Warehouse",
+     "userData": {}
+    }
+   ],
+   "name": "Synthetic Logistics AG",
+   "nodeApprovalMode": "MANUAL",
+   "policies": [
+    {
+     "nodeRoleId": 1,
+     "policyId": 11
+    },
+    {
+     "nodeRoleId": 2,
+     "policyId": 12
+    },
+    {
+     "nodeRoleId": 3,
+     "policyId": 13
+    },
+    {
+     "nodeRoleId": 4,
+     "policyId": 14
+    },
+    {
+     "nodeRoleId": 5,
+     "policyId": 15
+    }
+   ],
+   "settings": {
+    "trayicon": {
+     "enabled": true,
+     "options": {},
+     "product": "TRAYICON",
+     "targets": []
+    }
+   },
+   "userData": {}
+  }
+ ],
+ "/ws/oauth/token": {
+  "access_token": "synthetic-access-token.NOT-A-REAL-TOKEN",
+  "expires_in": 3600,
+  "scope": "monitoring management",
+  "token_type": "Bearer"
+ }
+}

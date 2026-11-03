@@ -1,0 +1,2 @@
+E	dnf	check-update failed (1): Failed to download metadata (metalink: "https://mirrors.fedoraproject.org/metalink?repo=fedora-41&arch=x86_64") for repository "fedora": Cannot prepare internal mirrorlist: Curl error (6): Could not resolve hostname for https://mirrors.fedoraproject.org/metalink?repo=fedora-41&arch=x86_64 [Could not resolve host: mirrors.fedoraproject.org]
+R	0

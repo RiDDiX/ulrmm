@@ -1,0 +1,7220 @@
+[
+ {
+  "id": "accounts-clients-001",
+  "desc": "checkcreds: enrolled user (readonly) -> totp true",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-002",
+  "desc": "checkcreds: wrong password -> Bad credentials + failed-login audit",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_nouser_cc1",
+   "password": "wrong"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,object_type,action,message) where username='bench_nouser_cc1'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-003",
+  "desc": "checkcreds: wrong password of an existing user",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "wrong"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-004",
+  "desc": "checkcreds: missing username -> 400 Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "password": "x"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,object_type,action,message) where username='' and action='failed_login'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-005",
+  "desc": "checkcreds: missing password",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_readonly"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-006",
+  "desc": "checkcreds: empty body",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {},
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-007",
+  "desc": "checkcreds: blocked user (block_dashboard_login) -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_blocked",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-008",
+  "desc": "checkcreds: inactive user -> Bad credentials (authenticate fails)",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_inactive",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-009",
+  "desc": "checkcreds: installer user -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_installer",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-010",
+  "desc": "checkcreds: SSO user -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_sso",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-011",
+  "desc": "checkcreds: not enrolled user -> 180 s token, totp false",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_nototp",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"token\": \"[^\"]+\""
+   ],
+   "db": [
+    "knox_authtoken(user_id) where user_id=34"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-012",
+  "desc": "checkcreds: role superuser (not Django superuser) -> totp true",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_rolesuper",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-013",
+  "desc": "checkcreds: stale Authorization header -> 401 on OLD",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "Bench-Pass-2026!"
+  },
+  "headers": {
+   "Authorization": "Token deadbeef"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-014",
+  "desc": "checkcreds: with a valid API key header",
+  "token": "apikey_null",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-015",
+  "desc": "checkcreds: GET -> 405",
+  "token": "none",
+  "method": "GET",
+  "path": "/v2/checkcreds/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-016",
+  "desc": "checkcreds: block_local_user_logon on, non-superuser -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\nfrom core.models import CoreSettings\nfrom django.core.cache import cache\nfrom ulrmm.constants import CORESETTINGS_CACHE_KEY\nCoreSettings.objects.update(block_local_user_logon=True); cache.delete(CORESETTINGS_CACHE_KEY)\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-017",
+  "desc": "checkcreds: block_local_user_logon on, role superuser -> Bad credentials on OLD",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/checkcreds/",
+  "body": {
+   "username": "bench_rolesuper",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\nfrom core.models import CoreSettings\nfrom django.core.cache import cache\nfrom ulrmm.constants import CORESETTINGS_CACHE_KEY\nCoreSettings.objects.update(block_local_user_logon=True); cache.delete(CORESETTINGS_CACHE_KEY)\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-018",
+  "desc": "login: block_local_user_logon on -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "000000"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\nfrom core.models import CoreSettings\nfrom django.core.cache import cache\nfrom ulrmm.constants import CORESETTINGS_CACHE_KEY\nCoreSettings.objects.update(block_local_user_logon=True); cache.delete(CORESETTINGS_CACHE_KEY)\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-431",
+  "desc": "login: block_local_user_logon on, role superuser with a valid code -> Bad credentials on OLD",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_rolesuper",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\nfrom core.models import CoreSettings\nfrom ulrmm.constants import CORESETTINGS_CACHE_KEY\nCoreSettings.objects.update(block_local_user_logon=True); cache.delete(CORESETTINGS_CACHE_KEY)\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(token|expiry)\": \"[^\"]*\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-019",
+  "desc": "users/reset: LocalUserPerms refuses while block_local_user_logon is on",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 24,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "setup": "from core.models import CoreSettings\nfrom django.core.cache import cache\nfrom ulrmm.constants import CORESETTINGS_CACHE_KEY\nCoreSettings.objects.update(block_local_user_logon=True); cache.delete(CORESETTINGS_CACHE_KEY)\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=24"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-020",
+  "desc": "users/reset_totp PUT: LocalUserPerms refuses while block_local_user_logon is on",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 24
+  },
+  "setup": "from core.models import CoreSettings\nfrom django.core.cache import cache\nfrom ulrmm.constants import CORESETTINGS_CACHE_KEY\nCoreSettings.objects.update(block_local_user_logon=True); cache.delete(CORESETTINGS_CACHE_KEY)\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-021",
+  "desc": "checkcreds throttle: 11 bad posts from one IP -> 10x400 then 429",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n\nimport json, urllib.request, urllib.error\nout = []\nfor i in range(11):\n    rq = urllib.request.Request('http://localhost:{{PORT}}/v2/checkcreds/', data=json.dumps({'username': 'thr_cc', 'password': 'x'}).encode(), headers={'Content-Type': 'application/json'}, method='POST')\n    try:\n        out.append(urllib.request.urlopen(rq).status)\n    except urllib.error.HTTPError as e:\n        out.append(e.code)\nprint(out)\ncache.delete_many_pattern('throttle_*')\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-022",
+  "desc": "checkcreds throttle with an API key header: OLD never throttles authenticated callers",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n\nimport json, urllib.request, urllib.error\nout = []\nfor i in range(11):\n    rq = urllib.request.Request('http://localhost:{{PORT}}/v2/checkcreds/', data=json.dumps({'username': 'thr_cc2', 'password': 'x'}).encode(), headers={'Content-Type': 'application/json', 'X-API-KEY': '{{TOKEN:apikey_null}}'}, method='POST')\n    try:\n        out.append(urllib.request.urlopen(rq).status)\n    except urllib.error.HTTPError as e:\n        out.append(e.code)\nprint(out)\ncache.delete_many_pattern('throttle_*')\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-023",
+  "desc": "login: wrong password -> DRF non_field_errors dict; no new failed_login audit row on OLD",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "wrong",
+   "twofactor": "123456"
+  },
+  "reset_before": true,
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,object_type,action,message) where id > 192 and action='failed_login'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-024",
+  "desc": "login: missing username -> field error dict",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "password": "x"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-025",
+  "desc": "login: inactive user -> non_field_errors",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_inactive",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "123456"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-026",
+  "desc": "login: blocked user -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_blocked",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-027",
+  "desc": "login: SSO user -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_sso",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "123456"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-028",
+  "desc": "login: wrong code -> Bad credentials + failed 2FA audit",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_noperm",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "000000"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,object_type,action,message) where username='bench_noperm'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-029",
+  "desc": "login: missing twofactor -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_noperm",
+   "password": "Bench-Pass-2026!"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-030",
+  "desc": "login: non-digit twofactor -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_noperm",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "abcdef"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-031",
+  "desc": "login: valid code -> token, username, name; last_login_ip stored; success audit",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"token\": \"[^\"]+\"",
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ],
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_readonly'",
+    "logs_auditlog(username,object_type,action,message) where username='bench_readonly' and action='login'",
+    "knox_authtoken(user_id) where user_id=26"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-032",
+  "desc": "login: the same code again -> Bad credentials (single use)",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "{{TOTP_LAST}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-033",
+  "desc": "login: lockout after 5 counted failures, valid code refused",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_acctmgr",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\ncache.set('totp_fail_30', 5, 600)\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-034",
+  "desc": "login: not enrolled user without pending key -> Bad credentials",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_nototp",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "123456"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_nototp'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-035",
+  "desc": "login: not enrolled user with a pending key commits it on the first valid code",
+  "token": "none",
+  "method": "POST",
+  "path": "/v2/login/",
+  "body": {
+   "username": "bench_nototp",
+   "password": "Bench-Pass-2026!",
+   "twofactor": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\nfrom accounts.models import User\nfrom accounts.utils import set_pending_totp_key\nset_pending_totp_key(User.objects.get(username='bench_nototp'), 'JBSWY3DPEHPK3PXP')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"token\": \"[^\"]+\"",
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ],
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_nototp'",
+    "knox_authtoken(user_id) where user_id=34"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-036",
+  "desc": "login: GET -> 405",
+  "token": "none",
+  "method": "GET",
+  "path": "/v2/login/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-037",
+  "desc": "login throttle: 11 bad posts from one IP -> 10x400 then 429",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n\nimport json, urllib.request, urllib.error\nout = []\nfor i in range(11):\n    rq = urllib.request.Request('http://localhost:{{PORT}}/v2/login/', data=json.dumps({'username': 'thr_lg', 'password': 'x'}).encode(), headers={'Content-Type': 'application/json'}, method='POST')\n    try:\n        out.append(urllib.request.urlopen(rq).status)\n    except urllib.error.HTTPError as e:\n        out.append(e.code)\nprint(out)\ncache.delete_many_pattern('throttle_*')\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-038",
+  "desc": "setup_totp: enrolled user -> false",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/setup_totp/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-039",
+  "desc": "setup_totp: API key of the enrolled admin -> false",
+  "token": "apikey_null",
+  "method": "POST",
+  "path": "/accounts/users/setup_totp/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-040",
+  "desc": "setup_totp: no auth -> 401",
+  "token": "none",
+  "method": "POST",
+  "path": "/accounts/users/setup_totp/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-041",
+  "desc": "setup_totp: installer token",
+  "token": "installer",
+  "method": "POST",
+  "path": "/accounts/users/setup_totp/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-042",
+  "desc": "setup_totp: GET -> 405",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/users/setup_totp/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-043",
+  "desc": "setup_totp: SSO user (no key) gets a pending key and its session ends",
+  "token": "sso",
+  "method": "POST",
+  "path": "/accounts/users/setup_totp/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"totp_key\": \"[A-Z2-7]+\"",
+    "secret=[A-Z2-7]+",
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ],
+   "db": [
+    "knox_authtoken(user_id) where user_id=33",
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_sso'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-044",
+  "desc": "setup_totp: not enrolled user (password-only token) -> pending key, own token deleted",
+  "token": "nototp",
+  "method": "POST",
+  "path": "/accounts/users/setup_totp/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"totp_key\": \"[A-Z2-7]+\"",
+    "secret=[A-Z2-7]+",
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ],
+   "db": [
+    "knox_authtoken(user_id) where user_id=34",
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_nototp'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-045",
+  "desc": "setup_totp: the pending key is in the cache, not in the column",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nfrom accounts.models import User\nfrom accounts.utils import get_pending_totp_key\nu = User.objects.get(username='bench_nototp')\nk = get_pending_totp_key(u)\nprint(len(k), k.isalnum() and k.upper() == k, repr(u.totp_key))\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-046",
+  "desc": "not-enrolled token is refused outside the enrolment paths (after setup it is gone)",
+  "token": "nototp",
+  "method": "GET",
+  "path": "/accounts/users/ui/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-047",
+  "desc": "users list as admin (social_accounts, inactive and blocked included)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-048",
+  "desc": "users list as readonly (can_list_accounts)",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-049",
+  "desc": "users list as accounts manager",
+  "token": "acctmgr",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-050",
+  "desc": "users list as client-scoped role",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-051",
+  "desc": "users list as no-permission role -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-052",
+  "desc": "users list without auth -> 401",
+  "token": "none",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-053",
+  "desc": "users list with API key (admin, no expiry)",
+  "token": "apikey_null",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-054",
+  "desc": "users list with expired API key -> 401",
+  "token": "apikey_expired",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-055",
+  "desc": "users list with installer API key -> 401",
+  "token": "apikey_installer",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-056",
+  "desc": "users list with inactive user's API key -> 401",
+  "token": "apikey_inactive",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-057",
+  "desc": "users list as blocked user",
+  "token": "blocked",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-058",
+  "desc": "users list as inactive user -> 401",
+  "token": "inactive",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-059",
+  "desc": "users list as not enrolled user -> 401",
+  "token": "nototp",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-060",
+  "desc": "users list as installer token -> 401",
+  "token": "installer",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-061",
+  "desc": "users list as role superuser",
+  "token": "rolesuper",
+  "method": "GET",
+  "path": "/accounts/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-062",
+  "desc": "users list search=bench_s",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/?search=bench_s",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-063",
+  "desc": "users list search case-insensitive BENCH_R",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/?search=BENCH_R",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-064",
+  "desc": "users list search without match",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/?search=zzznomatch",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-065",
+  "desc": "user detail admin 1",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/1/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-066",
+  "desc": "user detail 24 as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/24/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-067",
+  "desc": "user detail unknown pk -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/999/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-068",
+  "desc": "user detail as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/accounts/24/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-069",
+  "desc": "user detail of an agent service user",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/35/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-070",
+  "desc": "user detail of the installer user",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/27/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-071",
+  "desc": "user detail POST -> 405",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/24/users/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-072",
+  "desc": "users list PUT -> 405",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/users/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-073",
+  "desc": "create user: happy path",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new1",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "new1@bench.invalid",
+   "first_name": "New",
+   "last_name": "One"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_new1'",
+    "logs_auditlog(username,object_type,action,message) where object_type='user' and message like '%bench_new1%'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-074",
+  "desc": "create user: duplicate username",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_readonly",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "x@bench.invalid"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-075",
+  "desc": "create user: weak password -> 400 messages, no row",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_weak",
+   "password": "12345678",
+   "email": "w@bench.invalid"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_weak'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-076",
+  "desc": "create user: password similar to the username",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "benchsimilarname",
+   "password": "benchsimilarname1",
+   "email": "s@bench.invalid"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-077",
+  "desc": "create user: invalid username",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bad user!",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "b@bench.invalid"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-078",
+  "desc": "create user: missing username -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "m@bench.invalid"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-079",
+  "desc": "create user: missing email -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_noemail",
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-438",
+  "desc": "create user: missing password -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_nopw",
+   "email": "nopw@bench.example"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "accounts_user(username) where username='bench_nopw'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-080",
+  "desc": "create user: invalid e-mail accepted on OLD",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_bademail",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "not-an-email"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_bademail'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-081",
+  "desc": "create user with role 15",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new2",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "n2@bench.invalid",
+   "role": 15
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_new2'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-082",
+  "desc": "create user with unknown role -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new3",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "n3@bench.invalid",
+   "role": 999
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_new3'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-083",
+  "desc": "create user with string role is silently ignored",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new4",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "n4@bench.invalid",
+   "role": "15"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_new4'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-084",
+  "desc": "create user: accounts manager assigning the superuser role -> 403",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new5",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "n5@bench.invalid",
+   "role": 17
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_new5'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-085",
+  "desc": "create user: admin assigning the superuser role",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new6",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "n6@bench.invalid",
+   "role": 17
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_new6'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-086",
+  "desc": "create user: accounts manager, plain role",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new7",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "n7@bench.invalid",
+   "role": 15
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_new7'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-087",
+  "desc": "create user: readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new8",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "n8@bench.invalid"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-088",
+  "desc": "create user: role superuser may assign superuser role",
+  "token": "rolesuper",
+  "method": "POST",
+  "path": "/accounts/users/",
+  "body": {
+   "username": "bench_new9",
+   "password": "Fresh-Bench-Pass-2026#x",
+   "email": "n9@bench.invalid",
+   "role": 17
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_new9'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-089",
+  "desc": "edit user 24 first_name as admin",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/24/users/",
+  "body": {
+   "first_name": "Clara"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_clienta'",
+    "logs_auditlog(username,object_type,action,message) where object_type='user' and username='admin' and message like '%bench_clienta%'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-090",
+  "desc": "edit user: invalid email -> 400 dict",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/24/users/",
+  "body": {
+   "email": "bad"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-091",
+  "desc": "edit user: unknown pk -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/999/users/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-092",
+  "desc": "edit user: accounts manager on Django superuser -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/1/users/",
+  "body": {
+   "first_name": "x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-093",
+  "desc": "edit user: accounts manager on role superuser -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/28/users/",
+  "body": {
+   "first_name": "x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-094",
+  "desc": "edit user: accounts manager assigns superuser role -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/24/users/",
+  "body": {
+   "role": 17
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_clienta'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-095",
+  "desc": "edit user: accounts manager changes own role -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/30/users/",
+  "body": {
+   "role": 15
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-096",
+  "desc": "edit user: own block_dashboard_login -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/30/users/",
+  "body": {
+   "block_dashboard_login": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-097",
+  "desc": "edit user: own is_active -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/30/users/",
+  "body": {
+   "is_active": false
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-098",
+  "desc": "edit user: own unchanged role and name -> ok",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/30/users/",
+  "body": {
+   "role": 19,
+   "first_name": "Acct",
+   "is_active": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_acctmgr'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-099",
+  "desc": "edit user: accounts manager on plain user -> ok",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/26/users/",
+  "body": {
+   "last_name": "Reader",
+   "role": 15
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_readonly'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-100",
+  "desc": "edit user: non-numeric role by accounts manager -> OLD 500",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/26/users/",
+  "body": {
+   "role": "abc"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-101",
+  "desc": "edit user: non-numeric role by admin -> 400 dict",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/26/users/",
+  "body": {
+   "role": "abc"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-102",
+  "desc": "edit user: unknown role pk -> 400 dict",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/26/users/",
+  "body": {
+   "role": 999
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-103",
+  "desc": "edit user: readonly -> 403",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/24/users/",
+  "body": {
+   "first_name": "x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-104",
+  "desc": "edit user: last_login_ip writable on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/24/users/",
+  "body": {
+   "last_login_ip": "10.9.8.7"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_clienta'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-105",
+  "desc": "edit user: block_dashboard_login true keeps sessions on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/26/users/",
+  "body": {
+   "block_dashboard_login": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_readonly'",
+    "knox_authtoken(user_id) where user_id=26"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-106",
+  "desc": "edit user: is_active false keeps sessions on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/24/users/",
+  "body": {
+   "is_active": false
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_clienta'",
+    "knox_authtoken(user_id) where user_id=24"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-107",
+  "desc": "edit user: agent service user editable on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/35/users/",
+  "body": {
+   "first_name": "agent"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-108",
+  "desc": "edit user: unknown keys ignored, date_format set",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/29/users/",
+  "body": {
+   "date_format": "DD.MM.YYYY",
+   "nonsense": 1
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,date_format) where id=29"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-453",
+  "desc": "edit user: role superuser on its own row changes role, is_active and block_dashboard_login -> 200 (self guards only bind callers without superuser rights)",
+  "token": "rolesuper",
+  "method": "PUT",
+  "path": "/accounts/28/users/",
+  "body": {
+   "role": 15,
+   "is_active": false,
+   "block_dashboard_login": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,role_id,is_active,block_dashboard_login) where id=28"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-109",
+  "desc": "delete user: unknown pk -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/999/users/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-110",
+  "desc": "delete user: accounts manager on Django superuser -> 403",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/1/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-111",
+  "desc": "delete user: accounts manager on role superuser -> 403",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/28/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-112",
+  "desc": "delete user: readonly -> 403",
+  "token": "readonly",
+  "method": "DELETE",
+  "path": "/accounts/29/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-113",
+  "desc": "delete user: admin deletes noperm (tokens cascade)",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/29/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_noperm'",
+    "knox_authtoken(user_id) where user_id=29",
+    "logs_auditlog(username,object_type,action,message) where object_type='user' and action='delete' and message like '%bench_noperm%'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-114",
+  "desc": "delete user: accounts manager deletes itself (allowed)",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/30/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_acctmgr'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-115",
+  "desc": "delete user: installer account bench_installer (27, owns no deployment or installer token) deletable on OLD, only its own knox token goes",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/27/users/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_installer'",
+    "knox_authtoken(user_id) where user_id=27"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-452",
+  "desc": "delete user: the installer user 2 that owns deployments 11-15 deletable on OLD, its deployments, installer tokens and knox tokens cascade",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/2/users/",
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username) where id=2",
+    "clients_deployment(id,site_id)",
+    "clients_installertoken(id,site_id)",
+    "knox_authtoken(user_id) where user_id=2"
+   ]
+  },
+  "body": null
+ },
+ {
+  "id": "accounts-clients-451",
+  "desc": "delete user: owner of a report schedule -> schedule kept with owner NULL, reportschedule audit row and DebugLog warning (reporting pre_delete receiver)",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/29/users/",
+  "reset_before": true,
+  "setup": "from reporting.models import ReportSchedule\nReportSchedule.objects.create(name='Bench R4 owned', report_template_id=6, schedule_id=7, owner_id=29)\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "reporting_reportschedule(name,enabled,owner_id) where name='Bench R4 owned'",
+    "accounts_user(username) where id=29",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and object_type in ('reportschedule','user')",
+    "logs_debuglog(log_level,log_type,message) where id > 464"
+   ]
+  },
+  "body": null
+ },
+ {
+  "id": "accounts-clients-116",
+  "desc": "sessions of user 24 as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/24/sessions/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-117",
+  "desc": "sessions of admin as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/users/1/sessions/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-118",
+  "desc": "sessions of unknown user -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/999/sessions/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-119",
+  "desc": "sessions as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/accounts/users/24/sessions/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-120",
+  "desc": "sessions of the installer user",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/2/sessions/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-121",
+  "desc": "sessions of superuser listed by accounts manager",
+  "token": "acctmgr",
+  "method": "GET",
+  "path": "/accounts/users/1/sessions/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-122",
+  "desc": "sessions POST -> 405",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/24/sessions/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-123",
+  "desc": "end sessions of user 24 as readonly -> 403",
+  "token": "readonly",
+  "method": "DELETE",
+  "path": "/accounts/users/24/sessions/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-124",
+  "desc": "end all sessions of user 24 as admin; no audit row on OLD",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/users/24/sessions/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=24",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and action='delete'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-125",
+  "desc": "end superuser sessions as accounts manager",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/users/1/sessions/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=1",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and action='delete'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-126",
+  "desc": "end one session by digest (readonly's token); no audit row on OLD",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/sessions/a2dac58626367452e6a6c928e926847e100c524f8f9198215f74595bdd62c0cda3461c585734ca5e0425ebb1291005c0395fe9b33a29e46a517c3f13ded97b22/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=26",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and action='delete'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-127",
+  "desc": "end one session: unknown digest -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/sessions/nosuchdigest/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-435",
+  "desc": "end all sessions of an unknown user -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/users/999/sessions/",
+  "compare": {
+   "status": true,
+   "body": "json"
+  },
+  "body": null
+ },
+ {
+  "id": "accounts-clients-128",
+  "desc": "end one session: client-scoped role without account permissions -> 403",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/accounts/sessions/38ac0aa2f1be225cf525de002093bacd9b97a1cba4d1a7d0e59a39bca5e451583f55d96107e4e3e55c302bdaae7e8dd68c8329e8d07bff30ff48714f002be3b8/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-436",
+  "desc": "end one session: readonly (can_list_accounts only) -> 403 by AccountsPerms",
+  "token": "readonly",
+  "method": "DELETE",
+  "reset_before": true,
+  "path": "/accounts/sessions/f70efbf56c1109b7abf769b1cca43750a3535ac43c9c7350d00f08d566950b923019db14277a55c21cfde7cf22f8d26d0a6c2f06cbd1fb11ebaf9c1fa6783b21/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where digest='f70efbf56c1109b7abf769b1cca43750a3535ac43c9c7350d00f08d566950b923019db14277a55c21cfde7cf22f8d26d0a6c2f06cbd1fb11ebaf9c1fa6783b21'"
+   ]
+  },
+  "body": null
+ },
+ {
+  "id": "accounts-clients-129",
+  "desc": "end one session: GET -> 405",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/sessions/38ac0aa2f1be225cf525de002093bacd9b97a1cba4d1a7d0e59a39bca5e451583f55d96107e4e3e55c302bdaae7e8dd68c8329e8d07bff30ff48714f002be3b8/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-130",
+  "desc": "end deployment token by digest as accounts manager",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/sessions/31ee114c23e170917b084810556c24aef5bf3125a89604b6166348b181952fb5a0578700507becd4b5d32717c3f90ec5304f311fb4b51a74cecef73eca783d5b/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags)",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and action='delete'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-434",
+  "desc": "end one session of the Django superuser by digest as accounts manager",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/sessions/b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0/",
+  "setup": "import datetime as dt\nfrom django.utils import timezone as tz\nfrom knox.models import AuthToken\nAuthToken.objects.filter(digest='b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0').delete()\nAuthToken(digest='b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0', token_key='benchr4a', user_id=1, expiry=tz.now() + dt.timedelta(days=1)).save()\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id,token_key) where digest='b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0'",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and action='delete'"
+   ]
+  },
+  "body": null
+ },
+ {
+  "id": "accounts-clients-131",
+  "desc": "reset password of user 24 as admin: sessions and API keys end",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 24,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=24",
+    "accounts_apikey(id,name,user_id,expiration) where user_id=24"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-132",
+  "desc": "reset password: weak password -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 24,
+   "password": "12345678"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-133",
+  "desc": "reset password: unknown id -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 999,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-134",
+  "desc": "reset password: missing id -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-135",
+  "desc": "reset password: non-numeric id -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": "abc",
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-136",
+  "desc": "reset password: accounts manager on superuser -> 403",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 1,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-137",
+  "desc": "reset password: accounts manager on role superuser -> 403",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 28,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-138",
+  "desc": "reset password: readonly on another user -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 24,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-139",
+  "desc": "reset password: readonly on itself without code -> 400",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 26,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-140",
+  "desc": "reset password: readonly on itself, wrong code -> 400",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 26,
+   "password": "Fresh-Bench-Pass-2026#x",
+   "code": "000000"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-141",
+  "desc": "reset password: own via API key -> 403 needs dashboard login",
+  "token": "apikey_null",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 1,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-142",
+  "desc": "reset password: accounts manager on plain user",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 26,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=26"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-143",
+  "desc": "reset password: readonly on itself with a fresh code keeps its own token",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 26,
+   "password": "Fresh-Bench-Pass-2026#x",
+   "code": "{{TOTP}}"
+  },
+  "reset_before": true,
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=26"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-144",
+  "desc": "reset TOTP via PUT users/reset/ (quirk)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 24
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_clienta'",
+    "knox_authtoken(user_id) where user_id=24",
+    "accounts_apikey(id,name,user_id,expiration) where user_id=24"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-145",
+  "desc": "reset TOTP via PUT users/reset_totp/",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 31
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_blocked'"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-146",
+  "desc": "reset TOTP of SSO user sets an empty key on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 33
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,totp_key) where id=33"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-147",
+  "desc": "reset TOTP: unknown id -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 999
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-148",
+  "desc": "reset TOTP: accounts manager on superuser -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 1
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-149",
+  "desc": "reset TOTP: readonly on itself without code -> 400",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 26
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-150",
+  "desc": "reset TOTP: agent service user reachable on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 35
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-151",
+  "desc": "reset password through reset_totp POST",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 29,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=29"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-152",
+  "desc": "users/reset GET -> 405",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/reset/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-153",
+  "desc": "users/reset DELETE without id -> OLD 500",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/users/reset/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-154",
+  "desc": "users/reset without auth -> 401",
+  "token": "none",
+  "method": "POST",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 24,
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-449",
+  "desc": "reset TOTP: readonly on itself with a fresh code via PUT users/reset_totp/ -> 200, own token kept, own API keys end, key cleared",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/users/reset_totp/",
+  "body": {
+   "id": 26,
+   "code": "{{TOTP}}"
+  },
+  "reset_before": true,
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\nfrom accounts.models import APIKey\nAPIKey.objects.create(name='bench-r4-ro', user_id=26, key='BENCHR4READONLYKEY00000000000001')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=26",
+    "accounts_apikey(name) where user_id=26",
+    "accounts_user(username,totp_key) where id=26"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-450",
+  "desc": "reset TOTP: readonly on itself with a fresh code via PUT users/reset/ (quirk) -> 200, own token kept, own API keys end, key cleared",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/users/reset/",
+  "body": {
+   "id": 26,
+   "code": "{{TOTP}}"
+  },
+  "reset_before": true,
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\nfrom accounts.models import APIKey\nAPIKey.objects.create(name='bench-r4-ro', user_id=26, key='BENCHR4READONLYKEY00000000000001')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=26",
+    "accounts_apikey(name) where user_id=26",
+    "accounts_user(username,totp_key) where id=26"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-155",
+  "desc": "resetpw: no code -> 400",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/resetpw/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-156",
+  "desc": "resetpw: wrong code -> 400",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/resetpw/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x",
+   "code": "000000"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-157",
+  "desc": "resetpw: API key caller -> 403",
+  "token": "apikey_null",
+  "method": "PUT",
+  "path": "/accounts/resetpw/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-158",
+  "desc": "resetpw: SSO user -> 403",
+  "token": "sso",
+  "method": "PUT",
+  "path": "/accounts/resetpw/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-159",
+  "desc": "resetpw: no auth -> 401",
+  "token": "none",
+  "method": "PUT",
+  "path": "/accounts/resetpw/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-160",
+  "desc": "resetpw: installer token -> 401",
+  "token": "installer",
+  "method": "PUT",
+  "path": "/accounts/resetpw/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-161",
+  "desc": "resetpw: GET -> 405",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/resetpw/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-162",
+  "desc": "resetpw: admin with a fresh code and a weak password -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/resetpw/",
+  "body": {
+   "password": "short",
+   "code": "{{TOTP:JBSWY3DPEHPK3PXPDEMOULRMM2345AB}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-163",
+  "desc": "resetpw: readonly with a fresh code -> Password was reset, other sessions end",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/resetpw/",
+  "body": {
+   "password": "Fresh-Bench-Pass-2026#x",
+   "code": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "knox_authtoken(user_id) where user_id=26"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-164",
+  "desc": "reset2fa: no code -> 400",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/reset2fa/",
+  "body": {},
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-165",
+  "desc": "reset2fa: API key caller -> 403",
+  "token": "apikey_null",
+  "method": "PUT",
+  "path": "/accounts/reset2fa/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-166",
+  "desc": "reset2fa: SSO user -> 403",
+  "token": "sso",
+  "method": "PUT",
+  "path": "/accounts/reset2fa/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-167",
+  "desc": "reset2fa: admin with a fresh code clears its key, API keys end",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/reset2fa/",
+  "body": {
+   "code": "{{TOTP:JBSWY3DPEHPK3PXPDEMOULRMM2345AB}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,totp_key) where id=1",
+    "accounts_apikey(id,name,user_id,expiration) where user_id=1",
+    "knox_authtoken(user_id) where user_id=1"
+   ],
+   "mask": [
+    "\"totp_key\": \"gAAAAA[^\"]+\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-168",
+  "desc": "ui: patch preferences",
+  "token": "admin",
+  "method": "PATCH",
+  "path": "/accounts/users/ui/",
+  "body": {
+   "dark_mode": false,
+   "loading_bar_color": "blue",
+   "agent_dblclick_action": "editagent",
+   "date_format": "YYYY"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,dark_mode,loading_bar_color,agent_dblclick_action,block_dashboard_login,url_action_id,date_format,client_tree_splitter) where id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-169",
+  "desc": "ui: block_dashboard_login is ignored",
+  "token": "readonly",
+  "method": "PATCH",
+  "path": "/accounts/users/ui/",
+  "body": {
+   "block_dashboard_login": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,dark_mode,loading_bar_color,agent_dblclick_action,block_dashboard_login,url_action_id,date_format,client_tree_splitter) where id=26"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-170",
+  "desc": "ui: invalid choice -> 400 dict",
+  "token": "admin",
+  "method": "PATCH",
+  "path": "/accounts/users/ui/",
+  "body": {
+   "agent_dblclick_action": "bogus"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-171",
+  "desc": "ui: unknown url_action -> 400 dict",
+  "token": "admin",
+  "method": "PATCH",
+  "path": "/accounts/users/ui/",
+  "body": {
+   "url_action": 999
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-172",
+  "desc": "ui: url_action 13 and splitter",
+  "token": "noperm",
+  "method": "PATCH",
+  "path": "/accounts/users/ui/",
+  "body": {
+   "url_action": 13,
+   "client_tree_splitter": 20
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,dark_mode,loading_bar_color,agent_dblclick_action,block_dashboard_login,url_action_id,date_format,client_tree_splitter) where id=29"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-173",
+  "desc": "ui: API key caller",
+  "token": "apikey_null",
+  "method": "PATCH",
+  "path": "/accounts/users/ui/",
+  "body": {
+   "client_tree_splitter": 15
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_user(username,dark_mode,loading_bar_color,agent_dblclick_action,block_dashboard_login,url_action_id,date_format,client_tree_splitter) where id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-174",
+  "desc": "ui: installer token -> 401",
+  "token": "installer",
+  "method": "PATCH",
+  "path": "/accounts/users/ui/",
+  "body": {
+   "dark_mode": false
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-175",
+  "desc": "ui: no auth -> 401",
+  "token": "none",
+  "method": "PATCH",
+  "path": "/accounts/users/ui/",
+  "body": {
+   "dark_mode": false
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-176",
+  "desc": "ui: GET -> 405",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/users/ui/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-177",
+  "desc": "step-up: GET countdown before unlock",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/users/console_stepup/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-178",
+  "desc": "step-up: API key -> 403 needs a dashboard login",
+  "token": "apikey_null",
+  "method": "GET",
+  "path": "/accounts/users/console_stepup/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-179",
+  "desc": "step-up: no auth -> 401",
+  "token": "none",
+  "method": "GET",
+  "path": "/accounts/users/console_stepup/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-180",
+  "desc": "step-up: wrong code -> 400 + failed audit",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/console_stepup/",
+  "body": {
+   "code": "000000"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "logs_auditlog(username,object_type,action,message) where username='bench_readonly' and message like '%terminal%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-181",
+  "desc": "step-up: SSO user without key -> 400",
+  "token": "sso",
+  "method": "POST",
+  "path": "/accounts/users/console_stepup/",
+  "body": {
+   "code": "123456"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-439",
+  "desc": "step-up: POST without a code key -> 400",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/console_stepup/",
+  "body": {},
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-182",
+  "desc": "step-up: valid code unlocks",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/users/console_stepup/",
+  "body": {
+   "code": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"remaining\": \\d+"
+   ],
+   "db": [
+    "logs_auditlog(username,object_type,action,message) where username='bench_readonly' and message like '%terminal%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-183",
+  "desc": "step-up: GET after unlock (remaining > 0)",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/users/console_stepup/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"remaining\": \\d+"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-184",
+  "desc": "step-up: other user's countdown stays 0",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/accounts/users/console_stepup/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-185",
+  "desc": "step-up: PUT -> 405",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/users/console_stepup/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-186",
+  "desc": "step-up throttle: 11 GETs pass, 11 POSTs end with 429",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n\nimport json, urllib.request, urllib.error\ndef call(m, body=None):\n    rq = urllib.request.Request('http://localhost:{{PORT}}/accounts/users/console_stepup/', data=None if body is None else json.dumps(body).encode(), headers={'Content-Type': 'application/json', 'Authorization': 'Token {{TOKEN:noperm}}'}, method=m)\n    try:\n        return urllib.request.urlopen(rq).status\n    except urllib.error.HTTPError as e:\n        return e.code\nprint('GET', [call('GET') for i in range(11)])\nprint('POST', [call('POST', {'code': '000000'}) for i in range(11)])\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-187",
+  "desc": "roles list as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/roles/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-188",
+  "desc": "roles list as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/roles/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-189",
+  "desc": "roles list as accounts manager",
+  "token": "acctmgr",
+  "method": "GET",
+  "path": "/accounts/roles/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-190",
+  "desc": "roles list as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/accounts/roles/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-191",
+  "desc": "roles list without auth -> 401",
+  "token": "none",
+  "method": "GET",
+  "path": "/accounts/roles/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-192",
+  "desc": "role detail 13",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/roles/13/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-193",
+  "desc": "role detail 17 (superuser role) as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/roles/17/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-194",
+  "desc": "role detail unknown -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/roles/999/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-195",
+  "desc": "role detail as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/accounts/roles/13/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-196",
+  "desc": "create role with scope",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "Bench R4 role",
+   "can_list_agents": true,
+   "can_view_clients": [
+    1
+   ],
+   "can_view_sites": [
+    3
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role(id,name,is_superuser,can_list_agents,can_manage_roles,created_by) where name like 'Bench R4%'",
+    "accounts_role_can_view_clients(client_id) where role_id=(select id from accounts_role where name='Bench R4 role')",
+    "accounts_role_can_view_sites(site_id) where role_id=(select id from accounts_role where name='Bench R4 role')"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-197",
+  "desc": "create role: duplicate name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "Bench client A"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-198",
+  "desc": "create role: missing name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "can_list_agents": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-199",
+  "desc": "create role: unknown client in scope -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "Bench R4 bad",
+   "can_view_clients": [
+    999
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-200",
+  "desc": "create role: accounts manager, superuser role -> 403",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "Bench R4 su",
+   "is_superuser": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role(id,name,is_superuser,can_list_agents,can_manage_roles,created_by) where name like 'Bench R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-201",
+  "desc": "create role: accounts manager grants a flag it lacks",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "Bench R4 grant",
+   "can_list_agents": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role(id,name,is_superuser,can_list_agents,can_manage_roles,created_by) where name like 'Bench R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-202",
+  "desc": "create role: forged created_by stored on OLD",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "Bench R4 forged",
+   "created_by": "forger"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role(id,name,is_superuser,can_list_agents,can_manage_roles,created_by) where name like 'Bench R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-203",
+  "desc": "create role: readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "Bench R4 ro"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-204",
+  "desc": "create role: role superuser creates a superuser role",
+  "token": "rolesuper",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "Bench R4 su2",
+   "is_superuser": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role(id,name,is_superuser,can_list_agents,can_manage_roles,created_by) where name like 'Bench R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-205",
+  "desc": "create role: name too long -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/roles/",
+  "body": {
+   "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-206",
+  "desc": "edit role 13 scope only (clients 1 and 2): no audit row on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/roles/13/",
+  "body": {
+   "name": "Bench client A",
+   "can_view_clients": [
+    1,
+    2
+   ]
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role_can_view_clients(client_id) where role_id=13",
+    "logs_auditlog(username,object_type,action,message) where object_type='role' and message like '%Bench client A%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-432",
+  "desc": "edit role 13 name and scope together: OLD audit row records the old scope as after",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/roles/13/",
+  "body": {
+   "name": "Bench client A mixed",
+   "can_view_clients": [
+    1,
+    2
+   ]
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role_can_view_clients(client_id) where role_id=13",
+    "logs_auditlog(username,object_type,action,message,before_value,after_value) where id > 192 and object_type='role'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-207",
+  "desc": "edit role: missing name -> 400 (not partial)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/roles/13/",
+  "body": {
+   "can_list_agents": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-208",
+  "desc": "edit role: unknown pk -> 404",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/roles/999/",
+  "body": {
+   "name": "x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-209",
+  "desc": "edit role: accounts manager on superuser role -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/roles/17/",
+  "body": {
+   "name": "Bench role superuser"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-210",
+  "desc": "edit role: accounts manager on its own role -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/roles/19/",
+  "body": {
+   "name": "Bench accounts manager"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-211",
+  "desc": "edit role: accounts manager grants is_superuser -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/roles/15/",
+  "body": {
+   "name": "Bench read-only",
+   "is_superuser": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-212",
+  "desc": "edit role: accounts manager grants can_list_agents on another role",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/roles/18/",
+  "body": {
+   "name": "Bench no permissions",
+   "can_list_agents": true
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role(name,can_list_agents,is_superuser) where id=18"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-213",
+  "desc": "edit role: invalid scope pk -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/roles/13/",
+  "body": {
+   "name": "Bench client A",
+   "can_view_sites": [
+    999
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-214",
+  "desc": "edit role: readonly -> 403",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/roles/13/",
+  "body": {
+   "name": "Bench client A"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-215",
+  "desc": "edit role: rename 16",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/roles/16/",
+  "body": {
+   "name": "Bench installer renamed"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role(name) where id=16"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-216",
+  "desc": "delete role: unknown -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/roles/999/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-217",
+  "desc": "delete role: accounts manager on superuser role -> 403",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/roles/17/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-218",
+  "desc": "delete role: accounts manager on own role -> 403",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/roles/19/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-219",
+  "desc": "delete role: readonly -> 403",
+  "token": "readonly",
+  "method": "DELETE",
+  "path": "/accounts/roles/18/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-220",
+  "desc": "delete role 18 while user 29 holds it: refused, role and user unchanged",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/roles/18/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role(id) where id=18",
+    "accounts_user(username,role_id) where id=29"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-221",
+  "desc": "roles list DELETE -> 405",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/roles/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-222",
+  "desc": "role detail POST -> 405",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/roles/13/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-223",
+  "desc": "api keys list as admin (no key material)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/apikeys/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-224",
+  "desc": "api keys list as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/accounts/apikeys/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-225",
+  "desc": "api keys list as accounts manager",
+  "token": "acctmgr",
+  "method": "GET",
+  "path": "/accounts/apikeys/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-226",
+  "desc": "api keys list as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/accounts/apikeys/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-227",
+  "desc": "api keys list with API key",
+  "token": "apikey_null",
+  "method": "GET",
+  "path": "/accounts/apikeys/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-228",
+  "desc": "create API key for self, default expiry (+90 d)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-a",
+   "user": 1
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"key\": \"[A-Z0-9]{32}\""
+   ],
+   "db": [
+    "accounts_apikey(id,name,user_id,key,expiration,created_by) where name like 'bench-r4%'",
+    "accounts_apikey(name) where name='bench-r4-a' and key_hash is not null and key=''"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-229",
+  "desc": "create API key with explicit expiry",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-b",
+   "user": 24,
+   "expiration": "2027-01-01T00:00:00Z"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"key\": \"[A-Z0-9]{32}\""
+   ],
+   "db": [
+    "accounts_apikey(id,name,user_id,key,expiration,created_by) where name like 'bench-r4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-230",
+  "desc": "create API key with expiry 400 days ahead (accepted)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-c",
+   "user": 1,
+   "expiration": "2027-11-21T00:00:00Z"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"key\": \"[A-Z0-9]{32}\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-231",
+  "desc": "create API key: accounts manager for another user -> 403",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-d",
+   "user": 1
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-232",
+  "desc": "create API key: accounts manager with string pk -> 403",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-e",
+   "user": "30"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-233",
+  "desc": "create API key: accounts manager for itself",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-f",
+   "user": 30
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"key\": \"[A-Z0-9]{32}\""
+   ],
+   "db": [
+    "accounts_apikey(id,name,user_id,key,expiration,created_by) where name like 'bench-r4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-234",
+  "desc": "create API key: name longer than 25 -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "user": 1
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-235",
+  "desc": "create API key: duplicate name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-far-future",
+   "user": 1
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-236",
+  "desc": "create API key: missing user -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-g"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-237",
+  "desc": "create API key: invalid expiration -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-h",
+   "user": 1,
+   "expiration": "soon"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-238",
+  "desc": "create API key for an agent user",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-agent",
+   "user": 35
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"key\": \"[A-Z0-9]{32}\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-239",
+  "desc": "create API key for the installer user",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-inst",
+   "user": 27
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"key\": \"[A-Z0-9]{32}\""
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-240",
+  "desc": "create API key: readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-ro",
+   "user": 26
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-241",
+  "desc": "create API key: expiration null maps to the default",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-null",
+   "user": 1,
+   "expiration": null
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"key\": \"[A-Z0-9]{32}\""
+   ],
+   "db": [
+    "accounts_apikey(name) where name='bench-r4-null' and expiration is not null"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-437",
+  "desc": "create API key: forged created_by/modified_by in the body",
+  "token": "admin",
+  "method": "POST",
+  "path": "/accounts/apikeys/",
+  "body": {
+   "name": "bench-r4-forged",
+   "user": 1,
+   "created_by": "forger",
+   "modified_by": "forger2"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"key\": \"[A-Z0-9]{32}\""
+   ],
+   "db": [
+    "accounts_apikey(name,user_id,created_by,modified_by) where name='bench-r4-forged'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-242",
+  "desc": "edit API key 2 name",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/2/",
+  "body": {
+   "name": "bench-r4-renamed"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id,name,user_id,expiration) where user_id=24"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-243",
+  "desc": "edit API key: key in body is ignored",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/2/",
+  "body": {
+   "key": "PLAINTEXTKEY"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id,key) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-244",
+  "desc": "edit API key: expiration null stored as NULL on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/2/",
+  "body": {
+   "expiration": null
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id) where id=2 and expiration is null"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-245",
+  "desc": "edit API key: past expiration stored",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/3/",
+  "body": {
+   "expiration": "2020-01-01T00:00:00Z"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id,name,user_id,expiration) where user_id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-246",
+  "desc": "edit API key: invalid expiration -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/3/",
+  "body": {
+   "expiration": "never"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-247",
+  "desc": "edit API key: unknown -> 404 (empty body)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/500/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-248",
+  "desc": "edit API key: accounts manager on admin's key -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/apikeys/1/",
+  "body": {
+   "name": "x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-249",
+  "desc": "edit API key: readonly -> 403",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/accounts/apikeys/1/",
+  "body": {
+   "name": "x"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-250",
+  "desc": "edit API key: admin moves key 3 to user 24",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/3/",
+  "body": {
+   "user": 24
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id,name,user_id,expiration) where user_id=24"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-251",
+  "desc": "edit API key: accounts manager on its own key",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/apikeys/6/",
+  "body": {
+   "name": "bench-r4-own2"
+  },
+  "reset_before": true,
+  "setup": "from accounts.models import APIKey\nk = APIKey.objects.create(name='bench-r4-own', key='BENCHR4OWNKEY000000000000000000AA', user_id=30)\nprint('key', k.pk)\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id,name,user_id,expiration) where user_id=30"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-252",
+  "desc": "edit API key: accounts manager moves own key to another user -> 403",
+  "token": "acctmgr",
+  "method": "PUT",
+  "path": "/accounts/apikeys/6/",
+  "body": {
+   "user": 1
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id,name,user_id,expiration) where user_id=30"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-253",
+  "desc": "edit API key: duplicate name -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/6/",
+  "body": {
+   "name": "bench-far-future"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-254",
+  "desc": "delete API key: accounts manager on admin's key -> 403",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/apikeys/1/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-255",
+  "desc": "delete API key: accounts manager on its own key",
+  "token": "acctmgr",
+  "method": "DELETE",
+  "path": "/accounts/apikeys/6/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id,name,user_id,expiration) where user_id=30"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-256",
+  "desc": "delete API key: unknown -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/apikeys/500/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-257",
+  "desc": "delete API key: readonly -> 403",
+  "token": "readonly",
+  "method": "DELETE",
+  "path": "/accounts/apikeys/2/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-258",
+  "desc": "delete API key 2 as admin",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/accounts/apikeys/2/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_apikey(id,name,user_id,expiration) where user_id=24"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-259",
+  "desc": "API key detail GET -> 405",
+  "token": "admin",
+  "method": "GET",
+  "path": "/accounts/apikeys/1/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-260",
+  "desc": "API key list PUT -> 405",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/accounts/apikeys/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-261",
+  "desc": "clients list as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-262",
+  "desc": "clients list as client-scoped role",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-263",
+  "desc": "clients list as site-scoped role (owning client, only its site): OLD client agent_count/maintenance_mode cover hidden sites too",
+  "token": "site",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-264",
+  "desc": "clients list as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-265",
+  "desc": "clients list as accounts manager",
+  "token": "acctmgr",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-266",
+  "desc": "clients list as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-267",
+  "desc": "clients list with far-future API key (client A)",
+  "token": "apikey_far",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-268",
+  "desc": "clients list without auth -> 401",
+  "token": "none",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-269",
+  "desc": "clients list with installer token -> 401",
+  "token": "installer",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-270",
+  "desc": "clients list with agent token",
+  "token": "agent:1",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-271",
+  "desc": "client detail 1 as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/1/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-272",
+  "desc": "client detail 3 (custom fields with markup) as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/clients/3/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-273",
+  "desc": "client detail 1 as site-scoped role",
+  "token": "site",
+  "method": "GET",
+  "path": "/clients/1/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-274",
+  "desc": "client detail 2 as client-scoped role -> 403",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/clients/2/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-275",
+  "desc": "client detail 2 as site-scoped role -> 403",
+  "token": "site",
+  "method": "GET",
+  "path": "/clients/2/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-276",
+  "desc": "client detail unknown -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/999/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-277",
+  "desc": "client detail as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/clients/1/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-278",
+  "desc": "client create: client + site",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 Client"
+   },
+   "site": {
+    "name": "R4 Site"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(name) where name like 'Bench R4%'",
+    "clients_site(name) where name='R4 Site'",
+    "logs_auditlog(username,object_type,action,message) where object_type='client' and message like '%Bench R4 Client%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-279",
+  "desc": "client create with custom field",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 CF"
+   },
+   "site": {
+    "name": "R4 CF Site"
+   },
+   "custom_fields": [
+    {
+     "field": 25,
+     "string_value": "hello"
+    },
+    {
+     "field": 26,
+     "bool_value": true
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_clientcustomfield(field_id,string_value,bool_value) where client_id=(select id from clients_client where name='Bench R4 CF')"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-280",
+  "desc": "client create: | in client name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 a|b"
+   },
+   "site": {
+    "name": "s"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(name) where name like 'Bench R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-281",
+  "desc": "client create: | in site name -> 400, client removed again",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 pipe"
+   },
+   "site": {
+    "name": "a|b"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(name) where name like 'Bench R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-282",
+  "desc": "client create: duplicate name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Nordwind Logistics"
+   },
+   "site": {
+    "name": "s"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-283",
+  "desc": "client create: missing site key -> OLD 500 after the client is saved",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 nosite"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "clients_client(name) where name like 'Bench R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-284",
+  "desc": "client create: missing client key -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "site": {
+    "name": "s"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-285",
+  "desc": "client create: agent custom field accepted on OLD",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 wrongcf"
+   },
+   "site": {
+    "name": "s"
+   },
+   "custom_fields": [
+    {
+     "field": 23,
+     "string_value": "x"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_clientcustomfield(field_id,string_value) where client_id=(select id from clients_client where name='Bench R4 wrongcf')"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-456",
+  "desc": "client create: custom field entry fails validation after client and site were saved -> 400, client and site remain on OLD",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 cffail"
+   },
+   "site": {
+    "name": "R4 cffail site"
+   },
+   "custom_fields": [
+    {
+     "field": 999,
+     "string_value": "x"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(name) where name='Bench R4 cffail'",
+    "clients_site(name) where name='R4 cffail site'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-286",
+  "desc": "client create by readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 ro"
+   },
+   "site": {
+    "name": "s"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-287",
+  "desc": "client create by noperm -> 403",
+  "token": "noperm",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 np"
+   },
+   "site": {
+    "name": "s"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-288",
+  "desc": "client create by client-scoped role adds it to the role scope; no role audit row for the scope grow on OLD",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 scoped"
+   },
+   "site": {
+    "name": "s"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role_can_view_clients(client_id) where role_id=13",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and object_type='role'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-289",
+  "desc": "client create by accounts manager (scoped role 19)",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 acct"
+   },
+   "site": {
+    "name": "s"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "accounts_role_can_view_clients(client_id) where role_id=19"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-290",
+  "desc": "initial setup sets time zone and company name",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 Init"
+   },
+   "site": {
+    "name": "s"
+   },
+   "initialsetup": true,
+   "timezone": "Europe/London",
+   "companyname": "Bench Co"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "core_coresettings(default_time_zone,mesh_company_name)"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-291",
+  "desc": "initial setup by accounts manager",
+  "token": "acctmgr",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 Init2"
+   },
+   "site": {
+    "name": "s"
+   },
+   "initialsetup": true,
+   "timezone": "Not/AZone",
+   "companyname": "X"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "core_coresettings(default_time_zone,mesh_company_name)"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-292",
+  "desc": "initial setup without timezone -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/",
+  "body": {
+   "client": {
+    "name": "Bench R4 Init3"
+   },
+   "site": {
+    "name": "s"
+   },
+   "initialsetup": true
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "clients_client(name) where name like 'Bench R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-293",
+  "desc": "client edit: rename (literal response text)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/3/",
+  "body": {
+   "client": {
+    "name": "Lehmann Dental R4"
+   }
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=3"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-294",
+  "desc": "client edit: unknown -> 404 (empty body)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/999/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-295",
+  "desc": "client edit: | in name -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/3/",
+  "body": {
+   "client": {
+    "name": "a|b"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-296",
+  "desc": "client edit: duplicate name -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/3/",
+  "body": {
+   "client": {
+    "name": "Nordwind Logistics"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-297",
+  "desc": "client edit: client-scoped role on another client -> 403",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/clients/2/",
+  "body": {
+   "client": {
+    "name": "x"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-298",
+  "desc": "client edit: site-scoped role on owning client -> 403",
+  "token": "site",
+  "method": "PUT",
+  "path": "/clients/1/",
+  "body": {
+   "client": {
+    "name": "x"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-299",
+  "desc": "client edit: readonly -> 403",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/clients/1/",
+  "body": {
+   "client": {
+    "name": "x"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-300",
+  "desc": "client edit: client-scoped role renames its client",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/clients/1/",
+  "body": {
+   "client": {
+    "name": "Nordwind R4"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-301",
+  "desc": "client edit: update existing checkbox custom field",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/1/",
+  "body": {
+   "client": {},
+   "custom_fields": [
+    {
+     "field": 26,
+     "bool_value": true
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_clientcustomfield(id,field_id,string_value,bool_value) where client_id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-302",
+  "desc": "client edit: create custom field row",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/4/",
+  "body": {
+   "client": {},
+   "custom_fields": [
+    {
+     "field": 25,
+     "string_value": "unreached"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_clientcustomfield(field_id,string_value) where client_id=4"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-303",
+  "desc": "client edit: policies and alert template",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/2/",
+  "body": {
+   "client": {
+    "workstation_policy": 4,
+    "server_policy": 4,
+    "alert_template": 7
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-304",
+  "desc": "client edit: unknown policy -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/2/",
+  "body": {
+   "client": {
+    "server_policy": 999
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-305",
+  "desc": "client edit: block_policy_inheritance off",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/3/",
+  "body": {
+   "client": {
+    "block_policy_inheritance": false
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=3"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-306",
+  "desc": "client edit: failing_checks writable on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/4/",
+  "body": {
+   "client": {
+    "failing_checks": "garbage"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=4"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-307",
+  "desc": "client edit: client-scoped role sets the patch policy p3 on its client (patch guard)",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/clients/1/",
+  "body": {
+   "client": {
+    "workstation_policy": 3
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-447",
+  "desc": "client edit: client-scoped role swaps the server policy p1 for p4 (neither has patch settings) -> patch guard passes, 200",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/clients/1/",
+  "body": {
+   "client": {
+    "server_policy": 4
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,workstation_policy_id,server_policy_id) where id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-308",
+  "desc": "client edit: missing client key -> OLD 500",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/3/",
+  "body": {
+   "name": "x"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-440",
+  "desc": "client edit: custom field entry without field -> OLD 500 KeyError",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/3/",
+  "body": {
+   "client": {},
+   "custom_fields": [
+    {
+     "string_value": "x"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "clients_clientcustomfield(field_id,string_value) where client_id=3"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-442",
+  "desc": "client edit: invalid custom field value -> 400 after the client rename was saved on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/3/",
+  "body": {
+   "client": {
+    "name": "Lehmann R4 cfbad"
+   },
+   "custom_fields": [
+    {
+     "field": 26,
+     "bool_value": "notabool"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name) where id=3",
+    "clients_clientcustomfield(field_id,bool_value) where client_id=3"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-309",
+  "desc": "client detail POST -> 405",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/1/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-310",
+  "desc": "client delete: unknown -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/999/",
+  "body": {
+   "totp_code": "000000"
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-311",
+  "desc": "client delete: agents and no move target -> 400",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/3/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-312",
+  "desc": "client delete: move to its own site -> 400",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/3/?move_to_site=4",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-313",
+  "desc": "client delete: unknown move target -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/3/?move_to_site=999",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-314",
+  "desc": "client delete: no code -> 400 DELETE_NEEDS_TOTP, nothing changed",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/4/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=4"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-315",
+  "desc": "client delete: wrong code -> 400",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/3/?move_to_site=5",
+  "body": {
+   "totp_code": "000000"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "agents_agent(id,site_id) where id in (15,16)"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-316",
+  "desc": "client delete: client-scoped role on another client -> 403",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/clients/2/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-317",
+  "desc": "client delete: client-scoped role moving agents out of scope -> 403",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/clients/1/?move_to_site=3",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-318",
+  "desc": "client delete: readonly -> 403",
+  "token": "readonly",
+  "method": "DELETE",
+  "path": "/clients/4/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-446",
+  "desc": "client delete with move: client-scoped role (scope widened to clients 1, 3, 4) moves Lehmann's agents to site 5 carrying p3 without can_manage_patch_policies -> 403 patch guard, nothing moved or deleted",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/clients/3/?move_to_site=5",
+  "body": {
+   "totp_code": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.clear()\nfrom accounts.models import Role\nfrom clients.models import Site\nRole.objects.get(pk=13).can_view_clients.add(3, 4)\nSite.objects.filter(pk=5).update(workstation_policy_id=3)\ncache.clear()\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "agents_agent(id,site_id) where id in (15,16)",
+    "clients_client(id) where id=3"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-319",
+  "desc": "client delete: move agents to site 5 and delete with a fresh code",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/3/?move_to_site=5",
+  "body": {
+   "totp_code": "{{TOTP:JBSWY3DPEHPK3PXPDEMOULRMM2345AB}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "agents_agent(id,site_id) where id in (15,16)",
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=3",
+    "clients_site(id) where client_id=3"
+   ]
+  },
+  "reset_before": true
+ },
+ {
+  "id": "accounts-clients-320",
+  "desc": "client delete: empty client with a fresh code cascades its deployment",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/4/",
+  "body": {
+   "totp_code": "{{TOTP:JBSWY3DPEHPK3PXPDEMOULRMM2345AB}}"
+  },
+  "reset_before": true,
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_client(id,name,block_policy_inheritance,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=4",
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id=15"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-321",
+  "desc": "sites list as admin (no agent_count / maintenance_mode)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/sites/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-322",
+  "desc": "sites list as client-scoped role",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/clients/sites/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-323",
+  "desc": "sites list as site-scoped role",
+  "token": "site",
+  "method": "GET",
+  "path": "/clients/sites/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-324",
+  "desc": "sites list as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/clients/sites/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-325",
+  "desc": "sites list as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/clients/sites/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-326",
+  "desc": "sites list without auth -> 401",
+  "token": "none",
+  "method": "GET",
+  "path": "/clients/sites/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-327",
+  "desc": "site detail 1 as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/sites/1/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-328",
+  "desc": "site detail 2 as site-scoped role",
+  "token": "site",
+  "method": "GET",
+  "path": "/clients/sites/2/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-329",
+  "desc": "site detail 1 as site-scoped role -> 403",
+  "token": "site",
+  "method": "GET",
+  "path": "/clients/sites/1/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-330",
+  "desc": "site detail 3 as client-scoped role -> 403",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/clients/sites/3/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-331",
+  "desc": "site detail unknown -> 404",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/sites/999/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-332",
+  "desc": "site create",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 4,
+    "name": "R4 New Site"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(client_id,name) where name like 'R4%'",
+    "logs_auditlog(username,object_type,action,message) where object_type='site' and message like '%R4 New Site%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-333",
+  "desc": "site create with custom field",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 4,
+    "name": "R4 CF Site"
+   },
+   "custom_fields": [
+    {
+     "field": 28,
+     "multiple_value": [
+      "a",
+      "b"
+     ]
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_sitecustomfield(field_id,multiple_value) where site_id=(select id from clients_site where name='R4 CF Site')"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-334",
+  "desc": "site create: duplicate in the same client -> 400 unique set",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 1,
+    "name": "Hamburg HQ"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-335",
+  "desc": "site create: | in name -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 1,
+    "name": "R4 a|b"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-336",
+  "desc": "site create: unknown client as superuser -> 400 serializer error (scope check passes for superusers)",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 999,
+    "name": "R4 x"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-337",
+  "desc": "site create: client-scoped role into another client -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 2,
+    "name": "R4 y"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(client_id,name) where name like 'R4%'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-338",
+  "desc": "site create: client-scoped role into its client; no role audit row for the scope grow on OLD",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 1,
+    "name": "R4 Scoped"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(client_id,name) where name like 'R4%'",
+    "accounts_role_can_view_sites(site_id) where role_id=13",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and object_type='role'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-339",
+  "desc": "site create: site-scoped role without can_manage_sites -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 1,
+    "name": "R4 Sibling"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(client_id,name) where name like 'R4%'",
+    "accounts_role_can_view_sites(site_id) where role_id=14"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-340",
+  "desc": "site create: body without the site wrapper as client-scoped role -> OLD 500",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "client": 1,
+   "name": "R4 nowrap"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-341",
+  "desc": "site create: body without the site wrapper as admin -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "client": 1,
+   "name": "R4 nowrap"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-342",
+  "desc": "site create: readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 1,
+    "name": "R4 ro"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-343",
+  "desc": "site create: agent custom field accepted on OLD",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 4,
+    "name": "R4 wrongcf"
+   },
+   "custom_fields": [
+    {
+     "field": 25,
+     "string_value": "x"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_sitecustomfield(field_id,string_value) where site_id=(select id from clients_site where name='R4 wrongcf')"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-344",
+  "desc": "site edit: rename",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/5/",
+  "body": {
+   "site": {
+    "name": "R4 Lab"
+   }
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=5"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-345",
+  "desc": "site edit: unknown -> 404 (empty body)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/999/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-346",
+  "desc": "site edit: move the only site of a client -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/3/",
+  "body": {
+   "site": {
+    "client": 1
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-347",
+  "desc": "site edit: | in name -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/5/",
+  "body": {
+   "site": {
+    "name": "a|b"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-348",
+  "desc": "site edit: duplicate name in client -> 400",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/2/",
+  "body": {
+   "site": {
+    "name": "Hamburg HQ"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-349",
+  "desc": "site edit: update existing multiple custom field (partial)",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/1/",
+  "body": {
+   "site": {},
+   "custom_fields": [
+    {
+     "field": 28,
+     "multiple_value": [
+      "z"
+     ]
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_sitecustomfield(field_id,string_value,multiple_value) where site_id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-350",
+  "desc": "site edit: create text custom field",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/5/",
+  "body": {
+   "site": {},
+   "custom_fields": [
+    {
+     "field": 27,
+     "string_value": "lab"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_sitecustomfield(field_id,string_value) where site_id=5"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-351",
+  "desc": "site edit: policies and alert template",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/4/",
+  "body": {
+   "site": {
+    "workstation_policy": 4,
+    "alert_template": 9
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=4"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-352",
+  "desc": "site edit: failing_checks writable on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/5/",
+  "body": {
+   "site": {
+    "failing_checks": [
+     1
+    ]
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=5"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-353",
+  "desc": "site edit: site-scoped role on another site -> 403",
+  "token": "site",
+  "method": "PUT",
+  "path": "/clients/sites/1/",
+  "body": {
+   "site": {
+    "name": "x"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-354",
+  "desc": "site edit: site-scoped role without can_manage_sites -> 403",
+  "token": "site",
+  "method": "PUT",
+  "path": "/clients/sites/2/",
+  "body": {
+   "site": {
+    "name": "Bremen R4"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-355",
+  "desc": "site edit: client-scoped role on a foreign site -> 403",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/clients/sites/3/",
+  "body": {
+   "site": {
+    "name": "x"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-356",
+  "desc": "site edit: readonly -> 403",
+  "token": "readonly",
+  "method": "PUT",
+  "path": "/clients/sites/1/",
+  "body": {
+   "site": {
+    "name": "x"
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-357",
+  "desc": "site edit: client-scoped role sets the patch policy p3 on site 1 (patch guard)",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/clients/sites/1/",
+  "body": {
+   "site": {
+    "workstation_policy": 3
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=1"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-358",
+  "desc": "site edit: missing site key -> OLD 500",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/5/",
+  "body": {
+   "name": "x"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-441",
+  "desc": "site edit: custom field entry without field -> OLD 500 KeyError",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/5/",
+  "body": {
+   "site": {},
+   "custom_fields": [
+    {
+     "string_value": "x"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "clients_sitecustomfield(field_id,string_value) where site_id=5"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-443",
+  "desc": "site edit: invalid custom field value -> 400 after the site rename was saved on OLD",
+  "token": "admin",
+  "method": "PUT",
+  "path": "/clients/sites/5/",
+  "body": {
+   "site": {
+    "name": "Bench Lab R4"
+   },
+   "custom_fields": [
+    {
+     "field": 28,
+     "multiple_value": "notalist"
+    }
+   ]
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,name) where id=5",
+    "clients_sitecustomfield(field_id,multiple_value) where site_id=5"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-359",
+  "desc": "site edit: client-scoped role WITHOUT can_manage_patch_policies moves its site into a foreign client -> OLD 403 'You cannot change patch policies.' from the patch guard, site unchanged; NEW may refuse earlier with the scope check (403, default detail)",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/clients/sites/2/",
+  "body": {
+   "site": {
+    "client": 2
+   }
+  },
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-360",
+  "desc": "site create: site-scoped role with can_manage_sites creates a sibling site and grows its scope; no role audit row for the scope grow on OLD",
+  "token": "site",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 1,
+    "name": "R4 Sibling"
+   }
+  },
+  "reset_before": true,
+  "setup": "from accounts.models import Role\nfrom django.core.cache import cache\nRole.objects.filter(pk=14).update(can_manage_sites=True); cache.delete_many_pattern('role_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(client_id,name) where name like 'R4%'",
+    "accounts_role_can_view_sites(site_id) where role_id=14",
+    "logs_auditlog(username,object_type,action,message) where id > 192 and object_type='role'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-444",
+  "desc": "site create: site-scoped role WITH can_manage_sites into another client -> 403",
+  "token": "site",
+  "method": "POST",
+  "path": "/clients/sites/",
+  "body": {
+   "site": {
+    "client": 2,
+    "name": "R4 Foreign"
+   }
+  },
+  "setup": "from accounts.models import Role\nfrom django.core.cache import cache\nRole.objects.filter(pk=14).update(can_manage_sites=True); cache.delete_many_pattern('role_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(client_id,name) where name='R4 Foreign'"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-361",
+  "desc": "site edit: site-scoped role with can_manage_sites renames its site",
+  "token": "site",
+  "method": "PUT",
+  "path": "/clients/sites/2/",
+  "body": {
+   "site": {
+    "name": "Bremen R4"
+   }
+  },
+  "setup": "from accounts.models import Role\nfrom django.core.cache import cache\nRole.objects.filter(pk=14).update(can_manage_sites=True); cache.delete_many_pattern('role_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-362",
+  "desc": "site edit: site-scoped role moves its site into a foreign client",
+  "token": "site",
+  "method": "PUT",
+  "path": "/clients/sites/2/",
+  "body": {
+   "site": {
+    "client": 4
+   }
+  },
+  "setup": "from accounts.models import Role\nfrom django.core.cache import cache\nRole.objects.filter(pk=14).update(can_manage_sites=True); cache.delete_many_pattern('role_*')\nfrom accounts.models import Role\nfrom django.core.cache import cache\nRole.objects.filter(pk=14).update(can_manage_patch_policies=True); cache.delete_many_pattern('role_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-363",
+  "desc": "site edit: client-scoped role with the patch flag moves its site into a foreign client",
+  "token": "clienta",
+  "method": "PUT",
+  "path": "/clients/sites/2/",
+  "body": {
+   "site": {
+    "client": 2
+   }
+  },
+  "reset_before": true,
+  "setup": "from accounts.models import Role\nfrom django.core.cache import cache\nRole.objects.filter(pk=13).update(can_manage_patch_policies=True); cache.delete_many_pattern('role_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_site(id,client_id,name,workstation_policy_id,server_policy_id,alert_template_id,failing_checks) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-364",
+  "desc": "site detail POST -> 405",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/sites/1/",
+  "body": {},
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-365",
+  "desc": "site delete: the only site of a client -> 400",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/sites/3/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-366",
+  "desc": "site delete: agents and no move target -> 400",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/sites/2/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-367",
+  "desc": "site delete: move to itself -> 400",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/sites/2/?move_to_site=2",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-368",
+  "desc": "site delete: unknown move target -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/sites/2/?move_to_site=999",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-369",
+  "desc": "site delete: no code -> 400 DELETE_NEEDS_TOTP",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/sites/2/?move_to_site=1",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "agents_agent(id,site_id) where site_id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-370",
+  "desc": "site delete: client-scoped role moving agents to a foreign site -> 403",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/clients/sites/2/?move_to_site=3",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-371",
+  "desc": "site delete: site-scoped role on a foreign site -> 403",
+  "token": "site",
+  "method": "DELETE",
+  "path": "/clients/sites/1/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-372",
+  "desc": "site delete: readonly -> 403",
+  "token": "readonly",
+  "method": "DELETE",
+  "path": "/clients/sites/2/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-373",
+  "desc": "site delete: unknown -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/sites/999/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-445",
+  "desc": "site delete with move: client-scoped role moves Bremen's agents to Hamburg carrying p3 without can_manage_patch_policies -> 403 patch guard, agents stay, site kept",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/clients/sites/2/?move_to_site=1",
+  "body": {
+   "totp_code": "{{TOTP}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.clear()\nfrom clients.models import Site\nSite.objects.filter(pk=1).update(workstation_policy_id=3)\ncache.clear()\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "agents_agent(id,site_id) where id in (8,9,10)",
+    "clients_site(id) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-374",
+  "desc": "site delete: move agents to Hamburg and delete with a fresh code",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/sites/2/?move_to_site=1",
+  "body": {
+   "totp_code": "{{TOTP:JBSWY3DPEHPK3PXPDEMOULRMM2345AB}}"
+  },
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "agents_agent(id,site_id) where id in (8,9,10)",
+    "clients_site(id) where id=2",
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id=13"
+   ]
+  },
+  "reset_before": true
+ },
+ {
+  "id": "accounts-clients-454",
+  "desc": "site delete: move agents to a site of another client (Main Office) with a fresh code -> 200",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/sites/2/?move_to_site=3",
+  "body": {
+   "totp_code": "{{TOTP:JBSWY3DPEHPK3PXPDEMOULRMM2345AB}}"
+  },
+  "reset_before": true,
+  "setup": "from django.core.cache import cache\ncache.delete_many_pattern('throttle_*'); cache.delete_many_pattern('totp_fail_*')\n",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "agents_agent(id,site_id) where id in (8,9,10)",
+    "clients_site(id) where id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-375",
+  "desc": "deployments list as admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/deployments/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-376",
+  "desc": "deployments list as client-scoped role",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/clients/deployments/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-377",
+  "desc": "deployments list as site-scoped role",
+  "token": "site",
+  "method": "GET",
+  "path": "/clients/deployments/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-378",
+  "desc": "deployments list as readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/clients/deployments/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-379",
+  "desc": "deployments list as noperm -> 403",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/clients/deployments/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-380",
+  "desc": "deployments list without auth -> 401",
+  "token": "none",
+  "method": "GET",
+  "path": "/clients/deployments/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-381",
+  "desc": "deployment create; no audit row on OLD",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 5,
+   "expires": "2026-11-10T12:00:00+0000",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15",
+    "knox_authtoken(user_id) where digest in (select auth_token_id from clients_deployment where id>15)",
+    "logs_auditlog(username,object_type,action,message) where id > 192"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-382",
+  "desc": "deployment create: more than 365 days -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 5,
+   "expires": "2037-11-23T18:53:04-04:00",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-383",
+  "desc": "deployment create: invalid date -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 5,
+   "expires": "tomorrow",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-384",
+  "desc": "deployment create: date without offset -> 400",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 5,
+   "expires": "2026-11-01T12:00:00",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-385",
+  "desc": "deployment create: past expiry accepted on OLD",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 5,
+   "expires": "2020-01-01T00:00:00+0000",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-386",
+  "desc": "deployment create: bogus agenttype/goarch accepted on OLD",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 5,
+   "expires": "2026-11-10T12:00:00+0000",
+   "power": "yes",
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "bogus",
+   "goarch": "mips"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-387",
+  "desc": "deployment create: unknown site -> 404",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 999,
+   "expires": "2026-11-10T12:00:00+0000",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-388",
+  "desc": "deployment create: missing site -> OLD 500",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "expires": "2026-11-10T12:00:00+0000"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-389",
+  "desc": "deployment create: missing power -> OLD 500 with an orphan token",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 5,
+   "expires": "2026-11-10T12:00:00+0000",
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "knox_authtoken(user_id) where user_id=2"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-390",
+  "desc": "deployment create: client-scoped role on a foreign site -> 403",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 3,
+   "expires": "2026-11-10T12:00:00+0000",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-391",
+  "desc": "deployment create: client-scoped role on its site; no audit row on OLD",
+  "token": "clienta",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 1,
+   "expires": "2026-11-10T12:00:00+0000",
+   "power": 0,
+   "ping": 0,
+   "rdp": 0,
+   "agenttype": "workstation",
+   "goarch": "arm64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15",
+    "logs_auditlog(username,object_type,action,message) where id > 192"
+   ]
+  },
+  "reset_before": true
+ },
+ {
+  "id": "accounts-clients-392",
+  "desc": "deployment create: site-scoped role on its site; no audit row on OLD",
+  "token": "site",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 2,
+   "expires": "2026-11-10T12:00:00+0000",
+   "power": 1,
+   "ping": 1,
+   "rdp": 1,
+   "agenttype": "workstation",
+   "goarch": "386"
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15",
+    "logs_auditlog(username,object_type,action,message) where id > 192"
+   ]
+  },
+  "reset_before": true
+ },
+ {
+  "id": "accounts-clients-393",
+  "desc": "deployment create: readonly -> 403",
+  "token": "readonly",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 1,
+   "expires": "2026-11-10T12:00:00+0000",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-448",
+  "desc": "deployment create with ULRMM_INSECURE=True -> 400 Not available in insecure mode, nothing created",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "from django.test import override_settings\nfrom rest_framework.test import APIClient\nfrom accounts.models import User\nfrom clients.models import Deployment\nc = APIClient()\nc.force_authenticate(user=User.objects.get(username='admin'))\nwith override_settings(ULRMM_INSECURE=True, ALLOWED_HOSTS=['*']):\n    r = c.post('/clients/deployments/', {'site': 5, 'expires': '2026-11-10T12:00:00+0000', 'power': 1, 'ping': 0, 'rdp': 1, 'agenttype': 'server', 'goarch': 'amd64'}, format='json')\nprint(r.status_code, r.data, Deployment.objects.count())\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  },
+  "body": null
+ },
+ {
+  "id": "accounts-clients-394",
+  "desc": "deployment detail GET -> OLD 500 TypeError",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/deployments/13/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-395",
+  "desc": "deployment detail POST -> OLD 500 TypeError",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/13/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-396",
+  "desc": "deployments list DELETE -> OLD 500 TypeError",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/deployments/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "ignore"
+  }
+ },
+ {
+  "id": "accounts-clients-433",
+  "desc": "deployment create without any installer user -> OLD 500 IntegrityError",
+  "token": "admin",
+  "method": "POST",
+  "path": "/clients/deployments/",
+  "body": {
+   "site": 5,
+   "expires": "2026-11-10T12:00:00+0000",
+   "power": 1,
+   "ping": 0,
+   "rdp": 1,
+   "agenttype": "server",
+   "goarch": "amd64"
+  },
+  "reset_before": true,
+  "setup": "from accounts.models import User\nUser.objects.filter(is_installer_user=True).update(is_installer_user=False)\n",
+  "compare": {
+   "status": true,
+   "body": "ignore",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-397",
+  "desc": "deployment delete: unknown -> 404",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/deployments/999/",
+  "body": null,
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-398",
+  "desc": "deployment delete: client-scoped role on a foreign deployment -> 403",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/clients/deployments/14/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags)"
+   ]
+  }
+ },
+ {
+  "id": "accounts-clients-399",
+  "desc": "deployment delete: readonly -> 403",
+  "token": "readonly",
+  "method": "DELETE",
+  "path": "/clients/deployments/13/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-400",
+  "desc": "deployment delete: noperm on a missing deployment -> 403 before lookup",
+  "token": "noperm",
+  "method": "DELETE",
+  "path": "/clients/deployments/999/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-401",
+  "desc": "deployment delete: site-scoped role on its deployment; no audit row on OLD",
+  "token": "site",
+  "method": "DELETE",
+  "path": "/clients/deployments/13/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags)",
+    "knox_authtoken(digest) where digest='31ee114c23e170917b084810556c24aef5bf3125a89604b6166348b181952fb5a0578700507becd4b5d32717c3f90ec5304f311fb4b51a74cecef73eca783d5b'",
+    "logs_auditlog(username,object_type,action,message) where id > 192"
+   ]
+  },
+  "reset_before": true
+ },
+ {
+  "id": "accounts-clients-402",
+  "desc": "deployment delete: admin deletes the expired one; no audit row on OLD",
+  "token": "admin",
+  "method": "DELETE",
+  "path": "/clients/deployments/14/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id,site_id,mon_type,goarch,install_flags)",
+    "logs_auditlog(username,object_type,action,message) where id > 192"
+   ]
+  },
+  "reset_before": true
+ },
+ {
+  "id": "accounts-clients-455",
+  "desc": "deployment delete: client-scoped role on its own deployment 12 -> 200, knox token gone; no audit row on OLD",
+  "token": "clienta",
+  "method": "DELETE",
+  "path": "/clients/deployments/12/",
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "json",
+   "db": [
+    "clients_deployment(id) where id=12",
+    "knox_authtoken(user_id) where digest='fecdae7347b6899d588b958c9f1118629e99d12d2311a50e48c4fa7adb1b3b0c73b584f90cfa153afcd004d9d85991ce3fb1367f6623dd84a0a1fb682b54a7f7'",
+    "logs_auditlog(username,object_type,action,message) where id > 192"
+   ]
+  },
+  "body": null
+ },
+ {
+  "id": "accounts-clients-403",
+  "desc": "deploy link without auth -> 400 explanation",
+  "token": "none",
+  "method": "GET",
+  "path": "/clients/abc123/deploy/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-404",
+  "desc": "deploy link with a deployment uid and admin token -> 400",
+  "token": "admin",
+  "method": "GET",
+  "path": "/clients/0b8c4d0e-0000-4000-8000-000000000000/deploy/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-405",
+  "desc": "deploy link POST -> 405",
+  "token": "none",
+  "method": "POST",
+  "path": "/clients/abc/deploy/",
+  "body": {},
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-406",
+  "desc": "deployment token cannot reach the dashboard -> 401",
+  "token": "deploy_bremen_ws",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-407",
+  "desc": "create_installer_user when one exists",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nout, rc = run('create_installer_user')\nprint(out, rc)\nfrom accounts.models import User\nprint(User.objects.filter(is_installer_user=True).count())\n",
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-408",
+  "desc": "create_installer_user creates one when none exists",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nfrom accounts.models import User\nUser.objects.filter(is_installer_user=True).update(is_installer_user=False)\nout, rc = run('create_installer_user')\nprint(out, rc)\nu = User.objects.get(is_installer_user=True)\nprint(len(u.username), all(c in '0123456789abcdef' for c in u.username), u.block_dashboard_login, u.has_usable_password(), u.totp_key)\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-409",
+  "desc": "delete_tokens: short-lived dashboard and installer tokens go, deployment tokens stay",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nimport datetime\nfrom knox.models import AuthToken\nfrom accounts.models import User\nfrom clients.models import Deployment, InstallerToken\ndef counts():\n    qs = AuthToken.objects.all()\n    return {'deploy': qs.filter(deploytokens__isnull=False).count(), 'installer': qs.filter(installertokens__isnull=False).count(),\n            'other': qs.filter(deploytokens__isnull=True, installertokens__isnull=True).count()}\ninst = User.objects.get(username='bench_installer')\ntok, _ = AuthToken.objects.create(user=inst, expiry=datetime.timedelta(hours=2))\nInstallerToken.objects.create(site_id=3, auth_token=tok)\nAuthToken.objects.create(user=User.objects.get(username='bench_readonly'), expiry=datetime.timedelta(hours=2))\nprint('before', counts())\nout, rc = run('delete_tokens')\nprint(out, rc)\nprint('after', counts())\nprint('readonly tokens', AuthToken.objects.filter(user__username='bench_readonly').count())\n",
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-410",
+  "desc": "generate_totp prints one base32 line",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nout, rc = run('generate_totp')\ns = out.strip()\nprint(len(s.splitlines()), len(s), all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567' for c in s), rc)\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-411",
+  "desc": "reset_2fa for a user: new key committed, qr called",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nfrom accounts.models import User, APIKey\nfrom knox.models import AuthToken\nout, rc = run('reset_2fa', 'bench_readonly')\nu = User.objects.get(username='bench_readonly')\nprint(out.replace(u.totp_key, '<KEY>'), rc)\nprint(u.totp_key != 'JBSWY3DPEHPK3PXP', len(u.totp_key), qrarg())\nprint('tokens', AuthToken.objects.filter(user=u).count())\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-412",
+  "desc": "reset_2fa for an unknown user",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nout, rc = run('reset_2fa', 'nobody_r4')\nprint(out, rc, qrarg())\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-413",
+  "desc": "reset_password for a user with a mismatch first",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nfrom unittest import mock\nfrom accounts.models import User\nfrom knox.models import AuthToken\nwith mock.patch('getpass.getpass', side_effect=['a-Pass-1', 'b-Pass-2', 'Cmd-Pass-2026!', 'Cmd-Pass-2026!']):\n    out, rc = run('reset_password', 'bench_noperm')\nu = User.objects.get(username='bench_noperm')\nprint(out, rc, u.check_password('Cmd-Pass-2026!'))\nprint('tokens', AuthToken.objects.filter(user=u).count())\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-414",
+  "desc": "reset_password for an unknown user",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nfrom unittest import mock\nwith mock.patch('getpass.getpass', side_effect=['x', 'x']):\n    out, rc = run('reset_password', 'nobody_r4')\nprint(out, rc)\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-415",
+  "desc": "generate_barcode commits the given key",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nfrom accounts.models import User\nout, rc = run('generate_barcode', 'ABCDEFGHIJKLMNOP', 'bench_nototp', 'rmm.bench.invalid')\nprint(out, rc, qrarg())\nprint(User.objects.get(username='bench_nototp').totp_key)\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-416",
+  "desc": "generate_barcode for an unknown user",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nimport io, os, contextlib\nos.makedirs('/tmp/par/fakeqr', exist_ok=True)\nopen('/tmp/par/fakeqr/qr', 'w').write('#!/bin/sh\\necho \"$1\" > /tmp/par/fakeqr/arg-{{SIDE}}\\n')\nos.chmod('/tmp/par/fakeqr/qr', 0o755)\nos.environ['PATH'] = '/tmp/par/fakeqr:' + os.environ['PATH']\ntry:\n    os.remove('/tmp/par/fakeqr/arg-{{SIDE}}')\nexcept FileNotFoundError:\n    pass\nfrom django.core.management import call_command\nfrom django.core.management.base import CommandError\ndef run(*a):\n    buf = io.StringIO()\n    rc = 0\n    with contextlib.redirect_stdout(buf):\n        try:\n            call_command(*a)\n        except CommandError as e:\n            rc = 'CommandError: %s' % e\n        except Exception as e:\n            rc = '%s: %s' % (type(e).__name__, e)\n    return buf.getvalue(), rc\ndef qrarg():\n    try:\n        s = open('/tmp/par/fakeqr/arg-{{SIDE}}').read().strip()\n    except FileNotFoundError:\n        return 'qr not called'\n    return 'qr called: otpauth=%s issuer=%s' % (s.startswith('otpauth://totp/'), 'issuer=' in s)\n\nout, rc = run('generate_barcode', 'ABCDEFGHIJKLMNOP', 'nobody_r4', 'rmm.bench.invalid')\nprint(out, rc, qrarg())\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-417",
+  "desc": "User contract: mesh names, is_sso_user",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nfor n in ['admin', 'bench_readonly', 'bench_sso']:\n    u = User.objects.get(username=n)\n    print(n, u.mesh_username, u.mesh_user_id, u.is_sso_user)\nu = User(username='Max Mu Ster', pk=77)\nprint(u.mesh_username, u.mesh_user_id)\n",
+  "reset_before": true,
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-418",
+  "desc": "role cache: returns the role with prefetched scope; None without role",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nfrom django.core.cache import cache\ncache.delete_many_pattern('role_*')\nr = User.objects.get(username='bench_clienta').get_and_set_role_cache()\nprint(type(r).__name__, r.pk, r.name, [c.pk for c in r.can_view_clients.all()], [s.pk for s in r.can_view_sites.all()])\nprint(User.objects.get(username='admin').get_and_set_role_cache())\nprint(sorted((k.decode() if isinstance(k, bytes) else k).split(':')[-1] for k in cache.iter_keys_pattern('role_*')))\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-419",
+  "desc": "APIKey.save hashes the key and blanks it; serialize has no key material",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nimport hashlib\nk = APIKey(name='bench-h-key', key='PLAINH3', user_id=1)\nk.save()\nk.refresh_from_db()\nprint(repr(k.key), k.key_hash == hashlib.sha256(b'PLAINH3').hexdigest(), json.dumps(APIKey.serialize(k), sort_keys=True, default=str))\nk.delete()\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-420",
+  "desc": "serialize() contracts for User, Role, Client, Site",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nprint(json.dumps(User.serialize(User.objects.get(pk=24)), sort_keys=True, default=str))\nprint(json.dumps(Role.serialize(Role.objects.get(pk=13)), sort_keys=True, default=str))\nprint(json.dumps(Client.serialize(Client.objects.get(pk=1)), sort_keys=True, default=str))\nprint(json.dumps(Site.serialize(Site.objects.get(pk=2)), sort_keys=True, default=str))\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-421",
+  "desc": "Client/Site properties, defaults, __str__",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nimport clients.models as cm\nprint(cm._default_failing_checks_data())\nfor c in Client.objects.all():\n    print('client', c.pk, str(c), c.live_agent_count)\nfor s in Site.objects.all():\n    print('site', s.pk, str(s), s.live_agent_count)\nfor d in Deployment.objects.order_by('pk'):\n    print('dep', d.pk, str(d), d.client.pk)\nprint([f.name for f in Client._meta.ordering and Client._meta.get_fields() if f.concrete])\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-422",
+  "desc": "custom field value / save_to_field per type (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nfrom django.db import transaction\nfor r in ClientCustomField.objects.order_by('pk'):\n    print('ccf', r.pk, str(r), repr(r.value))\nfor r in SiteCustomField.objects.order_by('pk'):\n    print('scf', r.pk, str(r), repr(r.value))\nwith transaction.atomic():\n    for pk, val in [(19, 'new text'), (22, 'x'), (16, 'Gold')]:\n        r = ClientCustomField.objects.get(pk=pk); r.save_to_field(val); r.refresh_from_db()\n        print('save', pk, r.field.type, repr(r.value))\n    r = SiteCustomField.objects.get(pk=3); r.save_to_field('a,b,c'); r.refresh_from_db(); print('save scf3', r.value)\n    transaction.set_rollback(True)\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-423",
+  "desc": "serializer field contracts",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nfrom accounts.serializers import APIKeySerializer, RoleSerializer\nfrom clients.serializers import ClientSerializer, SiteSerializer, DeploymentSerializer, ClientMinimumSerializer, SiteMinimumSerializer\nfor S in [APIKeySerializer, RoleSerializer, ClientSerializer, SiteSerializer, DeploymentSerializer, ClientMinimumSerializer, SiteMinimumSerializer]:\n    f = S().fields\n    print(S.__name__, sorted(f), sorted(k for k, v in f.items() if v.read_only))\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-424",
+  "desc": "Role flag columns",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "\nfrom accounts.models import Role\nfrom django.db.models import BooleanField\nfl = sorted(f.name for f in Role._meta.get_fields() if isinstance(f, BooleanField))\nprint(len(fl)); print(fl)\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-425",
+  "desc": "accounts.utils constants and superuser helpers",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nimport accounts.utils as au, accounts.views as av\nprint(au.TOTP_PENDING_EXPIRE, au.TOTP_FAIL_LIMIT, au.TOTP_FAIL_EXPIRE, au.CONSOLE_STEPUP_EXPIRE, au.DELETE_NEEDS_TOTP, av.API_KEY_DEFAULT_TTL)\nfor pk in [1, 24, 28, 29]:\n    u = User.objects.get(pk=pk)\n    print(pk, au.has_superuser_rights(u), bool(au.is_superuser(u)), au.is_root_user(request=None, user=u))\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-426",
+  "desc": "verify_fresh_totp: formats, single use, lockout",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nimport pyotp\nfrom django.core.cache import cache\nfrom accounts.utils import verify_fresh_totp\ncache.delete_many_pattern('totp_*')\nu = User.objects.get(username='bench_rolesuper')\nprint([verify_fresh_totp(u, c) for c in [None, '', '12345', 'abcdef', '1234567', '000000']])\nprint(verify_fresh_totp(User.objects.get(username='bench_sso'), '123456'))\ncode = pyotp.TOTP('JBSWY3DPEHPK3PXP').now()\ncache.delete_many_pattern('totp_*')\nprint(verify_fresh_totp(u, code[:3] + ' ' + code[3:]), verify_fresh_totp(u, code))\ncache.set('totp_fail_28', 5, 600)\nprint(verify_fresh_totp(u, pyotp.TOTP('JBSWY3DPEHPK3PXP').at(__import__('time').time() + 30)), cache.get('totp_fail_28'))\ncache.delete_many_pattern('totp_*')\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-427",
+  "desc": "pending TOTP commit happens once and ends other sessions (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nfrom django.db import transaction\nfrom django.core.cache import cache\nfrom knox.models import AuthToken\nfrom accounts.utils import set_pending_totp_key, get_pending_totp_key, commit_pending_totp_key\nu = User.objects.get(username='bench_nototp')\nwith transaction.atomic():\n    set_pending_totp_key(u, 'KEYKEYKEYKEYKEY2')\n    print(repr(get_pending_totp_key(u)), commit_pending_totp_key(u, 'KEYKEYKEYKEYKEY2'), commit_pending_totp_key(u, 'KEYKEYKEYKEYKEY2'))\n    u.refresh_from_db(); print(u.totp_key, AuthToken.objects.filter(user=u).count(), repr(get_pending_totp_key(u)))\n    transaction.set_rollback(True)\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-428",
+  "desc": "end_other_sessions and console step-up helpers (rolled back)",
+  "token": "none",
+  "method": "SHELL",
+  "shell": "import json\nfrom accounts.models import User, Role, APIKey\nfrom clients.models import *\n\nfrom django.db import transaction\nfrom django.core.cache import cache\nfrom knox.models import AuthToken\nfrom accounts.utils import end_other_sessions, grant_console_stepup, console_stepup_remaining\nu = User.objects.get(username='bench_clienta')\nprint(console_stepup_remaining(u))\ngrant_console_stepup(u)\nprint(console_stepup_remaining(u) > 3590)\nwith transaction.atomic():\n    print(AuthToken.objects.filter(user=u).count(), APIKey.objects.filter(user=u).count())\n    end_other_sessions(u)\n    print(AuthToken.objects.filter(user=u).count(), APIKey.objects.filter(user=u).count(), console_stepup_remaining(u) > 0)\n    transaction.set_rollback(True)\ncache.delete_many_pattern('console_stepup_*')\n",
+  "compare": {
+   "status": true,
+   "body": "text"
+  }
+ },
+ {
+  "id": "accounts-clients-429",
+  "desc": "expired API key and API key of an inactive user are refused on /clients/",
+  "token": "apikey_expired",
+  "method": "GET",
+  "path": "/clients/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ },
+ {
+  "id": "accounts-clients-430",
+  "desc": "API key of the clienta user sees only its client",
+  "token": "apikey_far",
+  "method": "GET",
+  "path": "/clients/sites/",
+  "body": null,
+  "compare": {
+   "status": true,
+   "body": "json"
+  }
+ }
+]

@@ -1,0 +1,13 @@
+// SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
+// SPDX-License-Identifier: FSL-1.1-ALv2
+
+// code colours for dark mode, the light ones come with the theme
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    @import "vendor/accessible-pygments/github-dark";
+  }
+}
+
+html[data-theme="dark"] {
+  @import "vendor/accessible-pygments/github-dark";
+}

@@ -1,0 +1,137 @@
+S	pacman	acl	2.4.0-1	Christian Hesse <eworm@archlinux.org>	353496	1788652800	
+S	pacman	archlinux-keyring	20260902-1	Christian Hesse <eworm@archlinux.org>	1817170	1788652800	
+S	pacman	attr	2.6.0-1	Christian Hesse <eworm@archlinux.org>	240294	1788652800	
+S	pacman	audit	4.2.1-1	David Runge <dvzrv@archlinux.org>	1098162	1788652800	
+S	pacman	base	3-3	Jan Alexander Steffens (heftig) <heftig@archlinux.org>		1788652800	
+S	pacman	bash	5.3.15-1	Tobias Powalowski <tpowa@archlinux.org>	10055508	1788652800	
+S	pacman	binutils	2.47-4	Lukas Fleischer <lfleischer@archlinux.org>	45888135	1788652800	
+S	pacman	brotli	1.2.0-1	Felix Yan <felixonmars@archlinux.org>	1082551	1788652800	
+S	pacman	bzip2	1.0.8-6	Christian Hesse <eworm@archlinux.org>	148479	1788652800	
+S	pacman	ca-certificates	20240618-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>		1788652800	
+S	pacman	ca-certificates-mozilla	3.128-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	1071201	1788652800	
+S	pacman	ca-certificates-utils	20240618-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	13960	1788652800	
+S	pacman	coreutils	9.11-2	Tobias Powalowski <tpowa@archlinux.org>	18315266	1788652800	
+S	pacman	cryptsetup	2.8.7-1	Christian Hesse <eworm@archlinux.org>	3626519	1788652800	
+S	pacman	curl	8.22.0-1	Christian Hesse <eworm@archlinux.org>	2365209	1788652800	
+S	pacman	dbus	1.16.2-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	1029006	1788652800	
+S	pacman	dbus-broker	37-3	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	366227	1788652800	
+S	pacman	dbus-broker-units	37-3	Jan Alexander Steffens (heftig) <heftig@archlinux.org>		1788652800	
+S	pacman	dbus-units	37-3	Jan Alexander Steffens (heftig) <heftig@archlinux.org>		1788652800	
+S	pacman	device-mapper	2.03.42-1	Christian Hesse <eworm@archlinux.org>	858745	1788652800	
+S	pacman	e2fsprogs	1.47.4-1	Christian Hesse <eworm@archlinux.org>	5541430	1788652800	
+S	pacman	expat	2.8.4-1	Felix Yan <felixonmars@archlinux.org>	523999	1788652800	
+S	pacman	file	5.48-1	Christian Hesse <eworm@archlinux.org>	11041442	1788652800	
+S	pacman	filesystem	2025.10.12-1	David Runge <dvzrv@archlinux.org>	24551	1788652800	
+S	pacman	findutils	4.11.0-1	Tobias Powalowski <tpowa@archlinux.org>	1965172	1788652800	
+S	pacman	gawk	5.4.1-1	Tobias Powalowski <tpowa@archlinux.org>	4285308	1788652800	
+S	pacman	gcc-libs	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>		1788652800	
+S	pacman	gdbm	1.26-2	David Runge <dvzrv@archlinux.org>	752748	1788652800	
+S	pacman	gettext	1.0-2	Tobias Powalowski <tpowa@archlinux.org>	21804039	1788652800	
+S	pacman	glib2	2.88.3-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	39727155	1788652800	
+S	pacman	glibc	2.44+r24+g16be1518495f-1	Frederik Schwan <freswa@archlinux.org>	53123943	1788652800	
+S	pacman	gmp	6.3.0-3	Tobias Powalowski <tpowa@archlinux.org>	1061616	1788652800	
+S	pacman	gnulib-l10n	20241231-1	Tobias Powalowski <tpowa@archlinux.org>	644166	1788652800	
+S	pacman	gnupg	2.4.9-3	David Runge <dvzrv@archlinux.org>	10912940	1788652800	
+S	pacman	gnutls	3.8.13-2	Andreas Radke <andyrtr@archlinux.org>	8504190	1788652800	
+S	pacman	gpgme	2.2.0-1	Christian Hesse <eworm@archlinux.org>	809476	1788652800	
+S	pacman	grep	3.12-2	Christian Hesse <eworm@archlinux.org>	920241	1788652800	
+S	pacman	gzip	1.14-2	Christian Hesse <eworm@archlinux.org>	162610	1788652800	
+S	pacman	hwdata	0.410-1	Tobias Powalowski <tpowa@archlinux.org>	10511152	1788652800	
+S	pacman	iana-etc	20260617-1	Jelle van der Waa <jelle@archlinux.org>	4213221	1788652800	
+S	pacman	icu	78.3-1	Andreas Radke <andyrtr@archlinux.org>	45330098	1788652800	
+S	pacman	iproute2	7.2.0-1	Christian Hesse <eworm@archlinux.org>	3257968	1788652800	
+S	pacman	iptables	1:1.8.13-1	Felix Yan <felixonmars@archlinux.org>	2465703	1788652800	
+S	pacman	iputils	20250605-1	Tobias Powalowski <tpowa@archlinux.org>	681015	1788652800	
+S	pacman	jansson	2.15.1-1	Frederik Schwan <freswa@archlinux.org>	287251	1788652800	
+S	pacman	json-c	0.19-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	203194	1788652800	
+S	pacman	kbd	2.10.0-1	Tobias Powalowski <tpowa@archlinux.org>	3449841	1788652800	
+S	pacman	keyutils	1.6.3-4	Christian Hesse <eworm@archlinux.org>	211289	1788652800	
+S	pacman	kmod	34.2-1	Christian Hesse <eworm@archlinux.org>	350816	1788652800	
+S	pacman	krb5	1.22.2-1	Levente Polyak <anthraxx@archlinux.org>	4948474	1788652800	
+S	pacman	leancrypto	1.8.0-1	Andreas Radke <andyrtr@archlinux.org>	6622604	1788652800	
+S	pacman	libarchive	3.8.9-1	David Runge <dvzrv@archlinux.org>	1333572	1788652800	
+S	pacman	libasan	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	1974116	1788652800	
+S	pacman	libassuan	3.0.0-1	David Runge <dvzrv@archlinux.org>	245206	1788652800	
+S	pacman	libatomic	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	38092	1788652800	
+S	pacman	libbpf	1.7.0-1	Levente Polyak <anthraxx@archlinux.org>	864822	1788652800	
+S	pacman	libcap	2.78-1	Felix Yan <felixonmars@archlinux.org>	2177888	1788652800	
+S	pacman	libcap-ng	0.9.5-1	David Runge <dvzrv@archlinux.org>	177652	1788652800	
+S	pacman	libelf	0.196-1	David Runge <dvzrv@archlinux.org>	3481761	1788652800	
+S	pacman	libevent	2.1.13-2	Christian Hesse <eworm@archlinux.org>	1272722	1788652800	
+S	pacman	libffi	3.8.0-1	David Runge <dvzrv@archlinux.org>	117789	1788652800	
+S	pacman	libgcc	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	185836	1788652800	
+S	pacman	libgcrypt	1.12.3-1	Andreas Radke <andyrtr@archlinux.org>	2053116	1788652800	
+S	pacman	libgfortran	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	3684588	1788652800	
+S	pacman	libgomp	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	447361	1788652800	
+S	pacman	libgpg-error	1.61-1	Andreas Radke <andyrtr@archlinux.org>	1199323	1788652800	
+S	pacman	libhwasan	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	757548	1788652800	
+S	pacman	libidn2	2.3.8-1	Christian Hesse <eworm@archlinux.org>	384496	1788652800	
+S	pacman	libksba	1.8.1-1	Tobias Powalowski <tpowa@archlinux.org>	351565	1788652800	
+S	pacman	libldap	2.6.13-1	Frederik Schwan <freswa@archlinux.org>	694102	1788652800	
+S	pacman	liblsan	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	573212	1788652800	
+S	pacman	libmakepkg-dropins	20-2	David Runge <dvzrv@archlinux.org>	11493	1788652800	
+S	pacman	libmnl	1.0.5-2	Christian Hesse <eworm@archlinux.org>	35012	1788652800	
+S	pacman	libnetfilter_conntrack	1.1.1-1	Sébastien Luttringer <seblu@archlinux.org>	164057	1788652800	
+S	pacman	libnfnetlink	1.0.2-2	Christian Hesse <eworm@archlinux.org>	47204	1788652800	
+S	pacman	libnftnl	1.3.2-1	Christian Hesse <eworm@archlinux.org>	271507	1788652800	
+S	pacman	libnghttp2	1.70.0-1	Christian Hesse <eworm@archlinux.org>	412427	1788652800	
+S	pacman	libnghttp3	1.18.0-1	Christian Hesse <eworm@archlinux.org>	286206	1788652800	
+S	pacman	libngtcp2	1.25.0-1	Christian Hesse <eworm@archlinux.org>	785425	1788652800	
+S	pacman	libnl	3.12.0-1	Christian Hesse <eworm@archlinux.org>	2222797	1788652800	
+S	pacman	libnsl	2.0.1-2	David Runge <dvzrv@archlinux.org>	71818	1788652800	
+S	pacman	libobjc	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	94212	1788652800	
+S	pacman	libp11-kit	0.26.5-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	3472860	1788652800	
+S	pacman	libpcap	1.10.6-1	David Runge <dvzrv@archlinux.org>	682953	1788652800	
+S	pacman	libpsl	0.21.5-2	Levente Polyak <anthraxx@archlinux.org>	228063	1788652800	
+S	pacman	libquadmath	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	316008	1788652800	
+S	pacman	libsasl	2.1.28-5	David Runge <dvzrv@archlinux.org>	528563	1788652800	
+S	pacman	libseccomp	2.6.0-1	Levente Polyak <anthraxx@archlinux.org>	321068	1788652800	
+S	pacman	libsecret	0.21.7-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	1217959	1788652800	
+S	pacman	libssh2	1.11.1-7	Felix Yan <felixonmars@archlinux.org>	514626	1788652800	
+S	pacman	libstdc++	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	2944139	1788652800	
+S	pacman	libsysprof-capture	50.0-6	Frederik Schwan <freswa@archlinux.org>	280562	1788652800	
+S	pacman	libtasn1	4.21.0-1	Andreas Radke <andyrtr@archlinux.org>	284533	1788652800	
+S	pacman	libtirpc	1.3.7-1	Andreas Radke <andyrtr@archlinux.org>	441724	1788652800	
+S	pacman	libtsan	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	1527644	1788652800	
+S	pacman	libubsan	16.2.1+r23+gd564253eb6c8-1	Frederik Schwan <freswa@archlinux.org>	520076	1788652800	
+S	pacman	libunistring	1.4.2-1	Felix Yan <felixonmars@archlinux.org>	2866464	1788652800	
+S	pacman	libusb	1.0.30-1	David Runge <dvzrv@archlinux.org>	238616	1788652800	
+S	pacman	libverto	0.3.2-6	Andreas Radke <andyrtr@archlinux.org>	70030	1788652800	
+S	pacman	libxcrypt	4.5.2-1	Christian Hesse <eworm@archlinux.org>	199801	1788652800	
+S	pacman	libxml2	2.15.4-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	3216638	1788652800	
+S	pacman	licenses	20240728-1	David Runge <dvzrv@archlinux.org>	1617309	1788652800	
+S	pacman	linux-api-headers	7.2-1	Frederik Schwan <freswa@archlinux.org>	7339005	1788652800	
+S	pacman	lmdb	0.9.35-1	Felix Yan <felixonmars@archlinux.org>	422913	1788652800	
+S	pacman	lz4	1:1.10.0-2	Sven-Hendrik Haase <svenstaro@archlinux.org>	460964	1788652800	
+S	pacman	mpfr	4.2.2-1	Antonio Rojas <arojas@archlinux.org>	1060163	1788652800	
+S	pacman	ncurses	6.6-2	David Runge <dvzrv@archlinux.org>	4289967	1788652800	
+S	pacman	nettle	4.0-1	Andreas Radke <andyrtr@archlinux.org>	1083098	1788652800	
+S	pacman	nftables	1:1.1.7-3	Christian Hesse <eworm@archlinux.org>	1210499	1788652800	
+S	pacman	npth	1.8-1	David Runge <dvzrv@archlinux.org>	88201	1788652800	
+S	pacman	openssl	3.6.4-1	Pierre Schmitz <pierre@archlinux.org>	12843632	1788652800	
+S	pacman	p11-kit	0.26.5-1	Jan Alexander Steffens (heftig) <heftig@archlinux.org>	1195446	1788652800	
+S	pacman	pacman	7.1.0.r9.g54d9411-2	Christian Hesse <eworm@archlinux.org>	5283285	1788652800	
+S	pacman	pacman-mirrorlist	20260610-1	Tobias Powalowski <tpowa@archlinux.org>	27292	1788652800	
+S	pacman	pam	1.7.2-2	Tobias Powalowski <tpowa@archlinux.org>	3058177	1788652800	
+S	pacman	pambase	20260616-1	Tobias Powalowski <tpowa@archlinux.org>	2794	1788652800	
+S	pacman	pciutils	3.15.0-1	Tobias Powalowski <tpowa@archlinux.org>	428006	1788652800	
+S	pacman	pcre2	10.48-1	David Runge <dvzrv@archlinux.org>	7456225	1788652800	
+S	pacman	pinentry	1.3.3-1	Lukas Fleischer <lfleischer@archlinux.org>	692067	1788652800	
+S	pacman	popt	1.19-2	Antonio Rojas <arojas@archlinux.org>	241164	1788652800	
+S	pacman	procps-ng	4.0.7-1	Christian Hesse <eworm@archlinux.org>	2674579	1788652800	
+S	pacman	psmisc	23.7-2	Christian Hesse <eworm@archlinux.org>	799377	1788652800	
+S	pacman	readline	8.3.003-1	Tobias Powalowski <tpowa@archlinux.org>	1569425	1788652800	
+S	pacman	sed	4.10-2	Lukas Fleischer <lfleischer@archlinux.org>	745601	1788652800	
+S	pacman	shadow	4.20.0.arch1-1	David Runge <dvzrv@archlinux.org>	3769582	1788652800	
+S	pacman	sqlite	3.53.4-1	Andreas Radke <andyrtr@archlinux.org>	17614270	1788652800	
+S	pacman	systemd	261.2-1	Christian Hesse <eworm@archlinux.org>	41393951	1788652800	
+S	pacman	systemd-libs	261.2-1	Christian Hesse <eworm@archlinux.org>	3901063	1788652800	
+S	pacman	systemd-sysvcompat	261.2-1	Christian Hesse <eworm@archlinux.org>	2913	1788652800	
+S	pacman	tar	1.35-5	Lukas Fleischer <lfleischer@archlinux.org>	2936350	1788652800	
+S	pacman	tpm2-tss	4.2.0-2	David Runge <dvzrv@archlinux.org>	3823415	1788652800	
+S	pacman	tzdata	2026c-1	Andreas Radke <andyrtr@archlinux.org>	1714499	1788652800	
+S	pacman	util-linux	2.42.3-1	Christian Hesse <eworm@archlinux.org>	20828823	1788652800	
+S	pacman	util-linux-libs	2.42.3-1	Christian Hesse <eworm@archlinux.org>	1459409	1788652800	
+S	pacman	xz	5.8.3-1	Christian Hesse <eworm@archlinux.org>	3119140	1788652800	
+S	pacman	zlib	1:1.3.2-3	David Runge <dvzrv@archlinux.org>	228580	1788652800	
+S	pacman	zstd	1.5.7-3	Tobias Powalowski <tpowa@archlinux.org>	1610357	1788652800	

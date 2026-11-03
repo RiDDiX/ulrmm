@@ -1,0 +1,2 @@
+E	apt-update	apt-get update failed: W: Failed to fetch http://deb.debian.org/debian-security/dists/bookworm-security/InRelease  Temporary failure resolving 'deb.debian.org'
+R	0

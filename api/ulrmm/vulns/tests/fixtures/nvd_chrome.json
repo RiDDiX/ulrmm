@@ -1,0 +1,73 @@
+{
+  "resultsPerPage": 3,
+  "startIndex": 0,
+  "totalResults": 3,
+  "format": "NVD_CVE",
+  "version": "2.0",
+  "timestamp": "2026-10-09T05:12:40.913",
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2024-9602",
+        "sourceIdentifier": "chrome-cve-admin@google.com",
+        "published": "2024-10-08T22:15:12.430",
+        "lastModified": "2024-10-10T12:57:21.987",
+        "vulnStatus": "Analyzed",
+        "descriptions": [
+          {"lang": "en", "value": "Type Confusion in V8 in Google Chrome prior to 129.0.6668.100 allowed a remote attacker to perform an out of bounds memory read via a crafted HTML page. (Chromium security severity: High)"},
+          {"lang": "es", "value": "La confusion de tipos en V8 en Google Chrome anterior a la version 129.0.6668.100."}
+        ],
+        "metrics": {
+          "cvssMetricV31": [
+            {"source": "nvd@nist.gov", "type": "Primary", "cvssData": {"version": "3.1", "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H", "attackVector": "NETWORK", "baseScore": 8.8, "baseSeverity": "HIGH"}, "exploitabilityScore": 2.8, "impactScore": 5.9}
+          ]
+        },
+        "weaknesses": [{"source": "nvd@nist.gov", "type": "Primary", "description": [{"lang": "en", "value": "CWE-843"}]}],
+        "configurations": [
+          {"nodes": [{"operator": "OR", "negate": false, "cpeMatch": [
+            {"vulnerable": true, "criteria": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*", "versionEndExcluding": "129.0.6668.100", "matchCriteriaId": "A7D3D0B4-3C3C-4A6E-9E1C-4C4B4B4B4B4B"}
+          ]}]}
+        ],
+        "references": [{"url": "https://chromereleases.googleblog.com/2024/10/stable-channel-update-for-desktop_8.html", "source": "chrome-cve-admin@google.com"}]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2024-9603",
+        "sourceIdentifier": "chrome-cve-admin@google.com",
+        "published": "2024-10-08T22:15:12.520",
+        "lastModified": "2024-10-17T21:13:59.763",
+        "vulnStatus": "Analyzed",
+        "descriptions": [{"lang": "en", "value": "Type Confusion in V8 in Google Chrome prior to 129.0.6668.100 allowed a remote attacker to potentially exploit heap corruption via a crafted HTML page.\nSecond line."}],
+        "metrics": {
+          "cvssMetricV31": [
+            {"source": "nvd@nist.gov", "type": "Primary", "cvssData": {"version": "3.1", "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H", "baseScore": 8.8, "baseSeverity": "HIGH"}},
+            {"source": "134c704f-9b21-4f2e-91b3-4a467353bcc0", "type": "Secondary", "cvssData": {"version": "3.1", "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:H", "baseScore": 9.6, "baseSeverity": "CRITICAL"}}
+          ],
+          "cvssMetricV2": [{"source": "nvd@nist.gov", "type": "Primary", "cvssData": {"version": "2.0", "baseScore": 10.0}}]
+        },
+        "configurations": [
+          {"nodes": [{"operator": "OR", "negate": false, "cpeMatch": [
+            {"vulnerable": true, "criteria": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*", "versionEndExcluding": "129.0.6668.100", "matchCriteriaId": "A7D3D0B4-3C3C-4A6E-9E1C-4C4B4B4B4B4B"},
+            {"vulnerable": true, "criteria": "cpe:2.3:a:google:chrome_os:*:*:*:*:*:*:*:*", "versionEndExcluding": "16002.0.0", "matchCriteriaId": "B7D3D0B4-3C3C-4A6E-9E1C-4C4B4B4B4B4B"}
+          ]}]},
+          {"operator": "AND", "nodes": [
+            {"operator": "OR", "negate": false, "cpeMatch": [{"vulnerable": true, "criteria": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*", "versionEndExcluding": "129.0.6668.89", "matchCriteriaId": "C7D3D0B4-3C3C-4A6E-9E1C-4C4B4B4B4B4B"}]},
+            {"operator": "OR", "negate": false, "cpeMatch": [{"vulnerable": false, "criteria": "cpe:2.3:o:apple:macos:-:*:*:*:*:*:*:*", "matchCriteriaId": "D7D3D0B4-3C3C-4A6E-9E1C-4C4B4B4B4B4B"}]}
+          ]}
+        ]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2024-0001",
+        "sourceIdentifier": "chrome-cve-admin@google.com",
+        "published": "2024-01-01T00:00:00.000",
+        "lastModified": "2024-02-01T00:00:00.000",
+        "vulnStatus": "Rejected",
+        "descriptions": [{"lang": "en", "value": "Rejected reason: duplicate."}],
+        "metrics": {}
+      }
+    }
+  ]
+}

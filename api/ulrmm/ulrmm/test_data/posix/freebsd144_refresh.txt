@@ -1,0 +1,11 @@
+# captured on the FreeBSD 14.4 VM (pkg 2.8.4): posix_packages.sh refresh, sudo 1.9.5 registered without files
+S	pkg	firstboot-freebsd-update	1.4	cperciva@FreeBSD.org	1441	1772755200	
+S	pkg	jq	1.8.2	yuri@FreeBSD.org	1307952	1792581316	
+S	pkg	oniguruma	6.9.10	yuri@FreeBSD.org	1067357	1792581122	
+S	pkg	pkg	2.8.4	pkg@FreeBSD.org	47738789	1792581077	
+S	pkg	sudo	1.9.5	garga@FreeBSD.org	0	1792581710	
+U	pkg	sudo		1.9.5	1.9.17p2_2				
+A	BEGIN
+{"pkg_count":1,"packages":{"sudo":{"version":"1.9.5","issue_count":3,"issues":[{"Affected versions":["< 1.9.17p1"],"description":"sudo -- privilege escalation vulnerability through host and chroot options","cve":["CVE-2025-32462","CVE-2025-32463"],"url":"https://vuxml.FreeBSD.org/freebsd/24f4b495-56a1-11f0-9621-93abbef07693.html"},{"Affected versions":[">= 1.8.0 : < 1.9.12p1"],"description":"sudo -- Potential out-of-bounds write for small passwords","cve":["CVE-2022-43995"],"url":"https://vuxml.FreeBSD.org/freebsd/3310014a-5ef9-11ed-812b-206a8a720317.html"},{"Affected versions":["< 1.9.5p2"],"description":"sudo -- Multiple vulnerabilities","cve":["CVE-2021-3156"],"url":"https://vuxml.FreeBSD.org/freebsd/f3cf4b33-6013-11eb-9a0e-206a8a720317.html"}],"reverse dependencies":[]}}}
+A	END
+R	0

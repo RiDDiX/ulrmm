@@ -1,0 +1,27 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/api/env/bin/python",
+  "python.analysis.extraPaths": ["${workspaceFolder}/api/ulrmm"],
+  "python.analysis.typeCheckingMode": "basic",
+  "python.testing.pytestEnabled": true,
+  "python.testing.cwd": "${workspaceFolder}/api/ulrmm",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  },
+  "[go]": {
+    "editor.formatOnSave": true
+  },
+  "[vue][javascript][typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "files.exclude": {
+    "**/__pycache__": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/api/env/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.mypy_cache/**": true
+  }
+}

@@ -1,0 +1,2 @@
+U	apt	libpcre2-8-0	amd64	10.42-1	10.42-1+deb12u1	Important	oldstable-security		
+R	0

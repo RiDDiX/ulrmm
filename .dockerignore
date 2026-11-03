@@ -1,0 +1,17 @@
+.git
+.github
+docs
+ulrmm-web
+ulrmm-agent
+ulrmm-scripts
+api/env
+api/ulrmm/static
+api/ulrmm/ulrmm/local_settings.py
+api/ulrmm/ulrmm/private/*
+!api/ulrmm/ulrmm/private/exe
+!api/ulrmm/ulrmm/private/log
+docker/.env
+**/__pycache__
+**/node_modules
+**/.pytest_cache
+**/.mypy_cache

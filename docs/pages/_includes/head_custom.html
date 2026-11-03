@@ -1,0 +1,16 @@
+{%- comment -%}
+SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
+SPDX-License-Identifier: FSL-1.1-ALv2
+ulrmm.js runs before the body to set a stored theme without a flash.
+Without JavaScript the search does nothing and the phone menu cannot open.
+{%- endcomment -%}
+<link rel="icon" type="image/png" href="{{ '/assets/images/ulrmm-logo.png' | relative_url }}">
+<link rel="stylesheet" href="{{ '/assets/css/ulrmm.css' | relative_url }}">
+<script src="{{ '/assets/js/ulrmm.js' | relative_url }}"></script>
+<noscript><style>
+  .search { display: none !important; }
+  @media (max-width: 49.99rem) {
+    .site-nav, .side-bar + .main .main-header { display: block; }
+    #menu-button { display: none; }
+  }
+</style></noscript>

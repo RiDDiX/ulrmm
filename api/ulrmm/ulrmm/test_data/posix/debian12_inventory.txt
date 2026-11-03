@@ -1,0 +1,88 @@
+S	dpkg	adduser	3.134	Debian Adduser Developers <adduser@packages.debian.org>	702464	1787529600	
+S	dpkg	apt	2.6.1	APT Development Team <deity@lists.debian.org>	4333568	1787529600	
+S	dpkg	base-files	12.4+deb12u15	Santiago Vila <sanvila@debian.org>	349184	1787529600	
+S	dpkg	base-passwd	3.6.1	Colin Watson <cjwatson@debian.org>	252928	1787529600	
+S	dpkg	bash	5.2.15-2+b13	Matthias Klose <doko@debian.org>	7335936	1787529600	
+S	dpkg	bsdutils	1:2.38.1-5+deb12u3	util-linux packagers <util-linux@packages.debian.org>	363520	1787529600	
+S	dpkg	coreutils	9.1-1	Michael Stone <mstone@debian.org>	18495488	1787529600	
+S	dpkg	dash	0.5.12-2	Andrej Shadura <andrewsh@debian.org>	195584	1787529600	
+S	dpkg	debconf	1.5.82	Debconf Developers <debconf-devel@lists.alioth.debian.org>	502784	1787529600	
+S	dpkg	debian-archive-keyring	2023.3+deb12u2	Debian Release Team <packages@release.debian.org>	300032	1787529600	
+S	dpkg	debianutils	5.7-0.5~deb12u1	Clint Adams <clint@debian.org>	248832	1787529600	
+S	dpkg	diffutils	1:3.8-4	Santiago Vila <sanvila@debian.org>	1636352	1787529600	
+S	dpkg	dpkg	1.21.23	Dpkg Developers <debian-dpkg@lists.debian.org>	6562816	1787529600	
+S	dpkg	e2fsprogs	1.47.0-2+b2	Theodore Y. Ts'o <tytso@mit.edu>	1532928	1787529600	
+S	dpkg	findutils	4.9.0-4	Andreas Metzler <ametzler@debian.org>	1787904	1787529600	
+S	dpkg	gcc-12-base:amd64	12.2.0-14+deb12u1	Debian GCC Maintainers <debian-gcc@lists.debian.org>	102400	1787529600	
+S	dpkg	gpgv	2.2.40-1.1+deb12u2	Debian GnuPG Maintainers <pkg-gnupg-maint@lists.alioth.debian.org>	940032	1787529600	
+S	dpkg	grep	3.8-5	Anibal Monsalve Salazar <anibal@debian.org>	1274880	1787529600	
+S	dpkg	gzip	1.12-1	Milan Kupcevic <milan@debian.org>	258048	1787529600	
+S	dpkg	hostname	3.23+nmu1	Michael Meskes <meskes@debian.org>	47104	1787529600	
+S	dpkg	init-system-helpers	1.65.2+deb12u1	Debian systemd Maintainers <pkg-systemd-maintainers@lists.alioth.debian.org>	136192	1787529600	
+S	dpkg	libacl1:amd64	2.3.1-3	Guillem Jover <guillem@debian.org>	74752	1787529600	
+S	dpkg	libapt-pkg6.0:amd64	2.6.1	APT Development Team <deity@lists.debian.org>	3376128	1787529600	
+S	dpkg	libattr1:amd64	1:2.5.1-4	Guillem Jover <guillem@debian.org>	60416	1787529600	
+S	dpkg	libaudit-common	1:3.0.9-1	Laurent Bigonville <bigon@debian.org>	22528	1787529600	
+S	dpkg	libaudit1:amd64	1:3.0.9-1	Laurent Bigonville <bigon@debian.org>	153600	1787529600	
+S	dpkg	libblkid1:amd64	2.38.1-5+deb12u3	util-linux packagers <util-linux@packages.debian.org>	407552	1787529600	
+S	dpkg	libbz2-1.0:amd64	1.0.8-5+b1	Anibal Monsalve Salazar <anibal@debian.org>	108544	1787529600	
+S	dpkg	libc-bin	2.36-9+deb12u14	GNU Libc Maintainers <debian-glibc@lists.debian.org>	2091008	1787529600	
+S	dpkg	libc6:amd64	2.36-9+deb12u14	GNU Libc Maintainers <debian-glibc@lists.debian.org>	13313024	1787529600	
+S	dpkg	libcap-ng0:amd64	0.8.3-1+b3	Håvard F. Aasen <havard.f.aasen@pfft.no>	66560	1787529600	
+S	dpkg	libcap2:amd64	1:2.66-4+deb12u3+b1	Christian Kastner <ckk@debian.org>	97280	1787529600	
+S	dpkg	libcom-err2:amd64	1.47.0-2+b2	Theodore Y. Ts'o <tytso@mit.edu>	56320	1787529600	
+S	dpkg	libcrypt1:amd64	1:4.4.33-2	Marco d'Itri <md@linux.it>	238592	1787529600	
+S	dpkg	libdb5.3:amd64	5.3.28+dfsg2-1	Bastian Germann <bage@debian.org>	1876992	1787529600	
+S	dpkg	libdebconfclient0:amd64	0.270	Debian Install System Team <debian-boot@lists.debian.org>	37888	1787529600	
+S	dpkg	libext2fs2:amd64	1.47.0-2+b2	Theodore Y. Ts'o <tytso@mit.edu>	547840	1787529600	
+S	dpkg	libffi8:amd64	3.4.4-1	Debian GCC Maintainers <debian-gcc@lists.debian.org>	69632	1787529600	
+S	dpkg	libgcc-s1:amd64	12.2.0-14+deb12u1	Debian GCC Maintainers <debian-gcc@lists.debian.org>	143360	1787529600	
+S	dpkg	libgcrypt20:amd64	1.10.1-3+deb12u1	Debian GnuTLS Maintainers <pkg-gnutls-maint@lists.alioth.debian.org>	1630208	1787529600	
+S	dpkg	libgmp10:amd64	2:6.2.1+dfsg1-1.1	Debian Science Team <debian-science-maintainers@lists.alioth.debian.org>	875520	1787529600	
+S	dpkg	libgnutls30:amd64	3.7.9-2+deb12u7	Debian GnuTLS Maintainers <pkg-gnutls-maint@lists.alioth.debian.org>	3477504	1787529600	
+S	dpkg	libgpg-error0:amd64	1.46-1	Debian GnuPG Maintainers <pkg-gnupg-maint@lists.alioth.debian.org>	196608	1787529600	
+S	dpkg	libhogweed6:amd64	3.8.1-2	Magnus Holmgren <holmgren@debian.org>	474112	1787529600	
+S	dpkg	libidn2-0:amd64	2.3.3-1+b1	Debian Libidn team <help-libidn@gnu.org>	449536	1787529600	
+S	dpkg	liblz4-1:amd64	1.9.4-1	Nobuhiro Iwamatsu <iwamatsu@debian.org>	173056	1787529600	
+S	dpkg	liblzma5:amd64	5.4.1-1+deb12u1	Sebastian Andrzej Siewior <sebastian@breakpoint.cc>	340992	1787529600	
+S	dpkg	libmd0:amd64	1.0.4-2	Guillem Jover <guillem@debian.org>	80896	1787529600	
+S	dpkg	libmount1:amd64	2.38.1-5+deb12u3	util-linux packagers <util-linux@packages.debian.org>	464896	1787529600	
+S	dpkg	libnettle8:amd64	3.8.1-2	Magnus Holmgren <holmgren@debian.org>	532480	1787529600	
+S	dpkg	libp11-kit0:amd64	0.24.1-2	Debian GnuTLS Maintainers <pkg-gnutls-maint@lists.alioth.debian.org>	1441792	1787529600	
+S	dpkg	libpam-modules:amd64	1.5.2-6+deb12u2	Sam Hartman <hartmans@debian.org>	1055744	1787529600	
+S	dpkg	libpam-modules-bin	1.5.2-6+deb12u2	Sam Hartman <hartmans@debian.org>	232448	1787529600	
+S	dpkg	libpam-runtime	1.5.2-6+deb12u2	Sam Hartman <hartmans@debian.org>	897024	1787529600	
+S	dpkg	libpam0g:amd64	1.5.2-6+deb12u2	Sam Hartman <hartmans@debian.org>	220160	1787529600	
+S	dpkg	libpcre2-8-0:amd64	10.42-1	Matthew Vernon <matthew@debian.org>	701440	1787529600	
+S	dpkg	libseccomp2:amd64	2.5.4-1+deb12u1	Kees Cook <kees@debian.org>	151552	1787529600	
+S	dpkg	libselinux1:amd64	3.4-1+b6	Debian SELinux maintainers <selinux-devel@lists.alioth.debian.org>	203776	1787529600	
+S	dpkg	libsemanage-common	3.4-1	Debian SELinux maintainers <selinux-devel@lists.alioth.debian.org>	37888	1787529600	
+S	dpkg	libsemanage2:amd64	3.4-1+b5	Debian SELinux maintainers <selinux-devel@lists.alioth.debian.org>	304128	1787529600	
+S	dpkg	libsepol2:amd64	3.4-2.1	Debian SELinux maintainers <selinux-devel@lists.alioth.debian.org>	793600	1787529600	
+S	dpkg	libsmartcols1:amd64	2.38.1-5+deb12u3	util-linux packagers <util-linux@packages.debian.org>	295936	1787529600	
+S	dpkg	libss2:amd64	1.47.0-2+b2	Theodore Y. Ts'o <tytso@mit.edu>	72704	1787529600	
+S	dpkg	libstdc++6:amd64	12.2.0-14+deb12u1	Debian GCC Maintainers <debian-gcc@lists.debian.org>	2750464	1787529600	
+S	dpkg	libsystemd0:amd64	252.39-1~deb12u2	Debian systemd Maintainers <pkg-systemd-maintainers@lists.alioth.debian.org>	930816	1787529600	
+S	dpkg	libtasn1-6:amd64	4.19.0-2+deb12u1	Debian GnuTLS Maintainers <pkg-gnutls-maint@lists.alioth.debian.org>	118784	1787529600	
+S	dpkg	libtinfo6:amd64	6.4-4	Craig Small <csmall@debian.org>	553984	1787529600	
+S	dpkg	libudev1:amd64	252.39-1~deb12u2	Debian systemd Maintainers <pkg-systemd-maintainers@lists.alioth.debian.org>	245760	1787529600	
+S	dpkg	libunistring2:amd64	1.0-2	Jörg Frings-Fürst <debian@jff.email>	1850368	1787529600	
+S	dpkg	libuuid1:amd64	2.38.1-5+deb12u3	util-linux packagers <util-linux@packages.debian.org>	80896	1787529600	
+S	dpkg	libxxhash0:amd64	0.8.1-1	Josue Ortega <josue@debian.org>	101376	1787529600	
+S	dpkg	libzstd1:amd64	1.5.4+dfsg2-5	RPM packaging team <team+pkg-rpm@tracker.debian.org>	803840	1787529600	
+S	dpkg	login	1:4.13+dfsg1-1+deb12u2	Shadow package maintainers <pkg-shadow-devel@lists.alioth.debian.org>	2611200	1787529600	
+S	dpkg	logsave	1.47.0-2+b2	Theodore Y. Ts'o <tytso@mit.edu>	51200	1787529600	
+S	dpkg	mawk	1.3.4.20200120-3.1	Boyuan Yang <byang@debian.org>	269312	1787529600	
+S	dpkg	mount	2.38.1-5+deb12u3	util-linux packagers <util-linux@packages.debian.org>	402432	1787529600	
+S	dpkg	ncurses-base	6.4-4	Craig Small <csmall@debian.org>	388096	1787529600	
+S	dpkg	ncurses-bin	6.4-4	Craig Small <csmall@debian.org>	651264	1787529600	
+S	dpkg	passwd	1:4.13+dfsg1-1+deb12u2	Shadow package maintainers <pkg-shadow-devel@lists.alioth.debian.org>	2894848	1787529600	
+S	dpkg	perl-base	5.36.0-7+deb12u3	Niko Tyni <ntyni@debian.org>	7822336	1787529600	
+S	dpkg	sed	4.9-1+deb12u1	Clint Adams <clint@debian.org>	1010688	1787529600	
+S	dpkg	sysvinit-utils	3.06-4	Debian sysvinit maintainers <debian-init-diversity@chiark.greenend.org.uk>	102400	1787529600	
+S	dpkg	tar	1.34+dfsg-1.2+deb12u1	Janos Lenart <ocsi@debian.org>	3219456	1787529600	
+S	dpkg	tzdata	2026b-0+deb12u1	GNU Libc Maintainers <debian-glibc@lists.debian.org>	2634752	1787529600	
+S	dpkg	usr-is-merged	37~deb12u1	Marco d'Itri <md@linux.it>	13312	1787529600	
+S	dpkg	util-linux	2.38.1-5+deb12u3	util-linux packagers <util-linux@packages.debian.org>	5097472	1787529600	
+S	dpkg	util-linux-extra	2.38.1-5+deb12u3	util-linux packagers <util-linux@packages.debian.org>	374784	1787529600	
+S	dpkg	zlib1g:amd64	1:1.2.13.dfsg-1	Mark Brown <broonie@debian.org>	172032	1787529600	

@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Django dev server",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/api/ulrmm/manage.py",
+      "args": ["runserver", "0.0.0.0:8000"],
+      "cwd": "${workspaceFolder}/api/ulrmm",
+      "django": true,
+      "justMyCode": true
+    }
+  ]
+}

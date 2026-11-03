@@ -1,0 +1,79 @@
+[
+    {
+        "pid": 1412,
+        "name": "Dhcp",
+        "status": "running",
+        "binpath": "C:\\Windows\\system32\\svchost.exe -k LocalServiceNetworkRestricted -p",
+        "username": "NT AUTHORITY\\LocalService",
+        "autodelay": false,
+        "start_type": "Automatic",
+        "description": "Registers and renews IP addresses.",
+        "display_name": "DHCP Client"
+    },
+    {
+        "pid": 1488,
+        "name": "EventLog",
+        "status": "running",
+        "binpath": "C:\\Windows\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p",
+        "username": "NT AUTHORITY\\LocalService",
+        "autodelay": false,
+        "start_type": "Automatic",
+        "description": "Manages events and event logs.",
+        "display_name": "Windows Event Log"
+    },
+    {
+        "pid": 2316,
+        "name": "Spooler",
+        "status": "running",
+        "binpath": "C:\\Windows\\System32\\spoolsv.exe",
+        "username": "LocalSystem",
+        "autodelay": false,
+        "start_type": "Automatic",
+        "description": "Queues print jobs.",
+        "display_name": "Print Spooler"
+    },
+    {
+        "pid": 0,
+        "name": "W32Time",
+        "status": "stopped",
+        "binpath": "C:\\Windows\\system32\\svchost.exe -k LocalService",
+        "username": "NT AUTHORITY\\LocalService",
+        "autodelay": false,
+        "start_type": "Manual",
+        "description": "Keeps the clock in step with a time server.",
+        "display_name": "Windows Time"
+    },
+    {
+        "pid": 0,
+        "name": "WinRM",
+        "status": "stopped",
+        "binpath": "C:\\Windows\\System32\\svchost.exe -k NetworkService -p",
+        "username": "NT AUTHORITY\\NetworkService",
+        "autodelay": false,
+        "start_type": "Manual",
+        "description": "Remote management over WS-Management.",
+        "display_name": "Windows Remote Management"
+    },
+    {
+        "pid": 3020,
+        "name": "wuauserv",
+        "status": "running",
+        "binpath": "C:\\Windows\\system32\\svchost.exe -k netsvcs -p",
+        "username": "LocalSystem",
+        "autodelay": true,
+        "start_type": "Manual",
+        "description": "Detects, downloads and installs updates.",
+        "display_name": "Windows Update"
+    },
+    {
+        "pid": 4096,
+        "name": "DemoBackupAgent",
+        "status": "running",
+        "binpath": "\"C:\\Program Files\\Demo Backup\\agent.exe\" --service",
+        "username": "LocalSystem",
+        "autodelay": true,
+        "start_type": "Automatic",
+        "description": "Nightly file backup of the demo fleet.",
+        "display_name": "Demo Backup Agent"
+    }
+]

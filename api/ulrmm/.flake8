@@ -1,0 +1,13 @@
+[flake8]
+# black owns the formatting: E203 and W503 clash with it, E501 is its job
+ignore = E203, E501, E722, W503
+exclude =
+    .git,
+    .mypy*,
+    .pytest*,
+    */__pycache__/*,
+    */env/*,
+    **/migrations/*,
+    /usr/local/lib/*,
+    manage.py,
+    sample_data.py

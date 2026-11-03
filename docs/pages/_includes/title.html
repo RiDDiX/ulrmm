@@ -1,0 +1,7 @@
+{%- comment -%}
+SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
+SPDX-License-Identifier: FSL-1.1-ALv2
+Logo, name and version at the top of the sidebar, as in the dashboard.
+{%- endcomment -%}
+<img class="site-logo-img" src="{{ '/assets/images/ulrmm-logo.png' | relative_url }}" alt="" width="32" height="32">
+<span class="site-name"><span class="site-name-title">{{ site.title }}</span>{% if site.ulrmm_version %}<span class="site-name-version">v{{ site.ulrmm_version }}</span>{% endif %}</span>
