@@ -887,6 +887,8 @@ class KeepAwake(APIView):
 
     def post(self, request, agent_id):
         agent = _agent_or_404(agent_id)
+        if "ac" in request.data:
+            return self._ac(request, agent)
         minutes = _as_int(request.data.get("minutes", 0))
         if minutes is None:
             return notify_error("minutes must be a whole number")
@@ -913,6 +915,35 @@ class KeepAwake(APIView):
         agent.keep_awake_until = until
         agent.save(update_fields=["keep_awake_until"])
         return Response({"keep_awake_until": until})
+
+    # stay awake on power: the agent keeps it across restarts, only this
+    # flag changes, a running hold stays
+    def _ac(self, request, agent):
+        ac = request.data["ac"]
+        if not isinstance(ac, bool):
+            return notify_error("ac must be true or false")
+        if agent.plat != AgentPlat.DARWIN:
+            return notify_error("Stay awake on power is only available on macOS")
+        if agent_ver(agent.version) < agent_ver(settings.KEEPAWAKE_AC_MIN_AGENT):
+            return notify_error(
+                f"Stay awake on power needs agent {settings.KEEPAWAKE_AC_MIN_AGENT} "
+                f"or newer on {agent.hostname}"
+            )
+        AuditLog.audit_power_action(
+            request.user.username,
+            agent,
+            "stay awake on power" if ac else "stay awake on power off",
+            debug_info={**_ip(request), "ac": ac},
+        )
+        reply = _ask(agent, {"func": "keepawakeac", "ac": ac}, 10)
+        if reply in UNREACHABLE:
+            return notify_error(NO_CONTACT)
+        if reply != "ok":
+            return notify_error(f"The agent refused: {reply}")
+
+        agent.keep_awake_ac = ac
+        agent.save(update_fields=["keep_awake_ac"])
+        return Response({"keep_awake_ac": ac})
 
 
 @api_view(["POST"])

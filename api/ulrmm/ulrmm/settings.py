@@ -57,6 +57,9 @@ LATEST_AGENT_VER = "1.02.11.2026"
 # first agent that installs from winget, older ones only get Chocolatey
 WINGET_MIN_AGENT = "3.20.10.2026"
 
+# first agent that stays awake on AC power (macOS)
+KEEPAWAKE_AC_MIN_AGENT = "2.03.11.2026"
+
 # first agent that installs approved SDIO pack drivers
 SDIO_MIN_AGENT = "5.20.10.2026"
 

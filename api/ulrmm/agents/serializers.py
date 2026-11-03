@@ -173,6 +173,7 @@ class AgentTableSerializer(serializers.ModelSerializer):
         fields = list("""
             agent_id alert_template hostname display_name effective_name site_name
             client_name monitoring_type description needs_reboot keep_awake_until
+            keep_awake_ac
             pending_actions_count status overdue_text_alert overdue_email_alert
             overdue_dashboard_alert last_seen boot_time checks maintenance_mode
             logged_username italic policy block_policy_inheritance plat goarch

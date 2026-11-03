@@ -225,6 +225,8 @@ class Agent(BaseAuditModel):
     overdue_time = models.PositiveIntegerField(default=30)
     check_interval = models.PositiveIntegerField(default=120)
     keep_awake_until = models.DateTimeField(null=True, blank=True)
+    # macOS: never sleeps on AC power, lid closed included; the agent keeps it
+    keep_awake_ac = models.BooleanField(default=False)
     # orderly shutdown, restart or sleep announced by the agent or sent from
     # here; natsapi writes them with raw SQL too
     power_event = models.CharField(max_length=32, blank=True, default="")
