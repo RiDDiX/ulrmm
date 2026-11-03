@@ -1,5 +1,11 @@
 # Server changelog
 
+## 2.03.11.2026 (2026-11-03)
+
+- agents update to 2.03.11.2026: a Mac can stay awake on AC power (Keep awake, Stay awake on power), lid closed included, and sleeps as usual on battery; unplugged with the lid closed it goes to sleep; the setting survives agent restarts
+- POST /agents/<id>/keepawake/ takes {"ac": true|false} for that setting, macOS only and agent 2.03.11.2026 or newer, recorded in the audit log
+- uninstalling an agent puts back the sleep and lid settings a keep awake hold changed
+
 ## 1.03.11.2026 (2026-11-03)
 
 - licenses show which Windows devices use a stored Microsoft key: every night at 04:50 the online Windows devices report their Windows and volume-licensed Office activation (product, channel, last five key characters, status), and a key in a license matches by its last five characters; offline devices keep their last report
