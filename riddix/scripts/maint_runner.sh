@@ -45,7 +45,9 @@ main() {
   write_state "$action" running "" "$started"
 
   cd "${HOME:-/tmp}" || cd /tmp || exit 1
-  "${cmd[@]}" >>"$log" 2>&1 </dev/null
+  # the action gets the umask of a shell run: under 077 its sudo npm install -g
+  # left the global npm readable for root only, and the next update had no npm
+  (umask 022 && "${cmd[@]}") >>"$log" 2>&1 </dev/null
   rc=$?
 
   state=done
