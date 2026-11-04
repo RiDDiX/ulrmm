@@ -66,12 +66,14 @@ def _chunks(items: list, size: int):
         yield items[start : start + size]
 
 
-def _publish_install(agent, guids: list[str]) -> None:
+def _publish_install(agent, guids: list[str]) -> bool:
     result = asyncio.run(
         agent.nats_cmd({"func": "installwinupdates", "guids": guids}, wait=False)
     )
-    if result != "natsdown":
-        mark_installing(agent.pk, guids)
+    if result == "natsdown":
+        return False
+    mark_installing(agent.pk, guids)
+    return True
 
 
 def _queue_posix_install(agent, guids: list[str]) -> None:
@@ -94,8 +96,13 @@ def auto_approve_updates_task() -> None:
         agent.delete_superseded_updates()
         try:
             agent.approve_updates()
-        except Exception:
+        except Exception as e:
             # the agent is still scanned below
+            DebugLog.error(
+                agent=agent,
+                log_type=LOG,
+                message=f"Approving updates on {agent.hostname} failed: {e}",
+            )
             continue
 
     online = [a for a in agents if a.is_online and _supported(a)]
@@ -147,7 +154,13 @@ def _run_schedule(agent) -> None:
         log_type=LOG,
         message=f"Installing windows updates on {agent.hostname}",
     )
-    _publish_install(agent, guids)
+    if not _publish_install(agent, guids):
+        DebugLog.warning(
+            agent=agent,
+            log_type=LOG,
+            message=f"Windows updates not sent to {agent.hostname}: nats is down",
+        )
+        return
     agent.patches_last_installed = djangotime.now()
     agent.save(update_fields=["patches_last_installed"])
 

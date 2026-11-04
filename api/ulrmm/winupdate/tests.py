@@ -993,12 +993,14 @@ class TestPatchSchedule(ULRMMTestCase):
         nats_cmd.return_value = "natsdown"
         check_agent_update_schedule_task()
         self.assertEqual(get_installing(self.agent.pk), set())
+        self.agent.refresh_from_db()
+        self.assertIsNone(self.agent.patches_last_installed)
 
-        self.agent.patches_last_installed = None
-        self.agent.save(update_fields=["patches_last_installed"])
         nats_cmd.return_value = None
         check_agent_update_schedule_task()
         self.assertEqual(get_installing(self.agent.pk), {"win"})
+        self.agent.refresh_from_db()
+        self.assertIsNotNone(self.agent.patches_last_installed)
 
 
 class TestFailedPatchOptions(ULRMMTestCase):

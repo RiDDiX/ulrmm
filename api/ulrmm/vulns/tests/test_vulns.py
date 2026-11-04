@@ -560,6 +560,28 @@ class TestScan(ULRMMTestCase):
             DebugLog.objects.filter(message__contains="DSA-5724-1").exists()
         )
 
+    def test_late_advisory_is_notified(self):
+        fake = FakeOSV()
+
+        def missing(method, path, body=None):
+            if path.endswith("DEBIAN-CVE-2024-6387"):
+                raise requests.Timeout("slow")
+            return fake(method, path, body)
+
+        with patch("vulns.osv.osv_request", missing), patch(
+            "vulns.tasks.notify"
+        ) as notify:
+            scan()
+        self.assertIsNone(Finding.objects.get(vuln_id="DEBIAN-CVE-2024-6387").advisory)
+        notify.assert_not_called()
+
+        with patch("vulns.osv.osv_request", fake), patch(
+            "vulns.tasks.notify"
+        ) as notify:
+            scan()
+        notify.assert_called_once()
+        self.assertIn("DEBIAN-CVE-2024-6387", notify.call_args.args[0]["body"])
+
     def test_ignore_survives_a_version_change(self):
         with patch("vulns.osv.osv_request", FakeOSV()):
             scan()

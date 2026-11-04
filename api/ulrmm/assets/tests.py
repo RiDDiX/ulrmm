@@ -176,6 +176,18 @@ class TestWarranty(ULRMMTestCase):
             self.assertEqual(warranty_lookup_task(), "2 looked up")
         self.assertEqual(req.call_count, 3)
 
+    def test_failed_dell_token_is_requested_once(self):
+        agents = [
+            posix_agent("Dell Inc. A", serial="A1"),
+            posix_agent("Dell Inc. B", serial="B2"),
+        ]
+        with patch(REQUEST, return_value=resp({}, status=401)) as req:
+            warranty_lookup_task()
+        self.assertEqual(req.call_count, 1)
+        for agent in agents:
+            agent.refresh_from_db()
+            self.assertEqual(agent.warranty_status["error"], "HTTP 401")
+
     def test_manual_lookup_view(self):
         self.authenticate()
         agent = posix_agent("LENOVO 21AH")

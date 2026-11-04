@@ -150,8 +150,8 @@ def lenovo(serial: str) -> dict:
 
 
 def refresh(agent, tokens: dict) -> dict:
-    """Looks up and stores one agent's warranty. tokens caches the Dell token
-    for a run. Returns the new warranty_status."""
+    """Looks up and stores one agent's warranty. tokens caches the Dell token,
+    or why there is none, for a run. Returns the new warranty_status."""
     serial = (agent.serial_number or "").strip()
     make = maker(agent)
     status = {
@@ -168,12 +168,18 @@ def refresh(agent, tokens: dict) -> dict:
             raise WarrantyError("no serial number reported")
         if make == "dell":
             if "dell" not in tokens:
-                creds = dell_credentials()
-                if not creds or not all(creds):
-                    raise WarrantyError(
-                        "set the Dell TechDirect client id and secret in the settings"
-                    )
-                tokens["dell"] = dell_token(*creds)
+                try:
+                    creds = dell_credentials()
+                    if not creds or not all(creds):
+                        raise WarrantyError(
+                            "set the Dell TechDirect client id and secret in the settings"
+                        )
+                    tokens["dell"] = dell_token(*creds)
+                except WarrantyError as e:
+                    # the other Dell devices of this run get the same answer
+                    tokens["dell"] = e
+            if isinstance(tokens["dell"], WarrantyError):
+                raise tokens["dell"]
             status |= dell(serial, tokens["dell"])
         elif make == "lenovo":
             status |= lenovo(serial)

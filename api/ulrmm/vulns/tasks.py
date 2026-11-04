@@ -191,7 +191,8 @@ def _record(
 ) -> list[Finding]:
     """Findings of one source on one agent. current is (package, version,
     vuln id) -> ecosystem. A finding that is gone is fixed, unless its package
-    could not be checked. Returns the new open findings."""
+    could not be checked. Returns the open findings that are new or just got
+    their advisory."""
     now = djangotime.now()
     existing = {
         (f.package, f.version, f.vuln_id): f
@@ -203,7 +204,7 @@ def _record(
         for f in existing.values()
         if f.status == FindingStatus.IGNORED
     }
-    new, changed = [], []
+    new, changed, advised = [], [], []
     for key, eco in current.items():
         f = existing.get(key)
         if f is None:
@@ -228,6 +229,8 @@ def _record(
             continue
         f.last_seen = now
         f.ecosystem = eco
+        if f.advisory_id is None and advisories.get(key[2]) is not None:
+            advised.append(f)
         f.advisory_id = advisories.get(key[2], f.advisory_id)
         if f.status == FindingStatus.FIXED:
             f.status = FindingStatus.OPEN
@@ -246,7 +249,7 @@ def _record(
     Finding.objects.bulk_update(
         changed, ["last_seen", "ecosystem", "advisory", "status"], batch_size=1000
     )
-    return [f for f in new if f.status == FindingStatus.OPEN]
+    return [f for f in new + advised if f.status == FindingStatus.OPEN]
 
 
 def _apply(
