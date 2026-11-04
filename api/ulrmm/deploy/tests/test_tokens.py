@@ -304,6 +304,18 @@ class TestGrant(TokenBase):
         self.as_agent(body["access"])
         self.assertEqual(self.client.get(f"{self.base}/config/").status_code, 200)
 
+    def test_grant_answers_when_the_nats_reload_fails(self):
+        self.reload.side_effect = OSError("read-only file system")
+        with self.assertLogs("ulrmm", "ERROR") as logs:
+            with self.captureOnCommitCallbacks(execute=True):
+                body = self.family()
+        self.reload.assert_called_once_with()
+        self.assertIn("after a token grant", logs.output[0])
+        cred = AgentCredential.objects.get(agent=self.agent)
+        self.assertEqual((cred.kind, cred.legacy_nats), ("family", ""))
+        self.assertEqual(cred.access_digest, tokens.digest(body["access"]))
+        self.assertEqual(cred.refresh_digest, tokens.digest(body["refresh"]))
+
 
 @override_settings(CACHES=LOCMEM_CACHE)
 class TestRefresh(TokenBase):

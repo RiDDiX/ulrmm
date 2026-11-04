@@ -4,16 +4,15 @@
 from cryptography.fernet import InvalidToken
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from knox.models import AuthToken
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.utils import console_stepup_remaining
 from agents.models import Agent
 from clients.models import Client, Site
+from core.utils import stepup_denied
 from laps.models import after_reveal
 from logs.models import AuditLog
 from remote.utils import decrypt_secret
@@ -188,20 +187,12 @@ class RevealCredential(APIView):
         )
         if not _in_scope(request.user, cred):
             raise PermissionDenied()
-        # an api key is no step-up
-        if not (
-            isinstance(request.auth, AuthToken)
-            and console_stepup_remaining(request.user)
+        if denied := stepup_denied(
+            request,
+            "Showing a stored secret needs the same 60 minute step-up as terminal "
+            "and files.",
         ):
-            return Response(
-                {
-                    "detail": "Confirm with a two-factor code first. Showing a "
-                    "stored secret needs the same 60 minute step-up as terminal "
-                    "and files.",
-                    "stepup": True,
-                },
-                status=403,
-            )
+            return denied
         if not cred.secret:
             return notify_error("No secret is stored for this credential.")
         try:

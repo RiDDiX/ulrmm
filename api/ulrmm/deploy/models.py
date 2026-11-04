@@ -448,6 +448,9 @@ class BaseIso(models.Model):
     kind = models.CharField(max_length=8, choices=Kind.choices, default=Kind.BASE)
     built_by = models.CharField(max_length=150, blank=True)
     target = models.CharField(max_length=32, blank=True)
+    deployment = models.ForeignKey(
+        "clients.Deployment", null=True, blank=True, on_delete=models.SET_NULL
+    )
 
     def __str__(self) -> str:
         return self.filename

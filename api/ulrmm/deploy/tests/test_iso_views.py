@@ -402,6 +402,38 @@ class TestIsoDownload(IsoTestCase):
         row = self.ready(status="inspecting")
         self.assertEqual(self.link(row).status_code, 400)
 
+    def test_built_rows_stay_in_the_site_scope(self):
+        other = baker.make("clients.Deployment", site=self.site3)
+        for name in ("a.iso", "b.iso", "c.iso", "w.iso"):
+            self.put(name)
+        mine = self.ready(filename="a.iso", kind="built", deployment=self.deployment)
+        theirs = self.ready(filename="b.iso", kind="built", deployment=other)
+        # built before rows knew their deployment
+        old = self.ready(filename="c.iso", kind="built")
+        base = self.ready()
+        user = self.create_user_with_roles(
+            ["can_list_deployments", "can_manage_deployments"]
+        )
+        user.role.can_view_sites.set([self.site1])
+        self.client.force_authenticate(user=user)
+
+        r = self.client.get("/deploy/iso/library/")
+        self.assertEqual({x["id"] for x in r.data}, {mine.pk, base.pk})
+        for row in (theirs, old):
+            self.assertEqual(self.link(row).status_code, 404)
+            r = self.client.delete(f"/deploy/iso/library/{row.pk}/")
+            self.assertEqual(r.status_code, 404)
+            self.assertTrue(BaseIso.objects.filter(pk=row.pk).exists())
+        r = self.link(mine)
+        self.assertEqual((r.status_code, r.data["stepup"]), (403, True))
+        r = self.client.delete(f"/deploy/iso/library/{mine.pk}/")
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(BaseIso.objects.filter(pk=mine.pk).exists())
+
+        self.client.force_authenticate(user=self.john)
+        r = self.client.get("/deploy/iso/library/")
+        self.assertEqual({x["id"] for x in r.data}, {theirs.pk, old.pk, base.pk})
+
 
 class TestIsoBuilds(IsoTestCase):
     def mocks(self):
@@ -526,7 +558,8 @@ class TestIsoBuilds(IsoTestCase):
         row = BaseIso.objects.get(pk=status.data["iso"])
         self.assertEqual((row.filename, row.status), (status.data["name"], "ready"))
         self.assertEqual(
-            (row.kind, row.built_by, row.target), ("built", "john", "win11-pro")
+            (row.kind, row.built_by, row.target, row.deployment),
+            ("built", "john", "win11-pro", self.deployment),
         )
         self.assertEqual(row.sha256, hashlib.sha256(b"IMAGE").hexdigest())
         path = os.path.join(self.dir, row.filename)
@@ -540,6 +573,11 @@ class TestIsoBuilds(IsoTestCase):
         other = self.create_user_with_roles(["can_list_deployments"])
         self.client.force_authenticate(user=other)
         self.assertEqual(self.client.get(f"/deploy/iso/jobs/{job}/").status_code, 403)
+        # a superuser role may
+        self.client.force_authenticate(
+            user=self.create_user_with_roles(["is_superuser"])
+        )
+        self.assertEqual(self.client.get(f"/deploy/iso/jobs/{job}/").status_code, 200)
         self.client.force_authenticate(user=self.john)
         self.assertEqual(
             self.client.delete(f"/deploy/iso/jobs/{job}/").status_code, 200

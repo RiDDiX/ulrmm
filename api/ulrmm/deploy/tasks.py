@@ -389,6 +389,7 @@ def build_iso_task(job_id: str, body: dict, username: str) -> str:
                         udf=bool(info.get("udf")),
                         built_by=username,
                         target=target_id,
+                        deployment=deployment,
                     )
             except IntegrityError:
                 continue

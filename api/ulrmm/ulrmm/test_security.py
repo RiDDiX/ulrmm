@@ -21,6 +21,7 @@ from accounts.utils import (
 )
 from core.models import CoreSettings
 from logs.models import AuditLog
+from sso.tests import with_code
 from ulrmm.constants import CORE_SETTINGS_SECRET_FIELDS, AuditObjType
 from ulrmm.helpers import (
     get_client_ip,
@@ -914,12 +915,15 @@ class TestSSOHardening(ULRMMTestCase):
 
         r = self.client.put(
             f"/accounts/ssoproviders/{app.pk}/",
-            {
-                "client_id": "cid2",
-                "secret": "",
-                "server_url": "https://idp.example.com",
-                "role": None,
-            },
+            with_code(
+                self.john,
+                {
+                    "client_id": "cid2",
+                    "secret": "",
+                    "server_url": "https://idp.example.com",
+                    "role": None,
+                },
+            ),
             format="json",
         )
         self.assertEqual(r.status_code, 200)
@@ -940,13 +944,16 @@ class TestSSOHardening(ULRMMTestCase):
         )
         r = self.client.put(
             f"/accounts/ssoproviders/{app.pk}/",
-            {
-                "client_id": "cid",
-                "secret": "ignored",
-                "secret_clear": True,
-                "server_url": "https://idp.example.com",
-                "role": None,
-            },
+            with_code(
+                self.john,
+                {
+                    "client_id": "cid",
+                    "secret": "ignored",
+                    "secret_clear": True,
+                    "server_url": "https://idp.example.com",
+                    "role": None,
+                },
+            ),
             format="json",
         )
         self.assertEqual(r.status_code, 200)
@@ -984,7 +991,7 @@ class TestSSOHardening(ULRMMTestCase):
 
         r = self.client.post(
             "/accounts/ssoproviders/",
-            {**body, "role": super_role.pk},
+            with_code(admin, {**body, "role": super_role.pk}),
             format="json",
         )
         self.assertEqual(r.status_code, 403)
@@ -992,7 +999,7 @@ class TestSSOHardening(ULRMMTestCase):
 
         r = self.client.post(
             "/accounts/ssoproviders/",
-            {**body, "role": plain_role.pk},
+            with_code(admin, {**body, "role": plain_role.pk}),
             format="json",
         )
         self.assertEqual(r.status_code, 200)
@@ -1000,7 +1007,7 @@ class TestSSOHardening(ULRMMTestCase):
 
         r = self.client.put(
             f"/accounts/ssoproviders/{app.pk}/",
-            {**body, "role": super_role.pk},
+            with_code(admin, {**body, "role": super_role.pk}),
             format="json",
         )
         self.assertEqual(r.status_code, 403)
@@ -1010,11 +1017,20 @@ class TestSSOHardening(ULRMMTestCase):
         app.save()
         r = self.client.put(
             f"/accounts/ssoproviders/{app.pk}/",
-            {**body, "server_url": "https://evil.example.com", "role": plain_role.pk},
+            with_code(
+                admin,
+                {
+                    **body,
+                    "server_url": "https://evil.example.com",
+                    "role": plain_role.pk,
+                },
+            ),
             format="json",
         )
         self.assertEqual(r.status_code, 403)
-        r = self.client.delete(f"/accounts/ssoproviders/{app.pk}/")
+        r = self.client.delete(
+            f"/accounts/ssoproviders/{app.pk}/", with_code(admin), format="json"
+        )
         self.assertEqual(r.status_code, 403)
         app.refresh_from_db()
         self.assertEqual(app.settings["server_url"], "https://idp.example.com")
@@ -1022,7 +1038,7 @@ class TestSSOHardening(ULRMMTestCase):
         self.client.force_authenticate(user=self.john)
         r = self.client.put(
             f"/accounts/ssoproviders/{app.pk}/",
-            {**body, "role": super_role.pk},
+            with_code(self.john, {**body, "role": super_role.pk}),
             format="json",
         )
         self.assertEqual(r.status_code, 200)
@@ -1052,21 +1068,29 @@ class TestSSOHardening(ULRMMTestCase):
         SocialAccount.objects.create(user=self.john, provider="corp-idp", uid="sub-1")
 
         self.client.force_authenticate(user=admin)
-        r = self.client.put(f"/accounts/ssoproviders/{app.pk}/", body, format="json")
+        r = self.client.put(
+            f"/accounts/ssoproviders/{app.pk}/", with_code(admin, body), format="json"
+        )
         self.assertEqual(r.status_code, 403)
-        r = self.client.delete(f"/accounts/ssoproviders/{app.pk}/")
+        r = self.client.delete(
+            f"/accounts/ssoproviders/{app.pk}/", with_code(admin), format="json"
+        )
         self.assertEqual(r.status_code, 403)
         app.refresh_from_db()
         self.assertEqual(app.settings["server_url"], "https://idp.example.com")
 
         # recreating the same name keeps the provider id and its links
         app.delete()
-        r = self.client.post("/accounts/ssoproviders/", body, format="json")
+        r = self.client.post(
+            "/accounts/ssoproviders/", with_code(admin, body), format="json"
+        )
         self.assertEqual(r.status_code, 403)
         self.assertFalse(SocialApp.objects.exists())
 
         self.client.force_authenticate(user=self.john)
-        r = self.client.post("/accounts/ssoproviders/", body, format="json")
+        r = self.client.post(
+            "/accounts/ssoproviders/", with_code(self.john, body), format="json"
+        )
         self.assertEqual(r.status_code, 200)
 
     def test_sso_settings_need_a_superuser(self):

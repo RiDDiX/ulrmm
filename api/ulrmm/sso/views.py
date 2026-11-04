@@ -33,6 +33,7 @@ from rest_framework.views import APIView
 from accounts.models import Role
 from accounts.permissions import AccountsPerms
 from accounts.utils import has_superuser_rights
+from accounts.views import _check_grant, _require_actor_code
 from core.models import CoreSettings
 from core.utils import get_core_settings
 from logs.models import AuditLog
@@ -85,6 +86,13 @@ def check_provider_rights(user, provider_id: str, role_ids) -> None:
         raise PermissionDenied(
             "Only superusers can manage a provider with a superuser role."
         )
+
+
+def _check_role_grant(request, value) -> None:
+    # whoever signs in through the provider gets its role
+    role = Role.objects.filter(pk=role_pk(value)).first()
+    if role:
+        _check_grant(request, role=role)
 
 
 def _audit_value(app) -> dict:
@@ -146,12 +154,16 @@ class GetAddSSOProviders(APIView):
             return notify_error("The name needs at least one letter or digit.")
 
         check_provider_rights(request.user, provider_id, [data.get("role")])
+        _check_role_grant(request, data.get("role"))
 
         if (
             registry.get_class(provider_id)
             or SocialApp.objects.filter(provider_id__iexact=provider_id).exists()
         ):
             return notify_error("A provider with this name already exists.")
+        error = _require_actor_code(request)
+        if error:
+            return error
 
         app = SocialApp.objects.create(
             provider=PROVIDER,
@@ -188,6 +200,11 @@ class GetUpdateDeleteSSOProvider(APIView):
         stored = provider_settings(app)
         role = data["role"] if "role" in data else stored.get("role")
         check_provider_rights(request.user, app.provider_id, [stored.get("role"), role])
+        # on every change: the issuer and client decide who gets the role
+        _check_role_grant(request, role)
+        error = _require_actor_code(request)
+        if error:
+            return error
 
         before = _audit_value(app)
         if "client_id" in data:
@@ -219,6 +236,9 @@ class GetUpdateDeleteSSOProvider(APIView):
         check_provider_rights(
             request.user, app.provider_id, [provider_settings(app).get("role")]
         )
+        error = _require_actor_code(request)
+        if error:
+            return error
 
         # linked identities stay; re-creating the provider under the same name
         # brings them back

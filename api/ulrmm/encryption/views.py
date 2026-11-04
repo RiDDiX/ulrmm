@@ -6,13 +6,12 @@ import asyncio
 from cryptography.fernet import InvalidToken
 from django.core.cache import cache
 from django.shortcuts import get_object_or_404
-from knox.models import AuthToken
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.utils import console_stepup_remaining
 from agents.models import Agent
+from core.utils import stepup_denied
 from logs.models import AuditLog
 from ulrmm.constants import (
     AGENT_DEFER,
@@ -43,6 +42,8 @@ from .utils import (
     unseal,
 )
 
+STEPUP = "Recovery keys need the same 60 minute step-up as terminal and files."
+
 
 def _agent(agent_id: str) -> Agent:
     return get_object_or_404(Agent.objects.defer(*AGENT_DEFER), agent_id=agent_id)
@@ -58,20 +59,6 @@ def _audit(request, agent: Agent, action: str, message: str) -> None:
         object_type=AuditObjType.AGENT,
         action=action,
         debug_info=get_debug_info(),
-    )
-
-
-def _stepup_denied(request) -> Response | None:
-    # an api key is no step-up
-    if isinstance(request.auth, AuthToken) and console_stepup_remaining(request.user):
-        return None
-    return Response(
-        {
-            "detail": "Confirm with a two-factor code first. Recovery keys need the "
-            "same 60 minute step-up as terminal and files.",
-            "stepup": True,
-        },
-        status=403,
     )
 
 
@@ -119,7 +106,7 @@ class RotateFileVaultKey(APIView):
     permission_classes = [IsAuthenticated, RecoveryKeyPerms]
 
     def post(self, request, agent_id):
-        if denied := _stepup_denied(request):
+        if denied := stepup_denied(request, STEPUP):
             return denied
         agent = _agent(agent_id)
         if agent.plat != AgentPlat.DARWIN:
@@ -183,7 +170,7 @@ class RevealRecoveryKey(APIView):
         row = get_object_or_404(RecoveryKey.objects.select_related("agent"), pk=pk)
         if not _has_perm_on_agent(request.user, row.agent.agent_id):
             return Response({"detail": "You cannot view this key."}, status=403)
-        if denied := _stepup_denied(request):
+        if denied := stepup_denied(request, STEPUP):
             return denied
         try:
             key = unseal(row.key)

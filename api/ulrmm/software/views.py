@@ -16,7 +16,7 @@ from rest_framework.views import APIView
 
 from agents.models import Agent, AgentHistory
 from logs.models import AuditLog
-from packages.views import _stepup_denied
+from core.utils import stepup_denied
 from ulrmm.constants import (
     AGENT_DEFER,
     AgentHistoryType,
@@ -544,7 +544,10 @@ class SdioApprovals(APIView):
         )
 
     def post(self, request):
-        if denied := _stepup_denied(request, "Approving drivers for all devices"):
+        if denied := stepup_denied(
+            request,
+            "Approving drivers for all devices needs the same 60 minute step-up as terminal and files.",
+        ):
             return denied
         hwid, version = request.data.get("hwid"), request.data.get("version")
         if not isinstance(hwid, str) or not isinstance(version, str):
@@ -594,7 +597,10 @@ class SdioApprovalDetail(APIView):
     permission_classes = [IsAuthenticated, SdioApprovalPerms]
 
     def delete(self, request, pk):
-        if denied := _stepup_denied(request, "Changing driver approvals"):
+        if denied := stepup_denied(
+            request,
+            "Changing driver approvals needs the same 60 minute step-up as terminal and files.",
+        ):
             return denied
         approval = get_object_or_404(SdioApproval, pk=pk)
         before = _approval_row(approval, 0)

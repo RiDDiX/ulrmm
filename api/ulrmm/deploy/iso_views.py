@@ -27,7 +27,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.utils import has_superuser_rights
 from clients.permissions import DeploymentPerms
+from core.utils import stepup_denied
 from logs.models import AuditLog
 from packages.utils import (
     CHUNK_SIZE,
@@ -36,9 +38,10 @@ from packages.utils import (
     remove_upload,
     upload_paths,
 )
-from packages.views import _gib, _own_upload, _stepup_denied, append_chunk
+from packages.views import _gib, _own_upload, append_chunk
 from ulrmm.constants import AuditActionType, AuditObjType
 from ulrmm.helpers import notify_error
+from ulrmm.permissions import _has_perm_on_site
 from ulrmm.util_settings import get_backend_url
 
 from . import checksums, iso, iso_layout, matrix, tasks
@@ -79,6 +82,15 @@ def _row(row: BaseIso) -> dict:
     live = (BaseIso.Status.DOWNLOADING, BaseIso.Status.VERIFYING)
     out["progress"] = tasks.dl_progress(row.pk) if row.status in live else None
     return out
+
+
+def _may_see(user, row: BaseIso) -> bool:
+    # built images carry the admin password and enrollment token of their site
+    if row.kind != BaseIso.Kind.BUILT:
+        return True
+    if row.deployment_id is None:
+        return has_superuser_rights(user)
+    return _has_perm_on_site(user, row.deployment.site_id)
 
 
 def iso_name(deployment, target_id: str) -> str:
@@ -150,7 +162,8 @@ class IsoLibrary(APIView):
     permission_classes = [IsAuthenticated, DeploymentPerms]
 
     def get(self, request):
-        return Response([_row(r) for r in BaseIso.objects.order_by("-added", "-id")])
+        rows = BaseIso.objects.select_related("deployment").order_by("-added", "-id")
+        return Response([_row(r) for r in rows if _may_see(request.user, r)])
 
     def post(self, request):
         data = _body(request)
@@ -245,7 +258,7 @@ class IsoCancel(APIView):
 
     def post(self, request, pk):
         row = BaseIso.objects.filter(pk=pk).first()
-        if row is None:
+        if row is None or not _may_see(request.user, row):
             return Response("not found", status=404)
         if row.status != BaseIso.Status.DOWNLOADING:
             return notify_error("The image is not downloading")
@@ -258,7 +271,7 @@ class IsoRetry(APIView):
 
     def post(self, request, pk):
         row = BaseIso.objects.filter(pk=pk).first()
-        if row is None:
+        if row is None or not _may_see(request.user, row):
             return Response("not found", status=404)
         if row.status != BaseIso.Status.ERROR or not row.source_url:
             return notify_error("The image cannot be retried")
@@ -286,7 +299,7 @@ class IsoVerify(APIView):
 
     def post(self, request, pk):
         row = BaseIso.objects.filter(pk=pk).first()
-        if row is None:
+        if row is None or not _may_see(request.user, row):
             return Response("not found", status=404)
         row.status = BaseIso.Status.INSPECTING
         row.error = ""
@@ -308,7 +321,7 @@ class IsoDelete(APIView):
 
     def delete(self, request, pk):
         row = BaseIso.objects.filter(pk=pk).first()
-        if row is None:
+        if row is None or not _may_see(request.user, row):
             return Response("not found", status=404)
         _drop(row)
         return Response("ok")
@@ -335,9 +348,14 @@ class IsoLink(APIView):
         row = _ready_row(pk)
         if row is None:
             return notify_error("The image is not ready")
+        if not _may_see(request.user, row):
+            return Response("not found", status=404)
         # built images carry answer files and enrollment tokens
         if row.kind == BaseIso.Kind.BUILT and (
-            denied := _stepup_denied(request, "Downloading built images")
+            denied := stepup_denied(
+                request,
+                "Downloading built images needs the same 60 minute step-up as terminal and files.",
+            )
         ):
             return denied
         token = secrets.token_urlsafe(32)
@@ -380,7 +398,10 @@ class IsoUploads(APIView):
     permission_classes = [IsAuthenticated, DeploymentPerms]
 
     def post(self, request):
-        if denied := _stepup_denied(request, "Uploading base images"):
+        if denied := stepup_denied(
+            request,
+            "Uploading base images needs the same 60 minute step-up as terminal and files.",
+        ):
             return denied
         name, size = request.data.get("filename"), request.data.get("size")
         if err := _bad_name(name):
@@ -449,7 +470,10 @@ class IsoFinishUpload(APIView):
     def post(self, request, uid):
         root = tasks.iso_uploads_dir()
         info = _own_upload(request, uid, root)
-        if denied := _stepup_denied(request, "Uploading base images"):
+        if denied := stepup_denied(
+            request,
+            "Uploading base images needs the same 60 minute step-up as terminal and files.",
+        ):
             return denied
         name = info["filename"]
         part, _ = upload_paths(uid, root)
@@ -609,7 +633,9 @@ class _Job(APIView):
         rec = cache.get(tasks.iso_job_key(job_id)) if JOB_ID.match(job_id) else None
         if rec is None:
             return None, Response("not found", status=404)
-        if rec.get("user") != request.user.username and not request.user.is_superuser:
+        if rec.get("user") != request.user.username and not has_superuser_rights(
+            request.user
+        ):
             raise PermissionDenied()
         return rec, None
 

@@ -10,6 +10,7 @@ import datetime as dt
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import uuid
 
@@ -46,6 +47,8 @@ GRANT_MSG = b"ulrmm-grant-v1\0"
 REFRESH_MSG = b"ulrmm-refresh-v1\0"
 RECOVER_MSG = b"ulrmm-recover-v1\0"
 UNKNOWN = (401, {"detail": "unknown token"})
+
+logger = logging.getLogger("ulrmm")
 
 
 def access_ttl() -> dt.timedelta:
@@ -246,11 +249,20 @@ def recover_message(agent_id: str, nonce: bytes, ts: int, csr: str) -> bytes:
     )
 
 
+def _reload_nats() -> None:
+    from ulrmm.utils import reload_nats
+
+    try:
+        reload_nats()
+    except Exception:
+        # the new pair is committed and has to reach the agent; the five
+        # minute config task writes the file again
+        logger.exception("nats-rmm.conf not written after a token grant")
+
+
 def grant(agent, data: dict, *, released: bool = False, ip=None):
     """Identity grant: a legacy token (or, inside the release window, the
     identity signature alone) is exchanged for a new token family."""
-    from ulrmm.utils import reload_nats
-
     parsed, refused = signed_parts(data)
     if refused:
         return refused
@@ -283,7 +295,7 @@ def grant(agent, data: dict, *, released: bool = False, ip=None):
             ident.release_until = None
             ident.save(update_fields=["rotate_pending", "release_until"])
             # the password user of this agent leaves nats-rmm.conf
-            transaction.on_commit(reload_nats)
+            transaction.on_commit(_reload_nats)
     if taken:
         events.record(
             SecurityEventKind.TOKEN_REUSE,

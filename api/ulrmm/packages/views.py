@@ -16,14 +16,13 @@ from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
-from knox.models import AuthToken
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.utils import console_stepup_remaining
 from agents.models import Agent
+from core.utils import stepup_denied
 from logs.models import AuditLog, DebugLog
 from software.drivers import OEM_INF_RE, boot_infs
 from software.models import InstalledDrivers
@@ -81,18 +80,11 @@ def _duplicate(sha256: str) -> Response | None:
     return None
 
 
-def _stepup_denied(request, action="Uploading and editing packages") -> Response | None:
-    # args and the unsigned flag decide what runs as SYSTEM. api key is no step-up.
-    if isinstance(request.auth, AuthToken) and console_stepup_remaining(request.user):
-        return None
-    return Response(
-        {
-            "detail": f"Confirm with a two-factor code first. {action} "
-            "needs the same 60 minute step-up as terminal and files.",
-            "stepup": True,
-        },
-        status=403,
-    )
+# args and the unsigned flag decide what runs as SYSTEM
+STEPUP = (
+    "Uploading and editing packages needs the same 60 minute step-up as "
+    "terminal and files."
+)
 
 
 def _gib(size: int) -> str:
@@ -152,7 +144,7 @@ class GetAddPackages(APIView):
         return Response(data)
 
     def post(self, request):
-        if denied := _stepup_denied(request):
+        if denied := stepup_denied(request, STEPUP):
             return denied
         # set before request.data is read, or the body never hits this handler
         incoming = IncomingUpload(request)
@@ -186,7 +178,7 @@ class Uploads(APIView):
     permission_classes = [IsAuthenticated, PackagePerms]
 
     def post(self, request):
-        if denied := _stepup_denied(request):
+        if denied := stepup_denied(request, STEPUP):
             return denied
         name, size = request.data.get("filename"), request.data.get("size")
         if not isinstance(name, str) or not name:
@@ -315,7 +307,7 @@ class FinishUpload(APIView):
 
     def post(self, request, uid):
         info = _own_upload(request, uid)
-        if denied := _stepup_denied(request):
+        if denied := stepup_denied(request, STEPUP):
             return denied
         part, _ = upload_paths(uid)
         with open(part, "rb") as fh:
@@ -350,7 +342,7 @@ class EditDeletePackage(APIView):
 
     def put(self, request, pk):
         package = get_object_or_404(SoftwarePackage, pk=pk)
-        if denied := _stepup_denied(request):
+        if denied := stepup_denied(request, STEPUP):
             return denied
         serializer = SoftwarePackageSerializer(
             instance=package, data=request.data, partial=True

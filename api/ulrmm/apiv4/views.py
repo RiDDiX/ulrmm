@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from agents.models import Agent
+from apiv3.views import _too_large
 from deploy import envelope
 from logs.models import PendingAction
 from packages import jobs
@@ -14,7 +15,7 @@ from packages.models import InstallState, PackageInstall
 from software import sdio
 from software.models import SdioJob
 from ulrmm.auth import AgentTokenAuthentication
-from ulrmm.constants import AGENT_DEFER, ULRMM_MAX_REQUEST_SIZE, PAAction, PAStatus
+from ulrmm.constants import AGENT_DEFER, PAAction, PAStatus
 from ulrmm.helpers import notify_error
 
 # tail of the install output kept on the pending action
@@ -42,13 +43,7 @@ class _ResultV4(APIView):
     kind = ""
 
     def patch(self, request, agentid, pk):
-        try:
-            too_large = int(request.META.get("CONTENT_LENGTH") or 0) > (
-                ULRMM_MAX_REQUEST_SIZE
-            )
-        except ValueError:
-            too_large = False
-        if too_large:
+        if _too_large(request):
             return notify_error("Request too large")
 
         agent = get_object_or_404(
@@ -140,13 +135,7 @@ class SdioJobV4(APIView):
             return notify_error(job.detail)
 
     def patch(self, request, agentid, job):
-        try:
-            too_large = int(request.META.get("CONTENT_LENGTH") or 0) > (
-                ULRMM_MAX_REQUEST_SIZE
-            )
-        except ValueError:
-            too_large = False
-        if too_large:
+        if _too_large(request):
             return notify_error("Request too large")
         job = self._job(request, agentid, job)
         data = request.data if hasattr(request.data, "get") else {}
@@ -202,13 +191,7 @@ class PkgJobV4(APIView):
         return envelope.seal_response(install.agent, request, jobs.plan(install))
 
     def patch(self, request, agentid, job):
-        try:
-            too_large = int(request.META.get("CONTENT_LENGTH") or 0) > (
-                ULRMM_MAX_REQUEST_SIZE
-            )
-        except ValueError:
-            too_large = False
-        if too_large:
+        if _too_large(request):
             return notify_error("Request too large")
         install = self._job(request, agentid, job)
         data = request.data if hasattr(request.data, "get") else {}

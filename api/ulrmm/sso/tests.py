@@ -19,7 +19,9 @@ from knox.models import AuthToken
 from model_bakery import baker
 from rest_framework.test import APIClient
 
-from accounts.models import User
+from accounts.models import APIKey, User
+from accounts.utils import CHANGE_NEEDS_TOTP
+from accounts.views import CHANGE_NEEDS_DASHBOARD
 from core.models import CoreSettings
 from logs.models import AuditLog
 from ulrmm.constants import AuditActionType, AuditObjType
@@ -61,6 +63,14 @@ def make_app(name="corp idp", provider_id="corp-idp", role=None, **kwargs):
         },
         **kwargs,
     )
+
+
+def with_code(user, body=None):
+    # provider changes need the actor's fresh code
+    if not user.totp_key:
+        user.totp_key = pyotp.random_base32()
+        user.save(update_fields=["totp_key"])
+    return {**(body or {}), "totp_code": pyotp.TOTP(user.totp_key).now()}
 
 
 def callback_url(provider_id):
@@ -202,7 +212,9 @@ class TestSSOProviders(SSOTestCase):
         for role in (0, "", None):
             SocialApp.objects.all().delete()
             r = self.client.post(
-                PROVIDERS_URL, {**self.body, "role": role}, format="json"
+                PROVIDERS_URL,
+                with_code(self.john, {**self.body, "role": role}),
+                format="json",
             )
             self.assertEqual(r.status_code, 200, r.data)
             self.assertEqual(r.data, "ok")
@@ -217,7 +229,9 @@ class TestSSOProviders(SSOTestCase):
         role = baker.make("accounts.Role")
         SocialApp.objects.all().delete()
         r = self.client.post(
-            PROVIDERS_URL, {**self.body, "role": role.pk}, format="json"
+            PROVIDERS_URL,
+            with_code(self.john, {**self.body, "role": role.pk}),
+            format="json",
         )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(SocialApp.objects.get().settings["role"], role.pk)
@@ -226,7 +240,9 @@ class TestSSOProviders(SSOTestCase):
         for role in (99999, "abc", 1.5):
             SocialApp.objects.all().delete()
             r = self.client.post(
-                PROVIDERS_URL, {**self.body, "role": role}, format="json"
+                PROVIDERS_URL,
+                with_code(self.john, {**self.body, "role": role}),
+                format="json",
             )
             self.assertEqual(r.status_code, 200, role)
             self.assertEqual(SocialApp.objects.get().settings["role"], role)
@@ -239,7 +255,7 @@ class TestSSOProviders(SSOTestCase):
         role.delete()
         r = self.client.put(
             f"{PROVIDERS_URL}{app.pk}/",
-            {"client_id": "c2", "secret": "", "role": role.pk},
+            with_code(self.john, {"client_id": "c2", "secret": "", "role": role.pk}),
             format="json",
         )
         self.assertEqual(r.status_code, 200)
@@ -374,14 +390,17 @@ class TestSSOProviders(SSOTestCase):
         app = make_app()
         r = self.client.put(
             f"{PROVIDERS_URL}{app.pk}/",
-            {
-                "name": "renamed",
-                "provider_id": "other",
-                "provider": "github",
-                "client_id": "cid2",
-                "secret": "",
-                "server_url": "https://login.example.org",
-            },
+            with_code(
+                self.john,
+                {
+                    "name": "renamed",
+                    "provider_id": "other",
+                    "provider": "github",
+                    "client_id": "cid2",
+                    "secret": "",
+                    "server_url": "https://login.example.org",
+                },
+            ),
             format="json",
         )
         self.assertEqual(r.status_code, 200)
@@ -395,7 +414,9 @@ class TestSSOProviders(SSOTestCase):
 
         # keys that are not sent keep their stored value
         r = self.client.put(
-            f"{PROVIDERS_URL}{app.pk}/", {"secret": "new"}, format="json"
+            f"{PROVIDERS_URL}{app.pk}/",
+            with_code(self.john, {"secret": "new"}),
+            format="json",
         )
         self.assertEqual(r.status_code, 200)
         app.refresh_from_db()
@@ -406,7 +427,7 @@ class TestSSOProviders(SSOTestCase):
 
         r = self.client.put(
             f"{PROVIDERS_URL}{app.pk}/",
-            {"secret": "ignored", "secret_clear": True},
+            with_code(self.john, {"secret": "ignored", "secret_clear": True}),
             format="json",
         )
         self.assertEqual(r.status_code, 200)
@@ -424,17 +445,20 @@ class TestSSOProviders(SSOTestCase):
         app = make_app()
         user = baker.make("accounts.User")
         SocialAccount.objects.create(user=user, provider="corp-idp", uid="s1")
-        r = self.client.delete(f"{PROVIDERS_URL}{app.pk}/")
+        r = self.client.delete(
+            f"{PROVIDERS_URL}{app.pk}/", with_code(self.john), format="json"
+        )
         self.assertEqual(r.status_code, 200)
         self.assertFalse(SocialApp.objects.exists())
         self.assertTrue(SocialAccount.objects.filter(uid="s1").exists())
         self.assertTrue(User.objects.get(pk=user.pk).is_sso_user)
 
     def test_changes_are_audited_without_the_secret(self):
-        self.client.post(PROVIDERS_URL, self.body, format="json")
+        self.client.post(PROVIDERS_URL, with_code(self.john, self.body), format="json")
         app = SocialApp.objects.get()
-        self.client.put(f"{PROVIDERS_URL}{app.pk}/", {"secret": "n3w"}, format="json")
-        self.client.delete(f"{PROVIDERS_URL}{app.pk}/")
+        url = f"{PROVIDERS_URL}{app.pk}/"
+        self.client.put(url, with_code(self.john, {"secret": "n3w"}), format="json")
+        self.client.delete(url, with_code(self.john), format="json")
 
         logs = AuditLog.objects.filter(object_type=AuditObjType.CORE).order_by("id")
         self.assertEqual(
@@ -459,7 +483,9 @@ class TestSSOProviders(SSOTestCase):
         self.assertFalse(SocialApp.objects.exists())
 
         r = self.client.post(
-            PROVIDERS_URL, {**self.body, "role": plain_role.pk}, format="json"
+            PROVIDERS_URL,
+            with_code(admin, {**self.body, "role": plain_role.pk}),
+            format="json",
         )
         self.assertEqual(r.status_code, 200)
         app = SocialApp.objects.get()
@@ -482,8 +508,81 @@ class TestSSOProviders(SSOTestCase):
         # superuser role holders manage it
         self.client.force_authenticate(user=role_super)
         r = self.client.put(
-            f"{PROVIDERS_URL}{app.pk}/", {"role": super_role.pk}, format="json"
+            f"{PROVIDERS_URL}{app.pk}/",
+            with_code(role_super, {"role": super_role.pk}),
+            format="json",
         )
+        self.assertEqual(r.status_code, 200)
+
+    def test_changes_need_a_fresh_code(self):
+        app = make_app()
+        with_code(self.john)
+        url = f"{PROVIDERS_URL}{app.pk}/"
+        for method, path, body in (
+            ("post", PROVIDERS_URL, self.body),
+            ("put", url, {"client_id": "c2"}),
+            ("delete", url, {}),
+        ):
+            r = getattr(self.client, method)(path, body, format="json")
+            self.assertEqual(r.status_code, 400, method)
+            self.assertEqual(r.data, CHANGE_NEEDS_TOTP)
+        app.refresh_from_db()
+        self.assertEqual(app.client_id, "cid")
+        self.assertEqual(SocialApp.objects.count(), 1)
+
+    def test_api_key_callers_are_refused(self):
+        app = make_app()
+        APIKey.objects.create(name="john", key="johnkey", user=self.john)
+        self.client.force_authenticate(user=None)
+        self.client.credentials(HTTP_X_API_KEY="johnkey")
+        url = f"{PROVIDERS_URL}{app.pk}/"
+        for method, path, body in (
+            ("post", PROVIDERS_URL, self.body),
+            ("put", url, {"client_id": "c2"}),
+            ("delete", url, {}),
+        ):
+            r = getattr(self.client, method)(
+                path, with_code(self.john, body), format="json"
+            )
+            self.assertEqual(r.status_code, 403, method)
+            self.assertEqual(r.data["detail"], CHANGE_NEEDS_DASHBOARD)
+        app.refresh_from_db()
+        self.assertEqual(app.client_id, "cid")
+        self.assertEqual(SocialApp.objects.count(), 1)
+
+    def test_role_flags_must_be_held(self):
+        admin = self.account_manager()
+        strong = baker.make("accounts.Role", can_run_scripts=True)
+        weak = baker.make("accounts.Role", can_list_accounts=True)
+        self.client.force_authenticate(user=admin)
+
+        r = self.client.post(
+            PROVIDERS_URL,
+            with_code(admin, {**self.body, "role": strong.pk}),
+            format="json",
+        )
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("can_run_scripts", r.data["detail"])
+        self.assertFalse(SocialApp.objects.exists())
+
+        app = make_app(role=weak.pk)
+        url = f"{PROVIDERS_URL}{app.pk}/"
+        r = self.client.put(url, with_code(admin, {"role": strong.pk}), format="json")
+        self.assertEqual(r.status_code, 403)
+        # nor redirect a provider that already holds such a role
+        held = make_app(name="held", provider_id="held", role=strong.pk)
+        r = self.client.put(
+            f"{PROVIDERS_URL}{held.pk}/",
+            with_code(admin, {"server_url": "https://evil.example.com"}),
+            format="json",
+        )
+        self.assertEqual(r.status_code, 403)
+        app.refresh_from_db()
+        held.refresh_from_db()
+        self.assertEqual(app.settings["role"], weak.pk)
+        self.assertEqual(held.settings["server_url"], "https://idp.example.com")
+
+        r = self.client.put(url, with_code(admin, {"client_id": "c2"}), format="json")
         self.assertEqual(r.status_code, 200)
 
 
