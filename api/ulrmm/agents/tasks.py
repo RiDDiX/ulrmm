@@ -3,7 +3,6 @@
 
 import datetime as dt
 import re
-from time import sleep
 from typing import Optional
 
 from django.conf import settings
@@ -12,13 +11,13 @@ from django.utils import timezone as djangotime
 
 from agents.models import Agent, AgentHistory
 from alerts.models import Alert
+from alerts.tasks import notify_once
 from core.utils import get_core_settings
 from logs.models import DebugLog
 from scripts.models import Script
 from ulrmm.celery import app
 from ulrmm.constants import AGENT_DEFER, AGENT_OUTAGES_LOCK, AGENT_STATUS_OVERDUE
 from ulrmm.constants import CheckStatus, DebugLogType
-from ulrmm.helpers import rand_range
 from ulrmm.logger import logger
 from ulrmm.utils import redis_lock
 
@@ -50,28 +49,10 @@ def auto_self_agent_update_task() -> None:
 
 
 def _notify(pk: int, field: str, send: str, alert_interval=None) -> str:
-    """Sends one agent availability notification unless it went out already.
-
-    The stamp is claimed on the alert first, so two workers never both send;
-    a failed send hands it back for the next run.
-    """
     alert = Alert.objects.select_related("agent").filter(pk=pk).first()
     if alert is None or alert.agent is None:
         return "alert not found"
-
-    previous = getattr(alert, field)
-    stamp = Alert.claim_notification(pk, field, alert_interval)
-    if stamp is None:
-        return "ok"
-
-    # spread a burst of notifications out a little
-    sleep(rand_range(100, 1500))
-    try:
-        getattr(alert.agent, send)()
-    except Exception:
-        Alert.release_notification(pk, field, stamp, previous)
-        raise
-    return "ok"
+    return notify_once(alert, field, getattr(alert.agent, send), alert_interval)
 
 
 @app.task

@@ -8,7 +8,11 @@ from django.utils import timezone as djangotime
 from model_bakery import baker
 
 from alerts.models import Alert
-from alerts.tasks import prune_resolved_alerts, unsnooze_alerts
+from alerts.tasks import (
+    cache_agents_alert_template,
+    prune_resolved_alerts,
+    unsnooze_alerts,
+)
 from ulrmm.constants import AlertType
 from ulrmm.test import ULRMMTestCase
 
@@ -47,3 +51,10 @@ class TestAlertTasks(ULRMMTestCase):
         self.assertEqual(
             set(Alert.objects.values_list("pk", flat=True)), {late.pk, still_open.pk}
         )
+
+    def test_template_cache_loads_no_field_per_agent(self):
+        self.setup_coresettings()
+        baker.make_recipe("agents.agent", _quantity=3)
+        # the list, then per agent: core settings twice, the check of save, the update
+        with self.assertNumQueries(10):
+            cache_agents_alert_template()

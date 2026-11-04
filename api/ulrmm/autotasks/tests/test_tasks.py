@@ -42,7 +42,7 @@ class TestAutotaskTasks(ULRMMTestCase):
                 self.assertEqual(celery_task(self.task.pk + 100), "ok")
                 self.assertEqual(call.call_count, 2)
 
-    @patch("autotasks.tasks.sleep")
+    @patch("alerts.tasks.sleep")
     def test_task_notifications_go_out_once(self, _):
         baker.make("autotasks.TaskResult", agent=self.agent, task=self.task)
         alert = baker.make(

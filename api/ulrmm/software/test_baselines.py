@@ -398,7 +398,7 @@ class TestEngine(ULRMMTestCase):
 
     def test_cache_key_follows_policy_keys(self, nats_cmd):
         key = baselines._cache_key(self.agent)
-        self.assertEqual(key, self.agent._policy_cache_key("baselines", False))
+        self.assertEqual(key, self.agent._policy_cache_key("baselines"))
         patterns = ("site_workstation_*", "site_server_*", "agent_*")
         self.assertTrue(any(fnmatch.fnmatch(key, p) for p in patterns))
         self.assertTrue(fnmatch.fnmatch(key, "*_baselines"))

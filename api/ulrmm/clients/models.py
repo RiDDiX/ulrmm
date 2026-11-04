@@ -31,14 +31,9 @@ def _changed(old, new, fields) -> bool:
     return any(getattr(old, f) != getattr(new, f) for f in fields)
 
 
-def _drop_policy_cache(site_pks, workstation: bool, server: bool) -> None:
-    # keys come from Agent._policy_cache_key; the pattern also hits other
-    # sites whose pk ends the same way, which only costs a rebuild
-    for pk in site_pks:
-        if workstation:
-            cache.delete_many_pattern(f"site_workstation_*{pk}_*")
-        if server:
-            cache.delete_many_pattern(f"site_server_*{pk}_*")
+def _drop_policy_cache() -> None:
+    # keys come from Agent._policy_cache_key, one merge per agent
+    cache.delete_many_pattern("agent_*")
 
 
 _TEMPLATE_FIELDS = ("alert_template_id", "workstation_policy_id", "server_policy_id")
@@ -91,8 +86,7 @@ class Client(BaseAuditModel):
         workstation = block or old.workstation_policy_id != self.workstation_policy_id
         server = block or old.server_policy_id != self.server_policy_id
         if workstation or server:
-            site_pks = self.sites.values_list("pk", flat=True)
-            _drop_policy_cache(site_pks, workstation, server)
+            _drop_policy_cache()
 
     @property
     def live_agent_count(self) -> int:
@@ -162,7 +156,7 @@ class Site(BaseAuditModel):
         workstation = block or old.workstation_policy_id != self.workstation_policy_id
         server = block or old.server_policy_id != self.server_policy_id
         if workstation or server:
-            _drop_policy_cache([self.pk], workstation, server)
+            _drop_policy_cache()
 
     @property
     def live_agent_count(self) -> int:

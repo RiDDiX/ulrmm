@@ -48,6 +48,7 @@ ORPHANED_WIN_TASK_LOCK = "orphaned-win-task-lock-key"
 SYNC_MESH_PERMS_TASK_LOCK = "sync-mesh-perms-lock-key"
 CACHE_DB_FIELDS_TASK_LOCK = "cache-db-fields-task-lock-key"
 NETMON_POLL_LOCK = "netmon-poll-lock-key"
+SCHED_TASK_RUNNER_LOCK = "sched-task-runner-lock-key"
 
 ULRMM_WS_MAX_SIZE = getattr(settings, "ULRMM_WS_MAX_SIZE", 100 * 2**20)
 ULRMM_MAX_REQUEST_SIZE = getattr(settings, "ULRMM_MAX_REQUEST_SIZE", 10 * 2**20)
@@ -165,12 +166,6 @@ WEEKDAY_TO_BIT = {weekday: 1 << ((weekday + 1) % 7) for weekday in range(7)}
 
 MONTH_DAYS = {str(day): 1 << (day - 1) for day in range(1, 32)}
 MONTH_DAYS["Last Day"] = 0x80000000
-
-CONFIG_MGMT_CMDS = tuple("""
-    api version meshver natsver frontend webdomain djangoadmin setuptoolsver
-    wheelver dbname dbuser dbhost dbpw dbport meshsite meshuser meshtoken
-    meshdomain certfile keyfile
-    """.split())
 
 ALL_TIMEZONES = sorted(zoneinfo.available_timezones())
 
@@ -511,8 +506,3 @@ LINUX_TOKENS = {TerminalShellChoices.BASH}
 DARWIN_TOKENS = {TerminalShellChoices.BASH}
 # base FreeBSD has no bash, it comes from pkg
 FREEBSD_TOKENS = {TerminalShellChoices.SH, TerminalShellChoices.BASH}
-
-_AGENT_ALWAYS = {AgentTerminalShellChoices.USE_GLOBAL, AgentTerminalShellChoices.CUSTOM}
-AGENT_WINDOWS_SHELL_TOKENS = _AGENT_ALWAYS | WINDOWS_TOKENS
-AGENT_LINUX_SHELL_TOKENS = _AGENT_ALWAYS | LINUX_TOKENS
-AGENT_DARWIN_SHELL_TOKENS = _AGENT_ALWAYS | DARWIN_TOKENS

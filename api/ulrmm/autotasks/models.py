@@ -229,7 +229,6 @@ class AutomatedTask(BaseAuditModel):
             return
 
         def forget() -> None:
-            cache.delete_many_pattern("site_*_tasks")
             cache.delete_many_pattern("agent_*_tasks")
 
         forget()

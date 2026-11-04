@@ -3,8 +3,11 @@
 
 from unittest.mock import patch
 
+from django.core.cache import cache
+from django.test import override_settings
 from model_bakery import baker
 
+from agents.models import Agent
 from checks.models import CheckResult
 from ulrmm.test import ULRMMTestCase
 
@@ -212,3 +215,48 @@ class TestPolicyStatusNotRun(ULRMMTestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.data), 1)
         self.assertEqual(r.data[0]["status"], "pending")
+
+
+# the merged policy checks live in the cache, so the tests need a real one
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "ulrmm.golden.base.GoldenCache",
+            "LOCATION": "policy-merge",
+        }
+    }
+)
+class TestPolicyMergeCache(ULRMMTestCase):
+    def setUp(self):
+        self.setup_coresettings()
+        self.setup_base_instance()
+        self.policy = baker.make("automation.Policy", active=True)
+        self.site1.workstation_policy = self.policy
+        self.site1.save()
+        self.check = baker.make_recipe("checks.ping_check", policy=self.policy)
+        self.excluded, self.member = baker.make_recipe(
+            "agents.workstation_agent", site=self.site1, _quantity=2
+        )
+        self.policy.excluded_agents.add(self.excluded)
+        cache.clear()
+
+    def policy_checks(self, agent: Agent) -> list[int]:
+        fresh = Agent.objects.get(pk=agent.pk)
+        return [check.pk for check in fresh.get_checks_from_policies()]
+
+    def test_excluded_agent_does_not_decide_for_its_site(self):
+        for first in (self.excluded, self.member):
+            cache.clear()
+            self.policy_checks(first)
+            self.assertEqual(self.policy_checks(self.member), [self.check.pk])
+            self.assertEqual(self.policy_checks(self.excluded), [])
+
+    def test_moved_agent_gets_the_new_sites_checks(self):
+        agent = baker.make_recipe("agents.workstation_agent", site=self.site2)
+        baker.make_recipe("checks.ping_check", agent=agent, ip="192.0.2.1")
+        self.assertEqual(self.policy_checks(agent), [])
+
+        agent.site = self.site1
+        with self.captureOnCommitCallbacks(execute=True):
+            agent.save()
+        self.assertEqual(self.policy_checks(agent), [self.check.pk])

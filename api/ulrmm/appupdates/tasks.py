@@ -32,8 +32,8 @@ PLATS = (AgentPlat.WINDOWS, AgentPlat.DARWIN)
 LIST_TIMEOUT = 120
 UPGRADE_TIMEOUT = 600
 CONCURRENCY = 10
-# what an update run picks up
-OPEN = (State.AVAILABLE, State.FAILED)
+# what an update run picks up; updating too, a killed worker leaves rows there
+OPEN = (State.AVAILABLE, State.FAILED, State.UPDATING)
 NO_ANSWER = (
     "No answer from the agent in time. Agent update required: "
     "older agents have no app updates."

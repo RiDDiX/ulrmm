@@ -18,6 +18,7 @@ class Command(BaseCommand):
             c.SYNC_SCHED_TASK_LOCK,
             c.SYNC_MESH_PERMS_TASK_LOCK,
             c.CACHE_DB_FIELDS_TASK_LOCK,
+            c.SCHED_TASK_RUNNER_LOCK,
         ):
             cache.delete(lock)
 

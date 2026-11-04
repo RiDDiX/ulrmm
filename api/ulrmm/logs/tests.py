@@ -1,9 +1,14 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+from datetime import timedelta
+
 from django.test import RequestFactory
+from django.utils import timezone as djangotime
 from model_bakery import baker
 
+from logs.models import PendingAction
+from logs.tasks import prune_pending_actions
 from ulrmm.middleware import (
     AuditMiddleware,
     get_debug_info,
@@ -51,3 +56,30 @@ class TestPendingCount(ULRMMTestCase):
         self.assertEqual(self.client.get(url).data, {"pending": 1})
         self.client.force_authenticate(user=self.create_user_with_roles([]))
         self.assertEqual(self.client.get(url).status_code, 403)
+
+
+class TestPrunePendingActions(ULRMMTestCase):
+    def test_only_old_completed_rows_go(self):
+        agent = baker.make_recipe("agents.agent")
+        old = djangotime.now() - timedelta(days=31)
+        rows = {}
+        for name, status, entry_time in (
+            ("old completed", "completed", old),
+            ("old pending", "pending", old),
+            ("new completed", "completed", None),
+        ):
+            row = baker.make(
+                "logs.PendingAction",
+                agent=agent,
+                action_type="agentupdate",
+                status=status,
+            )
+            if entry_time:
+                PendingAction.objects.filter(pk=row.pk).update(entry_time=entry_time)
+            rows[row.pk] = name
+
+        self.assertEqual(prune_pending_actions(30), "ok")
+        left = PendingAction.objects.values_list("pk", flat=True)
+        self.assertEqual(
+            sorted(rows[pk] for pk in left), ["new completed", "old pending"]
+        )

@@ -380,13 +380,6 @@ class CoreSettings(BaseAuditModel):
         from alerts.tasks import cache_agents_alert_template
 
         cache_agents_alert_template.delay()
-        policy_patterns = (
-            ("workstation_policy_id", "site_workstation_*"),
-            ("server_policy_id", "site_server_*"),
-        )
-        for fk, pattern in policy_patterns:
-            if fk in moved:
-                cache.delete_many_pattern(pattern)
         if moved - {"alert_template_id"}:
             cache.delete_many_pattern("agent_*")
 

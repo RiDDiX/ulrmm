@@ -845,7 +845,7 @@ class TestMetricChecks(ULRMMTestCase):
         self.agent.policy = policy
         self.agent.save()
         # policy merges are cached per site and policy id, which repeat per test run
-        cache.delete(self.agent._policy_cache_key("checks", False))
+        cache.delete(self.agent._policy_cache_key("checks"))
         self.agent.set_alert_template()
         self.push({"load.1": 8.0})
         result = self.result(check)

@@ -3,7 +3,6 @@
 
 import asyncio
 from contextlib import suppress
-from time import sleep
 from typing import Optional, Union
 
 import msgpack
@@ -12,11 +11,12 @@ from django.db.models import Q
 
 from agents.models import Agent
 from alerts.models import Alert
+from alerts.tasks import notify_once
 from deploy import envelope
 from ulrmm.agent_ident import agent_task_prefix
 from ulrmm.celery import app
 from ulrmm.constants import ORPHANED_WIN_TASK_LOCK
-from ulrmm.helpers import rand_range, setup_nats_options
+from ulrmm.helpers import setup_nats_options
 from ulrmm.logger import logger
 from ulrmm.utils import redis_lock
 
@@ -135,11 +135,6 @@ def remove_orphaned_win_tasks(self) -> str:
 def _notify(
     pk: int, field: str, send: str, alert_interval: Union[float, None] = None
 ) -> str:
-    """Sends one task notification unless it went out already.
-
-    The stamp is claimed on the alert before sending so two workers never both
-    send; a failed send hands it back for the next run.
-    """
     alert = Alert.objects.select_related("assigned_task", "agent").filter(pk=pk).first()
     if alert is None:
         return "alert not found"
@@ -151,20 +146,7 @@ def _notify(
     )
     if result is None:
         return "task result not found"
-
-    previous = getattr(alert, field)
-    stamp = Alert.claim_notification(pk, field, alert_interval)
-    if stamp is None:
-        return "ok"
-
-    # spread a burst of alerts out a little
-    sleep(rand_range(100, 1500))
-    try:
-        getattr(result, send)()
-    except Exception:
-        Alert.release_notification(pk, field, stamp, previous)
-        raise
-    return "ok"
+    return notify_once(alert, field, getattr(result, send), alert_interval)
 
 
 @app.task

@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import DatabaseError, transaction
+from django.db.models import Q
 from django.utils import timezone as djangotime
 
 from core.mesh_utils import (
@@ -26,6 +27,7 @@ from ulrmm.constants import (
     AGENT_DEFER,
     AGENT_STATUS_OVERDUE,
     CACHE_DB_FIELDS_TASK_LOCK,
+    SCHED_TASK_RUNNER_LOCK,
     RESOLVE_ALERTS_LOCK,
     SYNC_MESH_PERMS_TASK_LOCK,
     SYNC_SCHED_TASK_LOCK,
@@ -82,7 +84,7 @@ def core_maintenance_tasks():
     from agents.tasks import clear_faults_task, prune_agent_history
     from alerts.tasks import prune_resolved_alerts
     from checks.tasks import prune_check_history
-    from logs.tasks import prune_audit_log, prune_debug_log
+    from logs.tasks import prune_audit_log, prune_debug_log, prune_pending_actions
 
     delete_expired_tasks()
     remove_orphaned_history_results()
@@ -93,6 +95,7 @@ def core_maintenance_tasks():
         (core.resolved_alerts_prune_days, prune_resolved_alerts),
         (core.agent_history_prune_days, prune_agent_history),
         (core.debug_log_prune_days, prune_debug_log),
+        (core.debug_log_prune_days, prune_pending_actions),
         (core.audit_log_prune_days, prune_audit_log),
         (core.patch_event_prune_days, prune_patch_events),
         (core.clear_faults_days, clear_faults_task),
@@ -645,62 +648,76 @@ def rename_mesh_node_task(self, agent_pk):
     raise self.retry(countdown=60 * 2**self.request.retries)
 
 
-@app.task
-def scheduled_task_runner():
-    from autotasks.models import TaskResult
-    from ulrmm import scheduler
+@app.task(bind=True)
+def scheduled_task_runner(self):
+    with redis_lock(SCHED_TASK_RUNNER_LOCK, self.app.oid) as acquired:
+        if not acquired:
+            return f"{self.app.oid} still running"
 
-    now = djangotime.now()
-    runners = {
-        TaskType.DAILY: scheduler.should_run_daily_task,
-        TaskType.WEEKLY: scheduler.should_run_weekly_task,
-        TaskType.MONTHLY: scheduler.should_run_monthly_task,
-        TaskType.MONTHLY_DOW: scheduler.should_run_monthly_dow_task,
-    }
+        from autotasks.models import TaskResult
+        from ulrmm import scheduler
 
-    due = []
-    due_pks = []
-    results = (
-        TaskResult.objects.filter(task__enabled=True)
-        .exclude(agent__plat=AgentPlat.WINDOWS)
-        .select_related("agent", "task")
-    )
-    for result in results:
-        if result.locked_at and (now - result.locked_at) < timedelta(seconds=55):
-            logger.error(
-                "scheduled_task_runner: task %s is still locked", result.task_id
-            )
-            continue
+        now = djangotime.now()
+        runners = {
+            TaskType.DAILY: scheduler.should_run_daily_task,
+            TaskType.WEEKLY: scheduler.should_run_weekly_task,
+            TaskType.MONTHLY: scheduler.should_run_monthly_task,
+            TaskType.MONTHLY_DOW: scheduler.should_run_monthly_dow_task,
+        }
 
-        task = result.task
-        agent = result.agent
-        tt = task.task_type
-        if tt in runners:
-            run = runners[tt](task, agent, now)
-        elif tt == TaskType.RUN_ONCE:
-            run = not result.last_run and scheduler.should_run_once_task(
-                task, agent, now
-            )
-        elif tt == TaskType.ONBOARDING:
-            run = not result.last_run and result.run_status not in (
-                TaskRunStatus.RUNNING,
-                TaskRunStatus.COMPLETED,
-            )
-        else:
-            run = False
-
-        if run:
-            due.append((agent.agent_id, {"func": "runtask", "taskpk": task.pk}))
-            due_pks.append(result.pk)
-
-    if not due:
-        return []
-
-    with transaction.atomic():
-        updated = TaskResult.objects.filter(pk__in=due_pks).update(
-            run_status=TaskRunStatus.RUNNING, locked_at=now
+        due = []
+        due_pks = []
+        results = (
+            TaskResult.objects.filter(task__enabled=True)
+            .exclude(agent__plat=AgentPlat.WINDOWS)
+            .select_related("agent", "task")
         )
-        if updated:
-            asyncio.run(abulk_nats_command(items=due))
+        for result in results:
+            if result.locked_at and (now - result.locked_at) < timedelta(seconds=55):
+                logger.error(
+                    "scheduled_task_runner: task %s is still locked", result.task_id
+                )
+                continue
 
-    return due
+            task = result.task
+            agent = result.agent
+            tt = task.task_type
+            if tt in runners:
+                run = runners[tt](task, agent, now)
+            elif tt == TaskType.RUN_ONCE:
+                run = not result.last_run and scheduler.should_run_once_task(
+                    task, agent, now
+                )
+            elif tt == TaskType.ONBOARDING:
+                run = not result.last_run and result.run_status not in (
+                    TaskRunStatus.RUNNING,
+                    TaskRunStatus.COMPLETED,
+                )
+            else:
+                run = False
+
+            if run:
+                due.append((agent.agent_id, {"func": "runtask", "taskpk": task.pk}))
+                due_pks.append(result.pk)
+
+        if not due:
+            return []
+
+        # send only the rows this run claims; others are still locked by a run
+        # that read them first
+        stale = now - timedelta(seconds=55)
+        free = Q(locked_at__isnull=True) | Q(locked_at__lt=stale)
+        with transaction.atomic():
+            claimed = set(
+                TaskResult.objects.select_for_update()
+                .filter(free, pk__in=due_pks)
+                .values_list("pk", flat=True)
+            )
+            TaskResult.objects.filter(pk__in=claimed).update(
+                run_status=TaskRunStatus.RUNNING, locked_at=now
+            )
+            due = [item for pk, item in zip(due_pks, due) if pk in claimed]
+            if due:
+                asyncio.run(abulk_nats_command(items=due))
+
+        return due

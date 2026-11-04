@@ -269,7 +269,6 @@ class Check(BaseAuditModel):
         if self.policy_id:
 
             def forget() -> None:
-                cache.delete_many_pattern("site_*_checks")
                 cache.delete_many_pattern("agent_*_checks")
 
         elif self.agent_id:

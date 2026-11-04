@@ -103,3 +103,39 @@ class TestCoreTasks(ULRMMTestCase):
         )
         # a second tick inside the same minute does not start it again
         self.assertEqual(scheduled_task_runner(), [])
+
+    @time_machine.travel(MONDAY_1030, tick=False)
+    @patch("core.tasks.abulk_nats_command", new_callable=AsyncMock)
+    def test_runner_sends_only_the_rows_it_claims(self, bulk):
+        agent = baker.make_recipe(
+            "agents.online_agent", plat=AgentPlat.LINUX, time_zone="UTC"
+        )
+        taken, free = (
+            baker.make(
+                "autotasks.TaskResult",
+                agent=agent,
+                task=baker.make(
+                    "autotasks.AutomatedTask",
+                    agent=agent,
+                    task_type=TaskType.DAILY,
+                    run_time_date=MONDAY_1030,
+                ),
+                locked_at=MONDAY_1030 - dt.timedelta(seconds=70),
+            )
+            for _ in range(2)
+        )
+
+        def due(task, agent, now):
+            # another run locks the row after this one has read it
+            TaskResult.objects.filter(pk=taken.pk).update(
+                locked_at=now - dt.timedelta(seconds=10)
+            )
+            return True
+
+        with patch("ulrmm.scheduler.should_run_daily_task", side_effect=due):
+            ran = scheduled_task_runner()
+        expected = [(agent.agent_id, {"func": "runtask", "taskpk": free.task_id})]
+        self.assertEqual(ran, expected)
+        bulk.assert_awaited_once_with(items=expected)
+        taken.refresh_from_db()
+        self.assertIsNone(taken.run_status)

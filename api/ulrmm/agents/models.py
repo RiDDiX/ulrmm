@@ -289,6 +289,7 @@ class Agent(BaseAuditModel):
     def save(self, *args, **kwargs) -> None:
         # a new site, monitoring type or policy can change the alert template;
         # set_alert_template saves again, the flag stops the recursion
+        moved = False
         if self.pk and not getattr(self, "_recalculating_template", False):
             stored = (
                 type(self)
@@ -307,6 +308,7 @@ class Agent(BaseAuditModel):
                 or stored["policy_id"] != self.policy_id
                 or stored["block_policy_inheritance"] != self.block_policy_inheritance
             ):
+                moved = True
                 self._recalculating_template = True
                 try:
                     self.set_alert_template()
@@ -314,6 +316,11 @@ class Agent(BaseAuditModel):
                     self._recalculating_template = False
 
         super().save(*args, **kwargs)
+        if moved:
+            # the policy merges are rebuilt from the database, so the keys go
+            # only once the new assignment is visible to other connections
+            key = f"agent_{self.agent_id}_*"
+            transaction.on_commit(lambda: cache.delete_many_pattern(key))
 
     @staticmethod
     def serialize(agent: "Agent") -> dict[str, Any]:
@@ -665,21 +672,15 @@ class Agent(BaseAuditModel):
             ),
         }
 
-    def _policy_cache_key(self, kind: str, agent_specific: bool) -> str:
-        if agent_specific:
-            return f"agent_{self.agent_id}_{kind}"
-        base = f"site_{self.monitoring_type}_{self.plat}_{self.site_id}"
-        if self.policy_id:
-            return f"{base}_policy_{self.policy_id}_{kind}"
-        return f"{base}_{kind}"
+    def _policy_cache_key(self, kind: str) -> str:
+        # always per agent: get_agent_policies drops the policies that exclude
+        # this agent, so agents of one site can merge differently
+        return f"agent_{self.agent_id}_{kind}"
 
     def get_checks_from_policies(self) -> "list[Check]":
         from automation.models import Policy
 
-        key = self._policy_cache_key(
-            "checks",
-            self.block_policy_inheritance or self.agentchecks.exists(),
-        )
+        key = self._policy_cache_key("checks")
         cached = cache.get(key)
         if isinstance(cached, list):
             return cached
@@ -693,7 +694,7 @@ class Agent(BaseAuditModel):
     def get_tasks_from_policies(self) -> "list[AutomatedTask]":
         from automation.models import Policy
 
-        key = self._policy_cache_key("tasks", self.block_policy_inheritance)
+        key = self._policy_cache_key("tasks")
         cached = cache.get(key)
         if isinstance(cached, list):
             return cached
@@ -978,7 +979,7 @@ class Agent(BaseAuditModel):
                     break
 
         self.alert_template = chosen
-        self.save(update_fields=["alert_template"])
+        Agent.objects.filter(pk=self.pk).update(alert_template=chosen)
         return chosen
 
     def get_or_create_alert_if_needed(

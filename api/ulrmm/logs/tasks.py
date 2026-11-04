@@ -6,15 +6,16 @@ from datetime import timedelta
 from django.utils import timezone as djangotime
 
 from ulrmm.celery import app
+from ulrmm.constants import PAStatus
 
 BATCH = 10_000
 
 
-def _prune(model, older_than_days: int) -> None:
+def _prune(model, older_than_days: int, **match) -> None:
     if older_than_days < 0:
         return
     cutoff = djangotime.now() - timedelta(days=older_than_days)
-    old = model.objects.filter(entry_time__lt=cutoff).order_by("pk")
+    old = model.objects.filter(entry_time__lt=cutoff, **match).order_by("pk")
     # batches keep each DELETE short on big tables
     while ids := list(old.values_list("pk", flat=True)[:BATCH]):
         model.objects.filter(pk__in=ids).delete()
@@ -33,4 +34,12 @@ def prune_audit_log(older_than_days: int) -> str:
     from .models import AuditLog
 
     _prune(AuditLog, older_than_days)
+    return "ok"
+
+
+@app.task
+def prune_pending_actions(older_than_days: int) -> str:
+    from .models import PendingAction
+
+    _prune(PendingAction, older_than_days, status=PAStatus.COMPLETED)
     return "ok"

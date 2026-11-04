@@ -176,7 +176,8 @@ class _TestScriptInput(serializers.Serializer):
     code = serializers.CharField(
         max_length=1024 * 1024, allow_blank=True, trim_whitespace=False
     )
-    timeout = serializers.IntegerField(min_value=1, max_value=7200)
+    # the request waits for the reply, uwsgi ends it after 300 s
+    timeout = serializers.IntegerField(min_value=1, max_value=290)
     args = _text_list()
     shell = serializers.ChoiceField(choices=ScriptShell.choices)
     run_as_user = serializers.BooleanField()

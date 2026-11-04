@@ -370,6 +370,16 @@ class TestTasks(Base):
         self.assertEqual(AppUpdate.objects.get(pk=pk).state, "done")
         self.assertEqual(AgentHistory.objects.get(agent=self.win).username, "john")
 
+    def test_scheduled_run_picks_up_rows_left_updating(self):
+        store(self.win, parse_list(WINGET_LIST))
+        AppUpdate.objects.filter(app_id="Google.Chrome").update(state="updating")
+        self.enable()
+        calls = []
+        with fake_nats({self.win.agent_id: upgraded(["Google.Chrome"])}, calls):
+            apply_app_updates_task()
+        self.assertIn("Google.Chrome", calls[0][1]["payload"]["ids"].split(","))
+        self.assertEqual(self.rows(self.win)["Google.Chrome"].state, "done")
+
 
 class TestViews(Base):
     def setUp(self):
@@ -464,11 +474,15 @@ class TestViews(Base):
             ).exists()
         )
 
-        # already updating, bad ids, nothing given
-        for body in ({"ids": ["Google.Chrome"]}, {"ids": ["-rf"]}, {"ids": []}, {}):
+        # a row left updating by a killed worker is queued again
+        r = self.client.post(f"{self.url}/apply/", {"ids": ids}, format="json")
+        self.assertEqual(r.json()["queued"], ["Google.Chrome"])
+
+        # bad ids, nothing given
+        for body in ({"ids": ["-rf"]}, {"ids": []}, {}):
             r = self.client.post(f"{self.url}/apply/", body, format="json")
             self.assertEqual(r.status_code, 400, body)
-        self.assertEqual(delay.call_count, 1)
+        self.assertEqual(delay.call_count, 2)
 
     def test_exclude(self):
         url = f"{self.url}/exclude/"
@@ -488,9 +502,7 @@ class TestViews(Base):
         self.client.put(url, {**body, "excluded": False}, format="json")
         self.assertNotIn("Google.Chrome", self.rows(self.win))
 
-        AppUpdate.objects.filter(app_id="7zip.7zip").update(state="updating")
         for bad in (
-            {"app_id": "7zip.7zip", "excluded": True},
             {"app_id": "Not.Listed", "excluded": True},
             {"app_id": "7zip.7zip", "excluded": "yes"},
             {"app_id": "a b", "excluded": True},

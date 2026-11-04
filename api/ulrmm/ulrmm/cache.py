@@ -30,12 +30,6 @@ class ULRMMRedisCache(RedisCache):
     def iter_keys_pattern(self, pattern, version=None):
         yield from self._raw_client().scan_iter(match=self._match(pattern, version))
 
-    def show_everything(self, version=None):
-        return list(self.iter_keys_pattern("*", version=version))
-
-    def raw_ttl(self, key):
-        return self._raw_client().ttl(key)
-
 
 class ULRMMDummyCache(DummyCache):
     def delete_many_pattern(self, pattern, version=None):
@@ -43,9 +37,3 @@ class ULRMMDummyCache(DummyCache):
 
     def iter_keys_pattern(self, pattern, version=None):
         return iter(())
-
-    def show_everything(self, version=None):
-        return []
-
-    def raw_ttl(self, key):
-        return 0

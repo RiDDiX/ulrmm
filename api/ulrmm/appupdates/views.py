@@ -220,8 +220,6 @@ def exclude(request, agent_id: str):
     rows = AppUpdate.objects.filter(agent=agent, app_id=app_id)
     if not rows.exists():
         return notify_error("No update is listed for this app.")
-    if rows.filter(state=State.UPDATING).exists():
-        return notify_error("This app is being updated right now.")
     if excluded:
         rows.update(state=State.EXCLUDED)
     else:

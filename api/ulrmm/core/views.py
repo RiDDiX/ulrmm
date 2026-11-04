@@ -701,7 +701,7 @@ class _ServerScriptInputSerializer(serializers.Serializer):
     code = _raw_text()
     args = serializers.ListField(child=_raw_text(), required=False, default=list)
     env_vars = serializers.ListField(child=_raw_text(), required=False, default=list)
-    timeout = serializers.IntegerField(min_value=1, max_value=600)
+    timeout = serializers.IntegerField(min_value=1, max_value=290)
     shell = serializers.ChoiceField(choices=ScriptShell.values)
 
 

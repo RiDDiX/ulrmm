@@ -1,13 +1,38 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+from time import sleep
+
 from django.db.models import Q
 from django.utils import timezone as djangotime
 
 from agents.models import Agent
 from ulrmm.celery import app
+from ulrmm.constants import AGENT_DEFER
+from ulrmm.helpers import rand_range
 
 from .models import Alert
+
+
+def notify_once(alert: Alert, field: str, send, alert_interval=None) -> str:
+    """Calls send unless the notification went out already.
+
+    The stamp is claimed on the alert first, so two workers never both send;
+    a failed send hands it back for the next run.
+    """
+    previous = getattr(alert, field)
+    stamp = Alert.claim_notification(alert.pk, field, alert_interval)
+    if stamp is None:
+        return "ok"
+
+    # spread a burst of notifications out a little
+    sleep(rand_range(100, 1500))
+    try:
+        send()
+    except Exception:
+        Alert.release_notification(alert.pk, field, stamp, previous)
+        raise
+    return "ok"
 
 
 @app.task
@@ -19,8 +44,8 @@ def unsnooze_alerts() -> str:
 
 @app.task
 def cache_agents_alert_template() -> str:
-    related = ("site", "policy", "alert_template")
-    for each in Agent.objects.select_related(*related).only("pk", *related):
+    agents = Agent.objects.defer(*AGENT_DEFER).select_related("site__client", "policy")
+    for each in agents:
         each.set_alert_template()
     return "ok"
 

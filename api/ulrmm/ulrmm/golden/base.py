@@ -132,18 +132,6 @@ class GoldenCache(LocMemCache):
             with self._lock:
                 self._delete(key.decode())
 
-    def show_everything(self, version=None):
-        return list(self.iter_keys_pattern("*", version=version))
-
-    def raw_ttl(self, key):
-        if isinstance(key, bytes):
-            key = key.decode()
-        with self._lock:
-            if key not in self._cache or self._has_expired(key):
-                return -2
-            exp = self._expire_info.get(key)
-        return -1 if exp is None else int(exp - time.time())
-
 
 @contextlib.contextmanager
 def quiet_fds():

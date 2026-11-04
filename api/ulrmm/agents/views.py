@@ -125,7 +125,8 @@ NO_CONTACT = "Unable to contact the agent"
 CUSTOM_SHELL_MISSING = "Enter the path of the custom shell"
 UNREACHABLE = ("timeout", "natsdown")
 # matches the limit of the dashboard's command dialog
-MAX_CMD_TIMEOUT = 3600
+# uwsgi ends a request after 300 s; a run the request waits for must end first
+MAX_WAIT_TIMEOUT = 290
 INSTALLER_MAX_HOURS = 168
 
 _INT_TEXT = re.compile(r"\s*-?\d+\s*")
@@ -563,7 +564,7 @@ def send_raw_cmd(request, agent_id):
         return notify_error("cmd, shell and timeout are required")
     if not isinstance(run_as_user, bool):
         return notify_error("run_as_user must be true or false")
-    timeout = min(max(timeout, 1), MAX_CMD_TIMEOUT)
+    timeout = min(max(timeout, 1), MAX_WAIT_TIMEOUT)
 
     custom = data.get("custom_shell")
     if shell == "custom":
@@ -648,6 +649,12 @@ def run_script(request, agent_id):
     ):
         return notify_error(
             "script, output, args, env_vars, timeout and run_as_user are required"
+        )
+    waits = output in ("wait", "collector", "note") or data.get("run_on_server")
+    if waits and timeout > MAX_WAIT_TIMEOUT:
+        return notify_error(
+            f"timeout must be at most {MAX_WAIT_TIMEOUT} seconds"
+            " when waiting for the output"
         )
     script = get_object_or_404(Script, pk=script_pk)
     req_timeout = timeout + 3

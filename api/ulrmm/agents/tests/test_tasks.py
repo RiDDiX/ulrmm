@@ -20,7 +20,7 @@ class TestAgentTasks(ULRMMTestCase):
         self.setup_coresettings()
         self.agent = baker.make_recipe("agents.overdue_agent")
 
-    @patch("agents.tasks.sleep")
+    @patch("alerts.tasks.sleep")
     def test_availability_notifications_go_out_once(self, _):
         alert = baker.make(
             "alerts.Alert", agent=self.agent, alert_type=AlertType.AVAILABILITY

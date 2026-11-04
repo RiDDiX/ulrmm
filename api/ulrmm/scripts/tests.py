@@ -1034,6 +1034,13 @@ class TestScriptEnvVarsAndTestPerms(ULRMMTestCase):
         nats_cmd.assert_not_called()
         self.assertFalse(AuditLog.objects.filter(agent_id=self.agent.agent_id).exists())
 
+    @patch("agents.models.Agent.nats_cmd", return_value="ok")
+    def test_test_script_timeout_ends_before_the_request(self, nats_cmd):
+        url = f"/scripts/{self.agent.agent_id}/test/"
+        r = self.client.post(url, {**self.data, "timeout": 7200}, format="json")
+        self.assertEqual(r.status_code, 400)
+        nats_cmd.assert_not_called()
+
     def test_saved_env_vars_are_checked(self):
         count = Script.objects.count()
         data = {
@@ -1115,6 +1122,27 @@ class TestScriptEnvVarsAndTestPerms(ULRMMTestCase):
         r = self.client.post("/agents/actions/bulk/", data, format="json")
         self.assertEqual(r.status_code, 400)
         bulk.assert_not_called()
+
+    @patch("agents.models.Agent.run_script", return_value="ok")
+    def test_waiting_run_timeout_ends_before_the_request(self, run_script):
+        url = f"/agents/{self.agent.agent_id}/runscript/"
+        data = {
+            "script": self.library.pk,
+            "args": [],
+            "timeout": 600,
+            "run_as_user": False,
+            "env_vars": [],
+        }
+        for output in ("wait", "collector", "note"):
+            with self.subTest(output=output):
+                r = self.client.post(url, {**data, "output": output}, format="json")
+                self.assertEqual(r.status_code, 400)
+                self.assertIn("at most 290 seconds", r.data)
+        run_script.assert_not_called()
+        # nobody waits for a run whose output is not shown
+        r = self.client.post(url, {**data, "output": "forget"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        run_script.assert_called_once()
 
     def test_server_script_never_gets_denied_names(self):
         self.coresettings.enable_server_scripts = True

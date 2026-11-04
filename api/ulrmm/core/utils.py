@@ -99,7 +99,6 @@ def clear_entire_cache() -> None:
         "role_*",
         "agent_tbl_pendingactions_*",
         "agent_checks_data_*",
-        "site_*",
         "agent_*",
     ):
         cache.delete_many_pattern(pattern)

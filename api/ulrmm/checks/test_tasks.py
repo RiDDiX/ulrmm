@@ -18,7 +18,7 @@ class TestCheckTasks(ULRMMTestCase):
         self.agent = baker.make_recipe("agents.agent")
         self.check = baker.make_recipe("checks.ping_check", agent=self.agent)
 
-    @patch("checks.tasks.sleep")
+    @patch("alerts.tasks.sleep")
     def test_check_notifications_go_out_once(self, _):
         alert = baker.make(
             "alerts.Alert",
@@ -58,7 +58,7 @@ class TestCheckTasks(ULRMMTestCase):
     @patch(
         "checks.models.CheckResult.send_email", side_effect=RuntimeError("smtp down")
     )
-    @patch("checks.tasks.sleep")
+    @patch("alerts.tasks.sleep")
     def test_failed_send_hands_the_claim_back(self, *_):
         baker.make("checks.CheckResult", agent=self.agent, assigned_check=self.check)
         alert = baker.make(

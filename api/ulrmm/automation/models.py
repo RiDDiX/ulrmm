@@ -111,10 +111,9 @@ class Policy(BaseAuditModel):
 
     @staticmethod
     def forget_cached_policies() -> None:
-        """Drop the per-site and per-agent merges of policy checks and tasks."""
+        """Drop the per-agent merges of policy checks and tasks."""
         cache.delete(CORESETTINGS_CACHE_KEY)
-        for pattern in ("site_workstation_*", "site_server_*", "agent_*"):
-            cache.delete_many_pattern(pattern)
+        cache.delete_many_pattern("agent_*")
 
     @property
     def is_default_server_policy(self) -> bool:

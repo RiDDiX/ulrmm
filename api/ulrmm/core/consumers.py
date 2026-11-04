@@ -12,6 +12,7 @@ import termios
 import threading
 import uuid
 from contextlib import suppress
+from types import SimpleNamespace
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer, JsonWebsocketConsumer
@@ -19,15 +20,6 @@ from django.db.models import Count, Q
 
 from ulrmm.constants import AuditActionType, AuditObjType, AgentMonType
 from ulrmm.logger import logger
-
-
-def _role_has_perm(user, perm: str) -> bool:
-    if user.is_superuser or (getattr(user, "role", None) and user.role.is_superuser):
-        return True
-    role = getattr(user, "role", None)
-    if not role:
-        return False
-    return bool(getattr(role, perm))
 
 
 @database_sync_to_async
@@ -104,6 +96,7 @@ class TerminalConsumer(JsonWebsocketConsumer):
         from accounts.utils import console_stepup_remaining
 
         from core.models import CoreSettings
+        from ulrmm.permissions import _has_perm
 
         user = self.scope.get("user")
         if user is None:
@@ -121,8 +114,8 @@ class TerminalConsumer(JsonWebsocketConsumer):
             self.close(4401)
             return
 
-        if getattr(user, "block_dashboard_login", False) or not _role_has_perm(
-            user, "can_use_webterm"
+        if getattr(user, "block_dashboard_login", False) or not _has_perm(
+            SimpleNamespace(user=user), "can_use_webterm"
         ):
             self.close(4401)
             return

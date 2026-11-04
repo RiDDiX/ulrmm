@@ -52,7 +52,7 @@ LINUX_PKG_SCRIPT = settings.BASE_DIR / "software" / "scripts" / "linux_pkg.sh"
 def _cache_key(agent) -> str:
     # the scheme of policy checks and tasks: policy assignment changes drop
     # these keys together with theirs
-    return agent._policy_cache_key("baselines", agent.block_policy_inheritance)
+    return agent._policy_cache_key("baselines")
 
 
 def forget_cache() -> None:

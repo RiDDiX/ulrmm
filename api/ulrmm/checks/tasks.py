@@ -2,24 +2,18 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 import datetime as dt
-from time import sleep
 from typing import Optional
 
 from django.utils import timezone as djangotime
 
 from alerts.models import Alert
+from alerts.tasks import notify_once
 from checks.models import CheckHistory, CheckResult
 from ulrmm.celery import app
-from ulrmm.helpers import rand_range
 from ulrmm.logger import logger
 
 
 def _notify(pk: int, field: str, send: str, alert_interval=None) -> str:
-    """Sends one check notification unless it went out already.
-
-    The stamp on the alert is claimed before sending, so two workers never
-    both send; a failed send hands the claim back for the next run.
-    """
     alert = (
         Alert.objects.select_related("assigned_check", "agent").filter(pk=pk).first()
     )
@@ -33,20 +27,7 @@ def _notify(pk: int, field: str, send: str, alert_interval=None) -> str:
     )
     if result is None:
         return "check result not found"
-
-    previous = getattr(alert, field)
-    stamp = Alert.claim_notification(pk, field, alert_interval)
-    if stamp is None:
-        return "ok"
-
-    # spread a burst of alerts out a little
-    sleep(rand_range(100, 1500))
-    try:
-        getattr(result, send)()
-    except Exception:
-        Alert.release_notification(pk, field, stamp, previous)
-        raise
-    return "ok"
+    return notify_once(alert, field, getattr(result, send), alert_interval)
 
 
 @app.task
