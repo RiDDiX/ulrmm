@@ -2133,7 +2133,7 @@
  },
  "apiv3-winupdate-services-411": {
   "status": 0,
-  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('info', 'win_updates', 'Installing windows updates on NW-BR-WS01')]\n[8]\n[]\n"
+  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('info', 'win_updates', 'Installing windows updates on NW-BR-WS01'), ('warning', 'win_updates', 'Windows updates not sent to NW-BR-WS01: nats is down')]\n[]\n[]\n"
  },
  "apiv3-winupdate-services-412": {
   "status": 0,
@@ -2141,7 +2141,7 @@
  },
  "apiv3-winupdate-services-413": {
   "status": 0,
-  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('error', 'win_updates', \"Scheduled patch install on BLP-WS01 failed: 'No time zone found with key Bogus/Zone'\"), ('info', 'win_updates', 'Installing windows updates on NW-BR-WS01')]\n[8]\n"
+  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('error', 'win_updates', \"Scheduled patch install on BLP-WS01 failed: 'No time zone found with key Bogus/Zone'\"), ('info', 'win_updates', 'Installing windows updates on NW-BR-WS01'), ('warning', 'win_updates', 'Windows updates not sent to NW-BR-WS01: nats is down')]\n[]\n"
  },
  "apiv3-winupdate-services-414": {
   "status": 0,
@@ -2149,7 +2149,7 @@
  },
  "apiv3-winupdate-services-415": {
   "status": 0,
-  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('info', 'win_updates', 'Installing windows updates on NW-BR-WS01')]\n[8]\n31\n"
+  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('info', 'win_updates', 'Installing windows updates on NW-BR-WS01'), ('warning', 'win_updates', 'Windows updates not sent to NW-BR-WS01: nats is down')]\n[]\n31\n"
  },
  "apiv3-winupdate-services-416": {
   "status": 0,
@@ -2569,7 +2569,7 @@
  },
  "apiv3-winupdate-services-502": {
   "status": 0,
-  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('info', 'win_updates', 'Installing windows updates on NW-BR-WS01')]\n[8]\n"
+  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('info', 'win_updates', 'Installing windows updates on NW-BR-WS01'), ('warning', 'win_updates', 'Windows updates not sent to NW-BR-WS01: nats is down')]\n[8]\n"
  },
  "apiv3-winupdate-services-503": {
   "status": 0,
@@ -2585,7 +2585,7 @@
  },
  "apiv3-winupdate-services-506": {
   "status": 0,
-  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('info', 'win_updates', 'Installing windows updates on NW-BR-WS01')]\n[8]\n"
+  "body_masked": "result None\nposix []\n[(8, ({'func': 'installwinupdates', 'guids': ['bench-8-approve-failed', 'bench-8-approve-na']},), [('wait', False)])]\n[('info', 'win_updates', 'Installing windows updates on NW-BR-WS01'), ('warning', 'win_updates', 'Windows updates not sent to NW-BR-WS01: nats is down')]\n[]\n"
  },
  "apiv3-winupdate-services-507": {
   "status": 0,
@@ -2597,7 +2597,7 @@
  },
  "apiv3-winupdate-services-509": {
   "status": 0,
-  "body_masked": "result None\n[(8, ({'func': 'getwinupdates', 'wua_drivers': True},), [('wait', False)]), (12, ({'func': 'getwinupdates', 'wua_drivers': True},), [('wait', False)])]\n[8]\n[]\n"
+  "body_masked": "result None\n[(8, ({'func': 'getwinupdates', 'wua_drivers': True},), [('wait', False)]), (12, ({'func': 'getwinupdates', 'wua_drivers': True},), [('wait', False)])]\n[8]\n[('error', 'win_updates', 'Approving updates on BLP-WS01 failed: bench approve failure')]\n"
  },
  "apiv3-winupdate-services-510": {
   "status": 0,

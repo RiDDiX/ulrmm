@@ -660,7 +660,7 @@
  },
  "automation-scripts-software-140": {
   "status": 0,
-  "body_masked": "desc only []\nexclusion []\nactive ['core_settings', 'site_workstation_1', 'site_server_1', 'agent_x']\nenforced ['core_settings', 'site_workstation_1', 'site_server_1', 'agent_x']\ndelete ['core_settings', 'site_workstation_1', 'site_server_1', 'agent_x']\n"
+  "body_masked": "desc only []\nexclusion []\nactive ['core_settings', 'agent_x']\nenforced ['core_settings', 'agent_x']\ndelete ['core_settings', 'agent_x']\n"
  },
  "automation-scripts-software-141": {
   "status": 0,
@@ -1772,7 +1772,7 @@
  },
  "automation-scripts-software-385": {
   "status": 400,
-  "body_masked": "{\n \"timeout\": [\n  \"Ensure this value is less than or equal to 7200.\"\n ]\n}"
+  "body_masked": "{\n \"timeout\": [\n  \"Ensure this value is less than or equal to 290.\"\n ]\n}"
  },
  "automation-scripts-software-386": {
   "status": 400,

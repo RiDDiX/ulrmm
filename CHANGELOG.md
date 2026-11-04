@@ -1,5 +1,22 @@
 # Server changelog
 
+## 1.04.11.2026 (2026-11-04)
+
+- update.sh installs packages, Python, nats-server, npm and the MeshCentral modules before it stops the services, so a failed download no longer costs a stop and start; a MeshCentral the update stopped is started again when the update fails
+- backup.sh lists the ISO images of the image library in MANIFEST and packs them with --with-large-packages; restore.sh names the images it did not get back
+- adding, editing or deleting an SSO provider needs a fresh two-factor code and only a role the actor could grant; API keys are refused
+- built ISO images are listed, linked and deleted only within the site scope of the deployment they were built for; built images from before this release need superuser rights
+- policy checks and tasks are merged per device, so a device excluded from a policy no longer shares the result of its site neighbours; moving a device to another site or policy takes effect at once
+- a Windows patch window stays open for the next hour when the install command could not be sent, and the attempt is logged
+- a vulnerability whose advisory arrives on a later scan is still notified
+- script runs that wait for output, script and server script test runs and raw commands are limited to 290 seconds, the time a request may take; longer runs use the email or background option
+- completed pending actions are pruned with the debug log retention
+- the scheduled task runner claims each task once per minute, also under worker backlog
+- a failed NATS configuration write after a token grant is logged instead of failing the enrolment
+- app updates left in "updating" by a worker restart are picked up by the next run
+- auto-approval errors and a failed Dell warranty login are logged once instead of repeated per device
+- removed unused cache helpers and constants, the pyparsing, six and zipp pins
+
 ## 2.03.11.2026 (2026-11-03)
 
 - agents update to 2.03.11.2026: a Mac can stay awake on AC power (Keep awake, Stay awake on power), lid closed included, and sleeps as usual on battery; unplugged with the lid closed it goes to sleep; the setting survives agent restarts
