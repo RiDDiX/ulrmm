@@ -9,6 +9,7 @@
 #   /rmm/backup.sh --auto        nightly run from cron, rotated
 #   /rmm/backup.sh --schedule    write or remove the cron line (backup.conf)
 #   --with-large-packages        also take software package files above 1 GiB
+#                                and the images of the ISO builder
 #
 # With BACKUP_AGE_RECIPIENTS in backup.conf (age1... recipients separated by
 # spaces, or the path of a recipients file) the archive is encrypted with age
@@ -16,7 +17,7 @@
 #
 # Run as the install user. restore.sh reads the archive layout written here.
 
-SCRIPT_VERSION="39"
+SCRIPT_VERSION="40"
 
 # cron and some sudo setups leave USER unset
 USER=${USER:-$(id -un)}
@@ -31,6 +32,7 @@ SUBDIRS=(daily weekly monthly pre-update)
 LOCAL_SETTINGS=/rmm/api/ulrmm/ulrmm/local_settings.py
 PACKAGES_DIR=/rmm/api/ulrmm/ulrmm/private/packages
 LARGE_PACKAGE=$((1024 * 1024 * 1024))
+ISO_DIR=/rmm/api/ulrmm/ulrmm/private/iso
 # AGENT_CA_DIR of install_lib.sh
 AGENT_CA_DIR=/etc/ulrmm/agent-ca
 PY=/rmm/api/env/bin/python
@@ -336,6 +338,33 @@ if [ -d "$PACKAGES_DIR" ]; then
   [ ${#large[@]} -eq 0 ] ||
     say "$YELLOW" "${#large[@]} package file(s) above 1 GiB left out, see MANIFEST (--with-large-packages takes them along)."
 fi
+# the ISO builder's images only with --with-large-packages; unfinished
+# downloads (*.part), jobs/ and .uploads/ stay out. The MANIFEST lists them all.
+isos=()
+# $1 tarball. Fills isos with the images.
+pack_isos() {
+  mapfile -d '' isos < <(cd "$ISO_DIR" && find . -mindepth 1 -maxdepth 1 -type f ! -name '*.part' -print0)
+  [ "$with_large" = true ] || return 0
+  [ ${#isos[@]} -gt 0 ] || return 0
+  (cd "$ISO_DIR" && tar --no-recursion -cvf "$1" -- "${isos[@]}")
+}
+# ISO_IMAGE=<sha256 or -> <size> <file name> for each file in isos
+iso_lines() {
+  local f sums sha
+  [ ${#isos[@]} -gt 0 ] || return 0
+  sums=$(PGPASSWORD=$dbpw psql -AtX -F ' ' -h localhost -p 5432 -U "$dbuser" -d "$dbname" \
+    -c "SELECT sha256, filename FROM deploy_baseiso WHERE sha256 <> ''")
+  for f in "${isos[@]}"; do
+    f=${f#./}
+    sha=$(awk -v s="$f" '{h = $1; sub(/^[^ ]+ /, "")} $0 == s {print h; exit}' <<<"$sums")
+    echo "ISO_IMAGE=${sha:--} $(stat -c %s "${ISO_DIR}/${f}") ${f}"
+  done
+}
+if [ -d "$ISO_DIR" ]; then
+  pack_isos "${STAGING}/rmm/iso.tar" || fail "could not archive ${ISO_DIR}."
+  [ "$with_large" = true ] || [ ${#isos[@]} -eq 0 ] ||
+    say "$YELLOW" "${#isos[@]} ISO image(s) left out, see MANIFEST (--with-large-packages takes them along)."
+fi
 
 sudo chown -R "${USER}:$(id -gn)" "$STAGING" || fail "could not take ownership of ${STAGING}."
 
@@ -345,6 +374,7 @@ sudo chown -R "${USER}:$(id -gn)" "$STAGING" || fail "could not take ownership o
   echo "COMMIT=$(git -C /rmm rev-parse HEAD 2>/dev/null)"
   echo "BACKUP_SH=${SCRIPT_VERSION}"
   echo "CREATED=$(date -Iseconds)"
+  iso_lines
   large_lines
 } >"${STAGING}/MANIFEST" || fail "could not write the manifest."
 (cd "$STAGING" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum >SHA256SUMS) ||

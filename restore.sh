@@ -7,7 +7,7 @@
 #
 #   bash ulrmm/restore.sh [options] rmm-backup-xxxx.tar[.age]     (--help lists the options)
 
-SCRIPT_VERSION="77"
+SCRIPT_VERSION="78"
 
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 GREEN='\033[0;32m'
@@ -192,7 +192,7 @@ backup_settings="${B}/rmm/local_settings.py"
 if [ -f "${B}/SHA256SUMS" ]; then
   (cd "$B" && sha256sum -c --quiet --strict SHA256SUMS) ||
     lib_die "${backup_file} is damaged: its SHA256SUMS do not match."
-  lib_info "Checksums match ($(grep -v '^LARGE_PACKAGE=' "${B}/MANIFEST" 2>/dev/null | tr '\n' ' '))"
+  lib_info "Checksums match ($(grep -vE '^(LARGE_PACKAGE|ISO_IMAGE)=' "${B}/MANIFEST" 2>/dev/null | tr '\n' ' '))"
 fi
 
 if ! grep -qE "['\"]NAME['\"][[:space:]]*:[[:space:]]*['\"]ulrmm['\"]" "$backup_settings" 2>/dev/null; then
@@ -274,6 +274,7 @@ check_tarball "${B}/meshcentral/mesh.tar.gz" /meshcentral meshcentral
 [ ! -f "${B}/certs/etc-letsencrypt.tar.gz" ] || check_tarball "${B}/certs/etc-letsencrypt.tar.gz" /etc/letsencrypt '' live
 [ ! -f "${B}/opt/opt-ulrmm-reporting.tar.gz" ] || check_tarball "${B}/opt/opt-ulrmm-reporting.tar.gz" /opt/ulrmm-reporting ''
 [ ! -f "${B}/rmm/packages.tar" ] || check_tarball "${B}/rmm/packages.tar" /rmm/api/ulrmm/ulrmm/private/packages ''
+[ ! -f "${B}/rmm/iso.tar" ] || check_tarball "${B}/rmm/iso.tar" /rmm/api/ulrmm/ulrmm/private/iso ''
 
 # the MeshCentral database login goes into SQL run as postgres
 mkdir -p "${B}/meshcheck"
@@ -536,6 +537,12 @@ if [ -f "${B}/rmm/packages.tar" ]; then
   tar -xpf "${B}/rmm/packages.tar" -C /rmm/api/ulrmm/ulrmm/private/packages --no-same-owner ||
     lib_die "could not restore the software packages."
 fi
+if [ -f "${B}/rmm/iso.tar" ]; then
+  mkdir -p /rmm/api/ulrmm/ulrmm/private/iso
+  chmod 755 /rmm/api/ulrmm/ulrmm/private/iso
+  tar -xpf "${B}/rmm/iso.tar" -C /rmm/api/ulrmm/ulrmm/private/iso --no-same-owner ||
+    lib_die "could not restore the ISO images."
+fi
 # backup.sh leaves package files above 1 GiB out unless --with-large-packages.
 # $1 MANIFEST, $2 packages dir: its LARGE_PACKAGE=<sha256> <size> <name> lines
 # whose file is missing
@@ -547,6 +554,16 @@ missing_packages() {
   done < <(sed -n 's/^LARGE_PACKAGE=//p' "$1" 2>/dev/null)
 }
 mapfile -t missing_pkgs < <(missing_packages "${B}/MANIFEST" /rmm/api/ulrmm/ulrmm/private/packages)
+# the same for the ISO_IMAGE=<sha256 or -> <size> <file name> lines; backup.sh
+# takes the images only with --with-large-packages
+missing_isos() {
+  local sha size name
+  while read -r sha size name; do
+    [ -n "$name" ] || continue
+    [ -f "${2}/${name}" ] || printf '%s (%s bytes, sha256 %s)\n' "$name" "$size" "$sha"
+  done < <(sed -n 's/^ISO_IMAGE=//p' "$1" 2>/dev/null)
+}
+mapfile -t missing_imgs < <(missing_isos "${B}/MANIFEST" /rmm/api/ulrmm/ulrmm/private/iso)
 write_repo_settings
 ensure_nats_password
 # the backup's REDIS_PASSWORD, or a new one
@@ -755,6 +772,13 @@ if [ ${#missing_pkgs[@]} -gt 0 ]; then
   lib_warn "Software packages above 1 GiB are not in this backup (backup.sh --with-large-packages takes them along)."
   lib_warn "The software catalog marks them as missing, upload them again there:"
   for p in "${missing_pkgs[@]}"; do
+    lib_warn "  ${p}"
+  done
+fi
+if [ ${#missing_imgs[@]} -gt 0 ]; then
+  lib_warn "ISO images are not in this backup (backup.sh --with-large-packages takes them along)."
+  lib_warn "Copy them into /rmm/api/ulrmm/ulrmm/private/iso again under the same name:"
+  for p in "${missing_imgs[@]}"; do
     lib_warn "  ${p}"
   done
 fi

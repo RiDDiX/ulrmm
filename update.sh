@@ -13,7 +13,7 @@
 # All code sits in functions and main runs from the last line: the checkout
 # replaces this file while it runs.
 
-SCRIPT_VERSION="188"
+SCRIPT_VERSION="189"
 
 # cron and some sudo setups leave USER unset
 USER=${USER:-$(id -un)}
@@ -140,6 +140,7 @@ git_auth() {
 }
 
 SERVICES_STOPPED=false
+MESH_STOPPED=false
 BACKUP_PATH=''
 SELF=''
 RELEASE=false
@@ -211,6 +212,9 @@ on_exit() {
   fi
   if [ "$rc" -ne 0 ] && [ "$PROG_FINAL" != true ]; then
     progress failed "${DIE_MSG:-the update stopped, see the log}"
+  fi
+  if [ "$MESH_STOPPED" = true ]; then
+    sudo systemctl start meshcentral
   fi
   if [ "$SERVICES_STOPPED" = true ]; then
     start_services
@@ -825,15 +829,9 @@ EOF
     rsync -a --delete "${TREE_SYNC[@]}" /rmm/ "${ROLLBACK_DIR}/" || die "could not copy /rmm to ${ROLLBACK_DIR} for the rollback."
   fi
 
-  # stop
-  progress apply "stopping the services"
+  # packages, CPython, nats-server, npm and MeshCentral while the services still serve
   local s ME
   ME="${USER}:$(id -gn)"
-  SERVICES_STOPPED=true
-  for s in celerybeat celery nginx nats-api nats rmm daphne; do
-    printf 'Stopping %s service\n' "$s"
-    sudo systemctl stop "$s"
-  done
 
   local os_id codename libs
   os_id=$(. /etc/os-release && echo "${ID:-}")
@@ -888,13 +886,14 @@ EOF
   if ! command -v npm >/dev/null; then
     warn "npm is still missing, reinstalling NodeJS and MeshCentral's modules"
     sudo systemctl stop meshcentral
-    sudo apt remove -y nodejs
+    MESH_STOPPED=true
     setup_node || die "could not install NodeJS."
     local mesh_cur
     mesh_cur=$(cd /meshcentral/node_modules/meshcentral 2>/dev/null && node -p "require('./package.json').version" 2>/dev/null)
     mesh_reinstall "${mesh_cur:-$LATEST_MESH_VER}" || true
     sudo systemctl start nginx
     sudo systemctl start meshcentral
+    MESH_STOPPED=false
   fi
   sudo npm install -g npm
 
@@ -917,12 +916,22 @@ EOF
   if [ "$mesh_installed" != "$LATEST_MESH_VER" ] || [ "$force" = true ]; then
     info "MeshCentral ${mesh_installed:-none} -> ${LATEST_MESH_VER}"
     sudo systemctl stop meshcentral
+    MESH_STOPPED=true
     sudo chown -R "$ME" /meshcentral
     mesh_reinstall "$LATEST_MESH_VER" && MESH_CHANGED=1
     sudo systemctl start nginx
     sleep 1
     sudo systemctl start meshcentral
+    MESH_STOPPED=false
   fi
+
+  # stop
+  progress apply "stopping the services"
+  SERVICES_STOPPED=true
+  for s in celerybeat celery nginx nats-api nats rmm daphne; do
+    printf 'Stopping %s service\n' "$s"
+    sudo systemctl stop "$s"
+  done
 
   # code
   progress apply "installing ${LATEST_ULRMM_VER} into /rmm"

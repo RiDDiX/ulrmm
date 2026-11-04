@@ -858,7 +858,7 @@ As the install user:
 | `/rmm/backup.sh` | one backup, `/rmmbackups/rmm-backup-<date>__<time>.tar` (`.tar.age` when encrypted) |
 | `/rmm/backup.sh --schedule` | adds the cron entry `0 0 * * * /rmm/backup.sh --auto` and creates `/rmmbackups/daily`, `weekly` and `monthly`; needs passwordless sudo |
 | `/rmm/backup.sh --auto` | what cron runs: on the 10th of the month into `monthly`, on Fridays into `weekly`, otherwise into `daily`; then deletes daily backups older than 14 days, weekly older than 60 and monthly older than 380 |
-| `--with-large-packages` | added to any of the above: also takes software package files above 1 GiB |
+| `--with-large-packages` | added to any of the above: also takes software package files above 1 GiB and the ISO images of the image library |
 
 A backup contains both PostgreSQL databases (RMM and MeshCentral), `/meshcentral`
 (without `node_modules` and session recordings), `/etc/letsencrypt`, your own
@@ -889,8 +889,8 @@ CA from `/etc/ulrmm/agent-ca`, the hosted software packages, `backup.conf`, a
 `MANIFEST` (version, commit) and `SHA256SUMS` over all members, which
 `restore.sh` checks. Not included: the agents and the community scripts, which
 the restore builds and clones again, unfinished uploads, and package files above
-1 GiB unless `--with-large-packages` is given. The `MANIFEST` lists those with
-sha256, size and package name.
+1 GiB and ISO images unless `--with-large-packages` is given. The `MANIFEST`
+lists those with sha256, size and file name.
 
 Backups need passwordless sudo when they run from cron, `update.sh` or the
 dashboard; a step that fails aborts the backup with exit code 1 instead of
