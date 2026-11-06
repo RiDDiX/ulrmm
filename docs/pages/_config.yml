@@ -4,6 +4,8 @@
 # documentation site, built by riddix/scripts/docs_site.py and the pages workflow
 title: UniversalLocal RMM
 description: Self-hosted remote monitoring and management
+# canonical and og:url; the domain itself lives in Settings > Pages, a CNAME file does nothing here
+url: https://ulrmm.de
 remote_theme: just-the-docs/just-the-docs@v0.12.0
 plugins:
   - jekyll-remote-theme

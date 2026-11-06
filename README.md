@@ -11,7 +11,8 @@ up next to the RMM, and, optionally, a self-hosted
 machine. Both are third-party projects under their own licenses, see
 [Third-party software](#third-party-software).
 
-This file is the installation and operations guide. The screenshot tour is in
+This file is the installation and operations guide, also online at
+[ulrmm.de](https://ulrmm.de). The screenshot tour is in
 [`docs/SHOWCASE.md`](docs/SHOWCASE.md), the release procedure in
 [`docs/VERSIONING_AND_RELEASES.md`](docs/VERSIONING_AND_RELEASES.md).
 

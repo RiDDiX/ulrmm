@@ -1,11 +1,11 @@
 name: Docs site
 
-# README.md and docs/ as a documentation site on GitHub Pages
+# README.md and docs/ as the documentation site on https://ulrmm.de
 # (Settings > Pages > Source: GitHub Actions). Private repositories skip it.
+# base_path comes from the Pages settings at build time: after changing the
+# domain, run this workflow again.
 
 on:
-  # no paths filter: GitHub gets a new root commit each time, and a filter
-  # never matches such a force push
   push:
     branches:
       - main
