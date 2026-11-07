@@ -53,6 +53,7 @@ from .models import (
     Deployment,
     Site,
     SiteCustomField,
+    _drop_policy_cache,
 )
 from .permissions import ClientsPerms, DeploymentPerms, SitesPerms
 from .serializers import (
@@ -178,8 +179,9 @@ def _clients_with_sites(user):
 def _move_agents(request, agents, target: Site) -> None:
     with _patch_policy_guard(request, agents):
         # queryset update skips Agent.save, so the alert template is
-        # recomputed below once the move is committed
+        # recomputed below and the policy merges dropped once committed
         agents.update(site=target)
+    transaction.on_commit(_drop_policy_cache)
 
 
 class GetAddClients(APIView):

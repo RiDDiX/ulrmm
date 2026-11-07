@@ -246,7 +246,7 @@ class TestMigrate(ULRMMTestCase):
         ids = list(ImportedDevice.objects.values_list("pk", flat=True))
         result = migrate.send(self.src, ids)
         # d3 is macOS (no push), d4 has no site
-        self.assertEqual(result, {"sent": 2, "failed": 1, "skipped": 1})
+        self.assertEqual(result, {"sent": 2, "failed": 2, "skipped": 0})
         win = next(p for p in FakeSource.pushed if p[0] == "d1")
         uid = win[3].split("/clients/")[1].split("/")[0]
         dep = Deployment.objects.get(uid=uid)
@@ -269,6 +269,11 @@ class TestMigrate(ULRMMTestCase):
         self.assertTrue(script.startswith("trap 'rm -f /tmp/ulrmm-import.sh' EXIT"))
         mac = ImportedDevice.objects.get(ref="d3")
         self.assertEqual(mac.migrate_state, MigrateState.FAILED)
+        lost = ImportedDevice.objects.get(ref="d4")
+        self.assertEqual(
+            (lost.migrate_state, lost.migrate_error),
+            (MigrateState.FAILED, "no site, assign one first"),
+        )
         self.assertEqual(
             ImportedDevice.objects.get(ref="d1").migrate_state, MigrateState.SENT
         )

@@ -27,6 +27,7 @@ from reporting.utils import (
     _import_base_template,
     _import_report_template,
     add_custom_fields,
+    add_property_fields,
     base64_encode_assets,
     build_queryset,
     build_report_link,
@@ -544,6 +545,15 @@ class TestQueries(ULRMMTestCase):
         self.assertIsNotNone(row["checks"])
         self.assertIn("status", get_property_fields(Agent))
         self.assertNotIn("pk", get_property_fields(Agent))
+
+    def test_client_property_costs_one_query(self):
+        baker.make_recipe("agents.agent", _quantity=3)
+        rows = [{"id": pk} for pk in Agent.objects.values_list("pk", flat=True)]
+        with self.assertNumQueries(1):
+            add_property_fields(rows, Agent, ["client"])
+        self.assertEqual(len(rows), 5)
+        for row in rows:
+            self.assertEqual(row["client"], Agent.objects.get(pk=row["id"]).client)
 
     def test_custom_fields(self):
         field1 = baker.make(

@@ -1,13 +1,10 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
-import hashlib
-import hmac
-
-from django.conf import settings
 from rest_framework import serializers
 
 from agents.models import Agent
+from logs.models import hmac_marker
 from remote.utils import encrypt_secret
 from ulrmm.constants import AGENT_DEFER
 
@@ -15,14 +12,6 @@ from .models import HKDF_INFO, MAX_BODY_BYTES, SCOPES, Credential, Document
 
 AUDIT_FIELDS = ("created_by", "created_time", "modified_by", "modified_time")
 URL_RE = r"^https?://[^\s<>\"']+$"
-
-
-def _marker(value: str):
-    # hmac prefix so the audit log can show a change without the text
-    if not value:
-        return None
-    digest = hmac.new(settings.SECRET_KEY.encode(), value.encode(), hashlib.sha256)
-    return "hmac:" + digest.hexdigest()[:16]
 
 
 class ScopedSerializer(serializers.ModelSerializer):
@@ -126,7 +115,7 @@ class CredentialAuditSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        ret["secret"] = _marker(instance.secret)
+        ret["secret"] = hmac_marker(instance.secret)
         return ret
 
 
@@ -138,5 +127,5 @@ class DocumentAuditSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         # the text stays in the vault. the log gets an hmac of it
-        ret["body"] = _marker(instance.body)
+        ret["body"] = hmac_marker(instance.body)
         return ret

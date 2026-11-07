@@ -1155,7 +1155,12 @@ def add_property_fields(
     wanted = [name for name in dict.fromkeys(names) if name in allowed]
     if not wanted or not rows:
         return
-    instances = model.objects.in_bulk([row["id"] for row in rows])
+    objects = model.objects
+    site = next((f for f in model._meta.fields if f.name == "site"), None)
+    if site is not None and site.related_model._meta.label == "clients.Site":
+        # Agent.client walks site.client, two queries per row otherwise
+        objects = objects.select_related("site__client")
+    instances = objects.in_bulk([row["id"] for row in rows])
     for row in rows:
         instance = instances.get(row["id"])
         for name in wanted:

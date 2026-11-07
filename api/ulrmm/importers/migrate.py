@@ -159,14 +159,18 @@ def send(source, device_ids) -> dict:
     client = for_source(source)
     installer = _installer_user()
     devices = list(
-        ImportedDevice.objects.filter(source=source, pk__in=device_ids, agent=None)
-        .exclude(site=None)
-        .select_related("site__client")
+        ImportedDevice.objects.filter(
+            source=source, pk__in=device_ids, agent=None
+        ).select_related("site__client")
     )
     result = {"sent": 0, "failed": 0, "skipped": len(device_ids) - len(devices)}
 
     groups = defaultdict(list)
     for d in devices:
+        if d.site is None:
+            _fail(d, "no site, assign one first")
+            result["failed"] += 1
+            continue
         if d.plat not in client.PUSH_PLATS:
             _fail(
                 d,

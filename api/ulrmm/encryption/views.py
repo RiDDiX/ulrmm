@@ -12,15 +12,9 @@ from rest_framework.views import APIView
 
 from agents.models import Agent
 from core.utils import stepup_denied
-from logs.models import AuditLog
-from ulrmm.constants import (
-    AGENT_DEFER,
-    AgentPlat,
-    AuditActionType,
-    AuditObjType,
-)
+from remote.views import _agent, _audit
+from ulrmm.constants import AgentPlat, AuditActionType
 from ulrmm.helpers import notify_error
-from ulrmm.middleware import get_debug_info
 from ulrmm.permissions import _has_perm_on_agent
 from ulrmm.throttles import VaultRevealThrottle
 
@@ -43,23 +37,6 @@ from .utils import (
 )
 
 STEPUP = "Recovery keys need the same 60 minute step-up as terminal and files."
-
-
-def _agent(agent_id: str) -> Agent:
-    return get_object_or_404(Agent.objects.defer(*AGENT_DEFER), agent_id=agent_id)
-
-
-def _audit(request, agent: Agent, action: str, message: str) -> None:
-    by = request.user.username
-    AuditLog.objects.create(
-        username=by,
-        agent=agent.hostname,
-        agent_id=agent.agent_id,
-        message=message,
-        object_type=AuditObjType.AGENT,
-        action=action,
-        debug_info=get_debug_info(),
-    )
 
 
 def _text(value, limit: int) -> str:
