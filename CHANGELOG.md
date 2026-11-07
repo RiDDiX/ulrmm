@@ -1,5 +1,10 @@
 # Server changelog
 
+## 3.07.11.2026 (2026-11-07)
+
+- Update Center: starting an update drops the state of the previous run first; before, the dashboard showed the old Done or Failed at once while the new run was still queued
+- web 3.07.11.2026: fixes from the web audit, see its changelog
+
 ## 2.07.11.2026 (2026-11-07)
 
 - agents update to 1.07.11.2026

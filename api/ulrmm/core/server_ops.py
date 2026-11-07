@@ -146,6 +146,8 @@ def request_action(action: str) -> None:
     tmp = maint_dir() / ".request"
     tmp.write_text(action + "\n")
     os.chmod(tmp, 0o600)
+    # the previous run's done/failed state would end the new run in the UI
+    (maint_dir() / f"{action}.state.json").unlink(missing_ok=True)
     os.replace(tmp, maint_dir() / "request")
 
 

@@ -105,6 +105,14 @@ class TestRunnerHandoff(ServerOpsBase):
         self.assertEqual(server_ops.read_state("update")["state"], "interrupted")
         self.assertIsNone(server_ops.busy_with())
 
+    def test_request_drops_previous_run_state(self):
+        (self.maint / "update.state.json").write_text(
+            json.dumps({"state": "done", "exit_code": 0, "finished": 1})
+        )
+        server_ops.request_action("update")
+        self.assertEqual(server_ops.read_state("update")["state"], "idle")
+        self.assertEqual((self.maint / "request").read_text(), "update\n")
+
     def test_backup_start_is_audited(self):
         self.login(self.john)
         self.assertEqual(self.client.post("/core/server/backups/").status_code, 200)
