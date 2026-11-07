@@ -25,12 +25,13 @@ filelock==4.2.1
 psycopg[binary]==3.3.4
 nats-py==2.15.0
 msgpack==1.2.4
-# crypto and certificates
+# crypto, certificates, otp and qr codes
 cryptography==50.0.0
 pycparser==2.22
 certifi==2026.10.19
-# one time passwords
+# one time passwords and the qr tool of the 2fa commands
 pyotp==2.9.0
+qrcode==8.2
 # outbound http clients and url handling
 requests==2.34.2
 urllib3==2.8.0

@@ -165,6 +165,7 @@ on installed servers and in the `ulrmm-api` image.
 - python-ipware 2.0.2: MIT
 - pytz 2026.6: MIT
 - PyYAML 6.0.3: MIT
+- qrcode 8.2: BSD-3-Clause
 - redis 6.4.0: MIT
 - referencing 0.37.0: MIT
 - regex 2026.9.10: Apache-2.0 AND CNRI-Python

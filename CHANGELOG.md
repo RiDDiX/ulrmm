@@ -1,5 +1,9 @@
 # Server changelog
 
+## 5.07.11.2026 (2026-11-07)
+
+- qrcode is back in the requirements: the reset_2fa and generate_barcode commands draw the code with its qr tool; 4.07.11.2026 removed it by mistake
+
 ## 4.07.11.2026 (2026-11-07)
 
 - deleting a client or site refuses when a role is limited to exactly what goes away; a role without clients and sites sees everything, so the delete would have widened it, and the role cache is dropped after the delete
