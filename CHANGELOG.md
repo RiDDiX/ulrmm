@@ -1,5 +1,19 @@
 # Server changelog
 
+## 1.07.11.2026 (2026-11-07)
+
+- deleting a client or site with a target site drops the merged policy checks, tasks and baselines of the moved devices at once; before, the old merge could stay for up to ten minutes and reach the device on its next sync
+- /etc/letsencrypt stays owned by root; the service user reads live/ and archive/ through its group, and update.sh repairs existing hosts; an own key kept under /etc/letsencrypt outside live/ and archive/ leaves the tree as it is
+- restore.sh refuses a backup whose outer archive holds links or special files, moves a non-empty /etc/letsencrypt aside instead of deleting it, checks the restored domains before they reach nginx, and takes --resume to continue after a failed run; the database and user are created only when missing
+- install.sh, restore.sh and update.sh check the fingerprint of every apt signing key before trusting it, fetch the nginx repository over https, and no longer upgrade npm to its latest version
+- an imported device without a site is marked failed with the reason instead of staying "Not sent" without an error
+- report data sources with the client property load the client with the rows instead of one query per row
+- Windows deployment credentials, OU and image name refuse control characters, which made the answer file unreadable for Windows Setup
+- a command frame that fails to decrypt no longer moves the agent session to its epoch; a broken agent could pin its own session at the limit and block commands until the session expired
+- two image uploads with the same name at the same time give one "exists already" error instead of a damaged row and a server error; a built image whose move to the library fails leaves no library row and no leftover file
+- image and checksum downloads connect to the address that passed the private-network check, so a name that changes its address between the check and the download is refused; a release check does the same
+- removed two unused deployment helpers and three duplicate helpers in vault and encryption; the install library tests run in CI
+
 ## 1.04.11.2026 (2026-11-04)
 
 - update.sh installs packages, Python, nats-server, npm and the MeshCentral modules before it stops the services, so a failed download no longer costs a stop and start; a MeshCentral the update stopped is started again when the update fails
