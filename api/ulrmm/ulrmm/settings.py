@@ -52,7 +52,7 @@ ULRMM_VERSION = VERSION_FILE.read_text().strip()
 # to alert user they need to manually refresh their browser
 APP_VER = "0.0.203"
 
-LATEST_AGENT_VER = "2.03.11.2026"
+LATEST_AGENT_VER = "1.07.11.2026"
 
 # first agent that installs from winget, older ones only get Chocolatey
 WINGET_MIN_AGENT = "3.20.10.2026"
@@ -81,9 +81,12 @@ NATS_SERVER_VER = "2.14.4"
 # a plain, unauthenticated download of the ready binary; {OS}, {ARCH} and
 # {VERSION} are replaced with GOOS, GOARCH and the version, and Windows agents
 # append ".exe" themselves, e.g. https://example.com/nu/{OS}/{ARCH}/{VERSION}/nu
+# *_SHA256 is the binary's sha256 and overrides the built-in digests; it is
+# required with *_URL, without it the agent refuses to install the runtime.
 INSTALL_NUSHELL = True
 INSTALL_NUSHELL_VERSION = "0.112.2"
 INSTALL_NUSHELL_URL = ""
+INSTALL_NUSHELL_SHA256 = ""
 # False runs nu with --no-config-file so a user config cannot change how
 # scripts behave; True points --config/--env-config at the agent directory,
 # which plugins need (nushell issue 10754).
@@ -92,6 +95,7 @@ NUSHELL_ENABLE_CONFIG = False
 INSTALL_DENO = True
 INSTALL_DENO_VERSION = "v1.46.3"
 INSTALL_DENO_URL = ""
+INSTALL_DENO_SHA256 = ""
 # space separated deno permission flags, e.g. "--allow-net --allow-env"
 DENO_DEFAULT_PERMISSIONS = "--allow-all"
 

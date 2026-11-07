@@ -1,5 +1,10 @@
 # Server changelog
 
+## 2.07.11.2026 (2026-11-07)
+
+- agents update to 1.07.11.2026
+- INSTALL_NUSHELL_SHA256 and INSTALL_DENO_SHA256 settings: the sha256 of a custom runtime download; the agent now refuses a runtime without a sum, so a custom INSTALL_NUSHELL_URL or INSTALL_DENO_URL needs it
+
 ## 1.07.11.2026 (2026-11-07)
 
 - deleting a client or site with a target site drops the merged policy checks, tasks and baselines of the moved devices at once; before, the old merge could stay for up to ten minutes and reach the device on its next sync

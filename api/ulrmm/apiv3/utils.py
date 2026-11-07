@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 import random
+import re
 
 from django.conf import settings
 
@@ -9,8 +10,8 @@ from agents.utils import _dist_sha256, local_agents_dist_url
 from ulrmm.structs import AgentCheckInConfig
 
 # sha256 of the runtime downloads per pinned version and "plat/goarch". A
-# version bump in settings needs its digests here, otherwise the agent gets ""
-# and installs unchecked.
+# version bump in settings needs its digests here (or INSTALL_*_SHA256),
+# otherwise the agent gets "" and refuses to install.
 RUNTIME_SHA256 = {
     "nushell": {
         "0.112.2": {
@@ -49,8 +50,13 @@ _INTERVALS = {
 
 
 def _runtime_sha256(runtime: str, agent) -> str:
-    # a custom download url is the operator's responsibility
-    if agent is None or getattr(settings, f"INSTALL_{runtime.upper()}_URL", ""):
+    if agent is None:
+        return ""
+    own = getattr(settings, f"INSTALL_{runtime.upper()}_SHA256", "").lower()
+    if own:
+        return own if re.fullmatch(r"[0-9a-f]{64}", own) else ""
+    # a custom download url needs INSTALL_*_SHA256, the agent refuses without it
+    if getattr(settings, f"INSTALL_{runtime.upper()}_URL", ""):
         return ""
     version = getattr(settings, f"INSTALL_{runtime.upper()}_VERSION", "")
     digests = RUNTIME_SHA256[runtime].get(version, {})
