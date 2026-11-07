@@ -137,6 +137,20 @@ class TestWindowsRender(ULRMMTestCase):
         # a generated admin password is a secret
         self.assertTrue(secrets)
 
+    def test_control_characters_rejected_in_credentials(self):
+        self.assertFalse(
+            windows._AdminSerializer(data={"password": "p\x01w"}).is_valid()
+        )
+        general = windows._GeneralSerializer(data={"image_name": "a\x01b"})
+        self.assertFalse(general.is_valid())
+        self.assertIn("image_name", general.errors)
+        good = {"domain": "x.lan", "username": "a", "password": "b", "ou": "OU=x"}
+        self.assertTrue(windows._DomainSerializer(data=good).is_valid())
+        for field in ("username", "password", "ou"):
+            bad = windows._DomainSerializer(data={**good, field: "a\nb"})
+            self.assertFalse(bad.is_valid())
+            self.assertIn(field, bad.errors)
+
     def test_server_has_administrator_password(self):
         files, secrets = self._render(
             "server2022-standard-desktop", {"admin": {"password": "Srv-Pass-123!"}}

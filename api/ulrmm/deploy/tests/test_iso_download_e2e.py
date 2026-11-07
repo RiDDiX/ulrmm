@@ -58,8 +58,14 @@ class DownloadE2E(IsoTestCase):
         # The task insists on https and a public host; the local server is
         # plain http on loopback, so only the host check and the scheme of
         # the outgoing request are rewritten here.
-        def get(url, **kw):
-            r = real_get(url.replace("https://", "http://", 1), **kw)
+        def get(url, ip, headers):
+            r = real_get(
+                url.replace("https://", "http://", 1),
+                stream=True,
+                timeout=30,
+                headers=headers,
+                allow_redirects=False,
+            )
             orig = r.iter_content
 
             def chunks(n):
@@ -73,7 +79,7 @@ class DownloadE2E(IsoTestCase):
 
         for p in (
             mock.patch.object(tasks, "_check_host"),
-            mock.patch.object(tasks.requests, "get", side_effect=get),
+            mock.patch.object(tasks, "_fetch", side_effect=get),
             mock.patch.object(iso, "inspect", return_value=INFO),
         ):
             p.start()

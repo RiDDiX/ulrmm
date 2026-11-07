@@ -351,8 +351,12 @@ class TestInject(unittest.TestCase):
         with open(self.out, "rb") as f:
             f.seek(rba * 2048)
             self.assertEqual(f.read(2048), new_boot)
-        self.assertIn(b"autoinstall", iso.read_file(self.out, "/Boot/Grub/GRUB.cfg"))
-        self.assertIsNone(iso.read_file(self.out, "/nope"))
+        img = iso._open(self.out)
+        try:
+            self.assertIn(b"autoinstall", iso._read(img, "/Boot/Grub/GRUB.cfg"))
+            self.assertIsNone(iso._read(img, "/nope"))
+        finally:
+            img.close()
 
     def test_inspect_linux(self):
         linux_fixture(self.src)

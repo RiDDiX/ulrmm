@@ -439,14 +439,6 @@ def _has_mbr(path: str) -> bool:
         return _has_mbr_fp(fp)
 
 
-def read_file(src: str, path: str) -> bytes | None:
-    iso = _open(src)
-    try:
-        return _read(iso, safe_path(path))
-    finally:
-        iso.close()
-
-
 def _detect(iso, label):
     for p in ("/sources/boot.wim", "/sources/install.wim", "/sources/install.esd"):
         if _find(iso, p) is not None:

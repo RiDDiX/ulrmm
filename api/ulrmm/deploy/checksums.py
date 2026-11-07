@@ -9,6 +9,8 @@ from urllib.parse import unquote, urlparse
 
 import requests
 
+from . import tasks
+
 MAX_BYTES = 1024 * 1024
 _GNU = re.compile(r"^([0-9a-fA-F]{64})\s+\*?(.+)$")
 _BSD = re.compile(r"^SHA256 \((.+)\) = ([0-9a-fA-F]{64})$")
@@ -24,7 +26,7 @@ def expected_sha256(url: str, sha256_url: str) -> str:
     want = _name(urlparse(url).path)
     buf = b""
     try:
-        with requests.get(sha256_url, timeout=15, stream=True) as r:
+        with tasks._open(sha256_url, 0) as r:
             r.raise_for_status()
             for chunk in r.iter_content(65536):
                 buf += chunk

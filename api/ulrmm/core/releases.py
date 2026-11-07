@@ -144,7 +144,7 @@ def _get(
 ):
     """GET over https. Public-host check on every hop except trusted hosts.
     Authorization stays on auth_netloc, not on a redirect or another asset."""
-    from deploy.tasks import _check_host, url_host
+    from deploy.tasks import _check_host, _fetch, url_host
 
     trusted = _source_hosts()
     for _ in range(MAX_REDIRECTS + 1):
@@ -156,17 +156,22 @@ def _get(
             raise ReleaseError(f"blocked: {e}")
         if urlparse(url).scheme != "https":
             raise ReleaseError("not https")
+        ip = None
         if host not in trusted:
             try:
-                _check_host(host)
+                ip = _check_host(host)
             except ValueError as e:
                 raise ReleaseError(f"blocked: {e}")
         send = dict(headers)
         if _netloc(url) != auth_netloc:
             send.pop("Authorization", None)
-        r = requests.get(
-            url, headers=send, timeout=timeout, stream=stream, allow_redirects=False
-        )
+        if ip:
+            # connect to the checked address, a second lookup could rebind
+            r = _fetch(url, ip, send, timeout)
+        else:
+            r = requests.get(
+                url, headers=send, timeout=timeout, stream=stream, allow_redirects=False
+            )
         if r.status_code in (301, 302, 303, 307, 308):
             url = requests.compat.urljoin(url, r.headers.get("Location", ""))
             r.close()

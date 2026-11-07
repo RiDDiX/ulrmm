@@ -1,9 +1,11 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+import socket
+from contextlib import ExitStack
 from unittest import TestCase, mock
 
-from deploy import checksums
+from deploy import checksums, tasks
 
 A, B = "ab" * 32, "CD" * 32
 
@@ -12,7 +14,12 @@ def fetch(text):
     r = mock.MagicMock()
     r.__enter__.return_value = r
     r.iter_content.return_value = [text.encode()]
-    return mock.patch.object(checksums.requests, "get", return_value=r)
+    stack = ExitStack()
+    stack.enter_context(
+        mock.patch.object(tasks, "_check_host", return_value="93.184.216.34")
+    )
+    stack.enter_context(mock.patch.object(tasks, "_fetch", return_value=r))
+    return stack
 
 
 class TestChecksums(TestCase):
@@ -35,3 +42,13 @@ class TestChecksums(TestCase):
                 checksums.expected_sha256(self.url, "https://m.test/S")
         with self.assertRaises(ValueError):
             checksums.expected_sha256(self.url, "http://m.test/S")
+
+    def test_sums_url_on_a_private_host_is_refused(self):
+        gai = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 443))]
+        with (
+            mock.patch.object(tasks.socket, "getaddrinfo", return_value=gai),
+            mock.patch.object(tasks, "_fetch") as fetch,
+        ):
+            with self.assertRaisesRegex(ValueError, "private"):
+                checksums.expected_sha256(self.url, "https://evil.test/S")
+        fetch.assert_not_called()

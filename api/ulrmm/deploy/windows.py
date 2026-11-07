@@ -16,6 +16,7 @@ from rest_framework import serializers
 from ulrmm.agent_ident import agent_ident, agent_task_prefix
 
 from . import signing
+from .linux import _one_line
 from .profile import prune_blank, serializer_defaults
 
 NS = "urn:schemas-microsoft-com:unattend"
@@ -536,7 +537,9 @@ class _GeneralSerializer(serializers.Serializer):
         max_length=96, required=False, default=_DEFAULT_KEYBOARD
     )
     timezone = serializers.CharField(max_length=64, required=False, default=_DEFAULT_TZ)
-    image_name = serializers.CharField(max_length=128, required=False, allow_blank=True)
+    image_name = serializers.CharField(
+        max_length=128, required=False, allow_blank=True, validators=[_one_line]
+    )
     image_index = serializers.IntegerField(
         required=False, allow_null=True, min_value=1, max_value=50
     )
@@ -553,15 +556,23 @@ class _AdminSerializer(serializers.Serializer):
         r"^[A-Za-z][A-Za-z0-9 _.-]{0,19}$", required=False, allow_blank=True
     )
     password = serializers.CharField(
-        max_length=127, required=False, allow_blank=True, trim_whitespace=False
+        max_length=127,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=False,
+        validators=[_one_line],
     )
 
 
 class _DomainSerializer(serializers.Serializer):
     domain = serializers.RegexField(r"^[A-Za-z0-9.-]{1,255}$")
-    ou = serializers.CharField(max_length=512, required=False, allow_blank=True)
-    username = serializers.CharField(max_length=128)
-    password = serializers.CharField(max_length=127, trim_whitespace=False)
+    ou = serializers.CharField(
+        max_length=512, required=False, allow_blank=True, validators=[_one_line]
+    )
+    username = serializers.CharField(max_length=128, validators=[_one_line])
+    password = serializers.CharField(
+        max_length=127, trim_whitespace=False, validators=[_one_line]
+    )
 
 
 class _DiskSerializer(serializers.Serializer):

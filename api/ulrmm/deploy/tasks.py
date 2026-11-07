@@ -14,7 +14,6 @@ from urllib.parse import urlparse
 import requests
 from django.conf import settings
 from django.core.cache import cache
-from django.db import IntegrityError, transaction
 from django.utils import timezone as djangotime
 
 from agents.models import Agent
@@ -183,7 +182,8 @@ def url_host(url: str) -> str | None:
     return ours
 
 
-def _check_host(hostname: str | None) -> None:
+def _check_host(hostname: str | None) -> str:
+    """The first address of a host that resolves to public addresses only."""
     if not hostname:
         raise ValueError("the url has no host")
     try:
@@ -193,6 +193,36 @@ def _check_host(hostname: str | None) -> None:
     for info in infos:
         if not ipaddress.ip_address(info[4][0].split("%")[0]).is_global:
             raise ValueError("the host resolves to a private address")
+    # shortcut: only the first address is tried, no fallback to the next one
+    # (a dead v6 route fails the fetch); try each address if mirrors hit it
+    return infos[0][4][0]
+
+
+class _Pinned(requests.adapters.HTTPAdapter):
+    """Connects to a checked address, TLS still verifies the host name."""
+
+    def __init__(self, host: str):
+        self.host = host
+        super().__init__()
+
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs.update(server_hostname=self.host, assert_hostname=self.host)
+        super().init_poolmanager(*args, **kwargs)
+
+
+def _fetch(url: str, ip: str, headers: dict, timeout=30):
+    """GET url from ip without a second lookup that could rebind the host."""
+    u = urlparse(url)
+    addr = f"[{ip}]" if ":" in ip else ip
+    s = requests.Session()
+    s.mount("https://", _Pinned(u.hostname))
+    return s.get(
+        u._replace(netloc=addr + (f":{u.port}" if u.port else "")).geturl(),
+        stream=True,
+        timeout=timeout,
+        headers={**headers, "Host": u.netloc.rpartition("@")[2]},
+        allow_redirects=False,
+    )
 
 
 def _open(url: str, have: int):
@@ -200,11 +230,9 @@ def _open(url: str, have: int):
     for _ in range(6):
         if urlparse(url).scheme != "https":
             raise ValueError("a redirect left https")
-        _check_host(url_host(url))
+        ip = _check_host(url_host(url))
         headers = {"Range": f"bytes={have}-"} if have else {}
-        r = requests.get(
-            url, stream=True, timeout=30, headers=headers, allow_redirects=False
-        )
+        r = _fetch(url, ip, headers)
         if r.status_code in (301, 302, 303, 307, 308):
             url = requests.compat.urljoin(url, r.headers.get("Location", ""))
             r.close()
@@ -332,7 +360,7 @@ def build_iso_task(job_id: str, body: dict, username: str) -> str:
     from accounts.models import User
 
     from . import iso, iso_layout
-    from .iso_views import _register, _taken, iso_name, render_for
+    from .iso_views import _claim, _taken, iso_name, render_for
 
     iso_job_set(job_id, state="running", pct=0, text="Rendering")
     try:
@@ -374,28 +402,31 @@ def build_iso_task(job_id: str, body: dict, username: str) -> str:
             name = f"{stem}.iso" if n == 1 else f"{stem}-{n}.iso"
             if _taken(name):
                 continue
-            try:
-                with transaction.atomic():
-                    row = _register(
-                        name,
-                        kind=BaseIso.Kind.BUILT,
-                        status=BaseIso.Status.READY,
-                        size=res["size"],
-                        sha256=res["sha256"],
-                        label=(info.get("label") or label)[:32],
-                        os=info.get("os") or base.os,
-                        bios=bool(info.get("bios")),
-                        efi=bool(info.get("efi")),
-                        udf=bool(info.get("udf")),
-                        built_by=username,
-                        target=target_id,
-                        deployment=deployment,
-                    )
-            except IntegrityError:
-                continue
-            break
+            row = _claim(
+                name,
+                kind=BaseIso.Kind.BUILT,
+                status=BaseIso.Status.READY,
+                size=res["size"],
+                sha256=res["sha256"],
+                label=(info.get("label") or label)[:32],
+                os=info.get("os") or base.os,
+                bios=bool(info.get("bios")),
+                efi=bool(info.get("efi")),
+                udf=bool(info.get("udf")),
+                built_by=username,
+                target=target_id,
+                deployment=deployment,
+            )
+            if row is not None:
+                break
         dest = iso_path(name)
-        os.replace(out, dest)
+        try:
+            os.replace(out, dest)
+        except BaseException:
+            row.delete()
+            if os.path.exists(out):
+                os.remove(out)
+            raise
         os.chmod(dest, 0o644)
         iso_job_set(
             job_id,

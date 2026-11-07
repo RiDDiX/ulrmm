@@ -27,6 +27,8 @@ GH = "https://gh.test/releases"
 GT = "https://gt.test/api/v1/releases"
 SOURCES = [{"name": "github", "api": GH}, {"name": "gitea", "api": GT}]
 LOCMEM = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+IP = "203.0.113.7"
+CHECK_HOST = tasks._check_host
 
 
 class Resp:
@@ -78,7 +80,8 @@ class ReleaseBase(SimpleTestCase):
             mock.patch.object(
                 releases, "RELEASE_PUBKEY_B64", base64.b64encode(pub).decode()
             ),
-            mock.patch.object(tasks, "_check_host"),
+            mock.patch.object(tasks, "_check_host", return_value=IP),
+            mock.patch.object(tasks, "_fetch", side_effect=self.fetch),
             mock.patch.object(releases.requests, "get", side_effect=self.get),
             mock.patch.object(
                 releases, "_repo_sources", side_effect=lambda: list(self.repos)
@@ -101,6 +104,17 @@ class ReleaseBase(SimpleTestCase):
         if callable(r) and not isinstance(r, Resp):
             return r()
         return r
+
+    def fetch(self, url, ip, headers, timeout):
+        """tasks._fetch: the pinned path for checked hosts."""
+        return self.get(
+            url,
+            headers=headers,
+            timeout=timeout,
+            stream=True,
+            allow_redirects=False,
+            ip=ip,
+        )
 
     def manifest(self, server=None, web=None, version=V):
         server = self.server if server is None else server
@@ -269,6 +283,37 @@ class TestDiscover(ReleaseBase):
         )
         m.assert_called_once_with("cdn.test")
 
+    def test_checked_hops_connect_to_the_address_that_was_checked(self):
+        answers = {"cdn.test": "1.1.1.1", "evil.test": "10.0.0.5"}
+
+        def resolve(host, port):
+            return [(2, 1, 6, "", (answers[host], port))]
+
+        self.routes[f"{GH}/latest"] = Resp(
+            302, b"", {"Location": "https://cdn.test/latest"}
+        )
+        self.routes["https://cdn.test/latest"] = Resp(
+            302, b"", {"Location": "https://evil.test/latest"}
+        )
+        self.routes[f"{GT}/latest"] = Resp(500, b"")
+        lines = []
+        with (
+            mock.patch.object(tasks, "_check_host", CHECK_HOST),
+            mock.patch.object(tasks.socket, "getaddrinfo", side_effect=resolve) as dns,
+        ):
+            with self.assertRaises(releases.ReleaseError):
+                releases.discover(log=lines.append)
+        self.assertEqual(
+            lines[0],
+            "source github: blocked: the host resolves to a private address",
+        )
+        self.assertEqual(
+            [c.args[0] for c in dns.call_args_list], ["cdn.test", "evil.test"]
+        )
+        hops = [(u, kw.get("ip")) for u, kw in self.calls]
+        self.assertIn(("https://cdn.test/latest", "1.1.1.1"), hops)
+        self.assertNotIn("https://evil.test/latest", [u for u, _ in hops])
+
 
 AL = "https://alpha.test/api/v1/repos/riddix/ulrmm-alpha/releases"
 V2 = "1.28.10.2026"
@@ -325,7 +370,9 @@ class TestRepoSources(ReleaseBase):
         self.alpha()
         self.assertNotIn("alpha.test", releases._source_hosts())
         checked = []
-        with mock.patch.object(tasks, "_check_host", side_effect=checked.append):
+        with mock.patch.object(
+            tasks, "_check_host", side_effect=lambda h: checked.append(h) or IP
+        ):
             self.publish("alpha.test", AL, version=V2)
             releases.discover()
         self.assertIn("alpha.test", checked)

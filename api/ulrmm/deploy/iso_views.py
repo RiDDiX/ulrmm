@@ -20,6 +20,7 @@ from urllib.parse import quote, unquote, urlparse
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import IntegrityError, transaction
 from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 from django.utils.http import content_disposition_header
 from rest_framework.exceptions import PermissionDenied
@@ -125,6 +126,15 @@ def _register(filename: str, **extra) -> BaseIso:
     )
 
 
+def _claim(filename: str, **extra) -> BaseIso | None:
+    """The new row, or None when another request registered the name first."""
+    try:
+        with transaction.atomic():
+            return _register(filename, **extra)
+    except IntegrityError:
+        return None
+
+
 def _bad_name(name):
     """The error text for a name that is no plain .iso file name, else None."""
     if not isinstance(name, str) or not name.lower().endswith(".iso"):
@@ -201,9 +211,9 @@ class IsoLibrary(APIView):
             if row:
                 row.status, row.error = St.DOWNLOADING, ""
             else:
-                row = _register(
-                    _url_filename(url), source_url=url, status=St.DOWNLOADING
-                )
+                row = _claim(_url_filename(url), source_url=url, status=St.DOWNLOADING)
+                if row is None:
+                    return notify_error("Another image took this file name, try again")
             row.expected_sha256 = sha.lower()
             if target:
                 row.target = target
@@ -214,7 +224,9 @@ class IsoLibrary(APIView):
         err = _known_file(name)
         if err:
             return notify_error(err)
-        row = _register(name)
+        row = _claim(name)
+        if row is None:
+            return notify_error("The file is already registered")
         tasks.inspect_base_iso.delay(row.pk)
         return Response(_row(row))
 
@@ -487,13 +499,19 @@ class IsoFinishUpload(APIView):
                 return notify_error(
                     f"The upload is not complete: {size} of {info['size']} bytes."
                 )
-            if _taken(name):
+            # the row comes first: its unique filename settles two uploads
+            # of the same name before either file is moved
+            row = None if _taken(name) else _claim(name)
+            if row is None:
                 return notify_error(f"An image named {name} exists already")
             dest = tasks.iso_path(name)
-            os.replace(part, dest)
+            try:
+                os.replace(part, dest)
+            except BaseException:
+                row.delete()
+                raise
         os.chmod(dest, 0o644)
         remove_upload(uid, root)
-        row = _register(name)
         tasks.inspect_base_iso.delay(row.pk)
         _audit(request, f"uploaded base image {name}")
         return Response(_row(row))

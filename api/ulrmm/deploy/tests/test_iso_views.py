@@ -4,18 +4,20 @@
 import datetime as dt
 import hashlib
 import os
+import socket
 import tempfile
 from types import SimpleNamespace
 from unittest import mock
 
 from django.core.cache import cache
+from django.test import SimpleTestCase
 from django.test.utils import override_settings
 from django.utils import timezone as djangotime
 from knox.models import AuthToken
 from model_bakery import baker
 
 from accounts.utils import grant_console_stepup
-from deploy import checksums, iso, iso_layout, signing, tasks, windows
+from deploy import iso, iso_layout, iso_views, signing, tasks, windows
 from deploy.models import BaseIso
 from logs.models import AuditLog
 from ulrmm.test import LOCMEM_CACHE, ULRMMTestCase
@@ -105,6 +107,17 @@ class TestLibrary(IsoTestCase):
         again = self.client.post("/deploy/iso/library/", {"filename": "ok.iso"})
         self.assertEqual(again.status_code, 400)
 
+    def test_register_race_is_an_error_not_a_500(self):
+        self.put("ok.iso")
+        baker.make("deploy.BaseIso", name="ok", filename="ok.iso")
+        with mock.patch.object(iso_views, "_known_file", return_value=None):
+            r = self.client.post("/deploy/iso/library/", {"filename": "ok.iso"})
+        self.assertEqual(r.status_code, 400)
+        with mock.patch.object(iso_views, "_url_filename", return_value="ok.iso"):
+            r = self.client.post("/deploy/iso/library/", {"url": "https://x.test/a"})
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(BaseIso.objects.count(), 1)
+
     def test_register_url_names_the_file(self):
         r = self.client.post(
             "/deploy/iso/library/", {"url": "https://x.test/p/debian%20x.iso?a=1"}
@@ -140,7 +153,10 @@ class TestLibrary(IsoTestCase):
         resp = mock.MagicMock()
         resp.__enter__.return_value = resp
         resp.iter_content.return_value = [f"{'cd' * 32}  d.iso\n".encode()]
-        with mock.patch.object(checksums.requests, "get", return_value=resp):
+        with (
+            mock.patch.object(tasks, "_check_host", return_value="93.184.216.34"),
+            mock.patch.object(tasks, "_fetch", return_value=resp),
+        ):
             r = self.client.post(
                 "/deploy/iso/library/",
                 {"url": "https://x.test/d.iso", "sha256_url": "https://x.test/SUMS"},
@@ -253,7 +269,7 @@ class TestLibraryTasks(IsoTestCase):
         resp.iter_content.return_value = [b"ab", b"cd"]
         with (
             mock.patch.object(tasks, "_check_host"),
-            mock.patch.object(tasks.requests, "get", return_value=resp),
+            mock.patch.object(tasks, "_fetch", return_value=resp),
             mock.patch.object(iso, "sha256_of", return_value="cd" * 32),
             mock.patch.object(iso, "inspect", return_value=INFO),
         ):
@@ -275,7 +291,7 @@ class TestLibraryTasks(IsoTestCase):
         resp.iter_content.return_value = [b"abcd"]
         with (
             mock.patch.object(tasks, "_check_host"),
-            mock.patch.object(tasks.requests, "get", return_value=resp),
+            mock.patch.object(tasks, "_fetch", return_value=resp),
             mock.patch.object(tasks, "MAX_DOWNLOAD", 3),
         ):
             self.assertEqual(tasks.download_base_iso(row.pk), "error")
@@ -360,6 +376,23 @@ class TestIsoUploads(IsoTestCase):
             self.client.delete(f"/deploy/iso/uploads/{uid}/").status_code, 200
         )
         self.assertEqual(os.listdir(tasks.iso_uploads_dir()), [])
+
+    def test_finish_race_and_failed_move_keep_the_staged_file(self):
+        uid = self.start().data["id"]
+        self.chunk(uid, b"abcdef")
+        other = baker.make("deploy.BaseIso", name="new", filename="new.iso")
+        with mock.patch.object(iso_views, "_taken", return_value=False):
+            r = self.finish(uid)
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(os.path.exists(os.path.join(self.dir, "new.iso")))
+        other.delete()
+        with mock.patch.object(iso_views.os, "replace", side_effect=OSError("io")):
+            with self.assertRaises(OSError):
+                self.finish(uid)
+        self.assertEqual(BaseIso.objects.count(), 0)
+        self.assertEqual(self.finish(uid).status_code, 200)
+        with open(os.path.join(self.dir, "new.iso"), "rb") as f:
+            self.assertEqual(f.read(), b"abcdef")
 
     def test_needs_stepup(self):
         self.client.force_authenticate(user=self.john)
@@ -602,8 +635,61 @@ class TestIsoBuilds(IsoTestCase):
         self.assertEqual((rec["state"], rec["error"]), ("error", "no space"))
         self.assertFalse(os.path.exists(os.path.join(self.dir, "jobs", f"{job}.iso")))
 
+    def test_build_move_failure_leaves_no_row(self):
+        self.mocks()
+        base = self.ready()
+        self.put("w.iso")
+        job = "b" * 32
+        self.addCleanup(cache.delete, f"iso:job:{job}")
+        body = {**self.body, "base": base.pk}
+
+        def inject(src, out, files, *, edits=None, progress=None):
+            out.write(b"IMAGE")
+            return {"sha256": "ab" * 32, "size": 5}
+
+        with (
+            mock.patch.object(iso, "inspect", return_value=INFO),
+            mock.patch.object(iso, "inject", side_effect=inject),
+            mock.patch.object(tasks.os, "replace", side_effect=OSError("disk full")),
+        ):
+            self.assertEqual(tasks.build_iso_task(job, body, "john"), "error")
+        self.assertFalse(BaseIso.objects.filter(kind="built").exists())
+        self.assertFalse(os.path.exists(os.path.join(self.dir, "jobs", f"{job}.iso")))
+
     def test_bad_job_ids_are_404(self):
         for job in ("../etc", "A" * 32, "b" * 31, "c" * 32):
             self.assertEqual(
                 self.client.get(f"/deploy/iso/jobs/{job}/").status_code, 404
             )
+
+
+class TestPinnedFetch(SimpleTestCase):
+    def test_redirect_to_a_private_address_is_refused(self):
+        addrs = {"cdn.test": "93.184.216.34", "evil.test": "10.0.0.5"}
+
+        def gai(host, port):
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (addrs[host], port))]
+
+        hop = mock.MagicMock(
+            status_code=302, headers={"Location": "https://evil.test/x.iso"}
+        )
+        with (
+            mock.patch.object(tasks.socket, "getaddrinfo", side_effect=gai),
+            mock.patch.object(tasks, "_fetch", return_value=hop) as fetch,
+        ):
+            with self.assertRaisesRegex(ValueError, "private"):
+                tasks._open("https://cdn.test/x.iso", 0)
+        fetch.assert_called_once_with("https://cdn.test/x.iso", "93.184.216.34", {})
+
+    def test_fetch_connects_to_the_checked_address(self):
+        with mock.patch.object(tasks.requests.Session, "get", autospec=True) as get:
+            tasks._fetch("https://cdn.test:8443/x.iso", "2001:db8::1", {"A": "b"})
+        session, url = get.call_args.args
+        self.assertEqual(url, "https://[2001:db8::1]:8443/x.iso")
+        kw = get.call_args.kwargs
+        self.assertEqual(kw["headers"], {"A": "b", "Host": "cdn.test:8443"})
+        self.assertFalse(kw["allow_redirects"])
+        adapter = session.get_adapter("https://x/")
+        pool = adapter.poolmanager.connection_from_url("https://93.184.216.34/")
+        self.assertEqual(pool.assert_hostname, "cdn.test")
+        self.assertEqual(pool.conn_kw["server_hostname"], "cdn.test")

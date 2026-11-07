@@ -276,10 +276,6 @@ def _armed(pin_seq: int) -> bool:
     return sec2 in ("optional", "required")
 
 
-def mode(agent) -> str:
-    return target(agent)["mode"]
-
-
 async def _atarget(agent_id: str) -> dict:
     hit = cache.get(_mode_key(agent_id))
     return hit if hit is not None else await sync_to_async(target)(agent_id)
@@ -576,10 +572,18 @@ def _keys_for(ctx, agent_id, s, e) -> dict | None:
     cands += [x for x in (_load(agent_id), _load(agent_id, True)) if x]
     for sess in cands:
         if sess["sid"] == s and 0 <= e <= MAX_EPOCH:
-            if e > sess["e"]:
-                _advance(agent_id, sess, e)
             return sess
     return None
+
+
+def _decrypt(agent_id, sess, e, q, c, head) -> bytes:
+    # only a frame that decrypts may move the stored epoch
+    plain = ChaCha20Poly1305(epoch_key(sess["k_a2s"], e)).decrypt(
+        aead_nonce(e, q), c, head
+    )
+    if e > sess["e"]:
+        _advance(agent_id, sess, e)
+    return plain
 
 
 def open_reply(agent, ctx: dict, raw: bytes) -> bytes:
@@ -595,9 +599,7 @@ def open_reply(agent, ctx: dict, raw: bytes) -> bytes:
         if not _identity_ok(ctx["tgt"], g, head + hashlib.sha256(c).digest()):
             raise ValueError("signature")
         sess = _keys_for(ctx, agent_id, s, e)
-        return ChaCha20Poly1305(epoch_key(sess["k_a2s"], e)).decrypt(
-            aead_nonce(e, q), c, head
-        )
+        return _decrypt(agent_id, sess, e, q, c, head)
     except Exception as exc:
         raise Refused(REPLY_REFUSED, f"reply refused: {exc!r}"[:200])
 
@@ -611,10 +613,7 @@ def open_frame(agent, subject: str, raw: bytes, ctx: dict | None = None) -> byte
         if r.get("v") != 2:
             raise ValueError("not an envelope")
         sess = _keys_for(ctx, agent_id, s, e)
-        head = frame_header(subject, s, e, q)
-        return ChaCha20Poly1305(epoch_key(sess["k_a2s"], e)).decrypt(
-            aead_nonce(e, q), c, head
-        )
+        return _decrypt(agent_id, sess, e, q, c, frame_header(subject, s, e, q))
     except Exception as exc:
         raise Refused(REPLY_REFUSED, f"frame refused: {exc!r}"[:200])
 

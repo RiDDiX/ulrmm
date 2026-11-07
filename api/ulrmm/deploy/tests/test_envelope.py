@@ -361,7 +361,7 @@ class TestEnvelope(EnvelopeBase):
     def test_mode_legacy_without_identity(self):
         self.agent.identity.delete()
         envelope.forget(self.agent)
-        self.assertEqual(envelope.mode(self.agent), envelope.LEGACY)
+        self.assertEqual(envelope.target(self.agent)["mode"], envelope.LEGACY)
         data = {"func": "ping"}
         self.assertEqual(self.request(data), "pong")
         # the bytes of today, nothing else on the wire
@@ -369,11 +369,11 @@ class TestEnvelope(EnvelopeBase):
 
     def test_mode_off_and_without_cap_is_legacy(self):
         set_sec2("off")
-        self.assertEqual(envelope.mode(self.agent), envelope.LEGACY)
+        self.assertEqual(envelope.target(self.agent)["mode"], envelope.LEGACY)
         set_sec2("optional")
         envelope.forget(self.agent)
         AgentIdentity.objects.filter(agent=self.agent).update(caps=[])
-        self.assertEqual(envelope.mode(self.agent), envelope.LEGACY)
+        self.assertEqual(envelope.target(self.agent)["mode"], envelope.LEGACY)
 
     def test_quarantined_identity_gets_nothing(self):
         AgentIdentity.objects.filter(agent=self.agent).update(state="quarantined")
@@ -601,16 +601,16 @@ class TestEnvelope(EnvelopeBase):
         set_sec2("off")
         envelope.forget(self.agent)
         # still armed with pin document 7: plaintext would be refused
-        self.assertEqual(envelope.mode(self.agent), envelope.SEC2)
+        self.assertEqual(envelope.target(self.agent)["mode"], envelope.SEC2)
         self.assertEqual(self.request(), "pong")
         self.assertEqual(self.fake.hs1, 2)
         self.fake.pin_seq = 8
         envelope.forget(self.agent)
         self.assertEqual(self.request(), "pong")
-        self.assertEqual(envelope.mode(self.agent), envelope.LEGACY)
+        self.assertEqual(envelope.target(self.agent)["mode"], envelope.LEGACY)
         AgentIdentity.objects.filter(agent=self.agent).update(pin_seq=99)
         envelope.forget(self.agent)
-        self.assertEqual(envelope.mode(self.agent), envelope.LEGACY)
+        self.assertEqual(envelope.target(self.agent)["mode"], envelope.LEGACY)
 
     @override_settings(E2E_REKEY_MESSAGES=3)
     def test_ratchet_messages(self):
@@ -678,6 +678,21 @@ class TestEnvelope(EnvelopeBase):
             envelope.open_frame(self.agent, subject + "x", raw)
         with self.assertRaises(envelope.Refused):
             envelope.open_frame(self.agent, subject, msgpack.dumps({"line": "plain"}))
+
+    def test_only_a_frame_that_decrypts_moves_the_epoch(self):
+        self.request()
+        sess = envelope._load(self.agent.agent_id)
+        subject = f"{self.agent.agent_id}.cmdoutput.c1"
+        e = envelope.MAX_EPOCH
+        bad = self.fake.dumps(
+            {"v": 2, "s": sess["sid"], "e": e, "q": 1, "c": b"x" * 32}
+        )
+        with self.assertRaises(envelope.Refused):
+            envelope.open_frame(self.agent, subject, bad)
+        self.assertEqual(envelope._load(self.agent.agent_id)["e"], sess["e"])
+        raw = self.fake.frame(subject, sess["sid"], sess["e"] + 1, 1, {"line": "hi"})
+        envelope.open_frame(self.agent, subject, raw)
+        self.assertEqual(envelope._load(self.agent.agent_id)["e"], sess["e"] + 1)
 
     def test_nats_cmd_sec2_roundtrip(self):
         with patch("agents.models.nats.connect", return_value=self.nc):
