@@ -40,6 +40,11 @@ PYTHON_SHA256='0816c4761c97ecdb3f50a3924de0a93fd78cb63ee8e6c04201ddfaedca500b0b'
 NATS_PINNED_VER='2.14.4'
 NATS_SHA256_amd64='20f9d6a199560f243610908bcccea2e27e9f47213242d1c609ca46d1d73e91ea'
 NATS_SHA256_arm64='2143f4317ac8e1dd42793c912fa09b405c7036ba181b2a3002b74501d13562b0'
+# primary key fingerprints of the apt repositories, from gpg --show-keys
+# shellcheck disable=SC2034 # read by install.sh, restore.sh and update.sh
+NGINX_KEY_FPRS='573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62 8540A6F18833A80E9C1653A42FD21310B49F6B46 9E9BE90EACBCDE69FE9B204CBCDCD8A38D88A2B3' \
+  NODESOURCE_KEY_FPR='6F71F525282841EEDAF851B42F59B5F99B1BE0B4' \
+  PGDG_KEY_FPR='B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8'
 
 lib_info() { printf >&2 '%b%s%b\n' "$GREEN" "$*" "$NC"; }
 lib_warn() { printf >&2 '%b%s%b\n' "$YELLOW" "$*" "$NC"; }
@@ -241,26 +246,33 @@ repo_preflight() {
   lib_info "UniversalLocal RMM ${TARGET_VERSION} from ${GIT_URL} (${GIT_BRANCH}, ${TARGET_COMMIT:0:8})"
 }
 
+# $1 url, $2 branch, $3 directory. A clone left by an earlier run
+# (restore.sh --resume) is brought to the branch instead.
+clone_or_fetch() {
+  if [ -d "${3}/.git" ]; then
+    git_auth "$1" -C "$3" fetch --quiet "$1" "$2" && git -C "$3" checkout --quiet -f -B "$2" FETCH_HEAD
+  else
+    git_auth "$1" clone --quiet --branch "$2" "$1" "$3"
+  fi
+}
+
 clone_repos() {
   sudo mkdir -p /rmm "$SCRIPTS_DIR" "$WEB_DIR"
   sudo chown "${USER}:${USER}" /rmm "$SCRIPTS_DIR" "$WEB_DIR"
 
-  git_auth "$GIT_URL" clone --quiet --branch "$GIT_BRANCH" "$GIT_URL" /rmm/ ||
-    lib_die "cloning ${GIT_URL} failed."
+  clone_or_fetch "$GIT_URL" "$GIT_BRANCH" /rmm || lib_die "cloning ${GIT_URL} failed."
   git -C /rmm config user.email "admin@example.com"
   git -C /rmm config user.name "Bob"
 
-  if git_auth "$SCRIPTS_GIT_URL" clone --quiet "$SCRIPTS_GIT_URL" "${SCRIPTS_DIR}/"; then
+  # update.sh checks out main
+  if clone_or_fetch "$SCRIPTS_GIT_URL" main "$SCRIPTS_DIR"; then
     git -C "$SCRIPTS_DIR" config user.email "admin@example.com"
     git -C "$SCRIPTS_DIR" config user.name "Bob"
-    # update.sh checks out main
-    git -C "$SCRIPTS_DIR" checkout --quiet main
   else
     lib_warn "cloning ${SCRIPTS_GIT_URL} failed, the community scripts are missing. update.sh fetches them again."
   fi
 
-  git_auth "$WEB_GIT_URL" clone --quiet --branch "$WEB_GIT_BRANCH" "$WEB_GIT_URL" "$WEB_SRC" ||
-    lib_die "cloning ${WEB_GIT_URL} failed."
+  clone_or_fetch "$WEB_GIT_URL" "$WEB_GIT_BRANCH" "$WEB_SRC" || lib_die "cloning ${WEB_GIT_URL} failed."
 }
 
 # full urls, under the names update.sh and build_agents.sh read.
@@ -908,11 +920,12 @@ harden_logs() {
 }
 
 # $1 db, $2 role, $3 password. SQL on stdin, so the password stays out of
-# argv and the sudo journal.
+# argv and the sudo journal. Database and role are created when missing.
 pg_create_db() {
   sudo -iu postgres psql -v ON_ERROR_STOP=1 <<EOF
-CREATE DATABASE ${1};
-CREATE USER ${2} WITH PASSWORD '${3}';
+SELECT 'CREATE DATABASE ${1}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${1}')\gexec
+SELECT 'CREATE USER ${2}' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${2}')\gexec
+ALTER USER ${2} WITH PASSWORD '${3}';
 ALTER ROLE ${2} SET client_encoding TO 'utf8';
 ALTER ROLE ${2} SET default_transaction_isolation TO 'read committed';
 ALTER ROLE ${2} SET timezone TO 'UTC';
@@ -920,6 +933,55 @@ GRANT ALL PRIVILEGES ON DATABASE ${1} TO ${2};
 ALTER DATABASE ${1} OWNER TO ${2};
 GRANT USAGE, CREATE ON SCHEMA PUBLIC TO ${2};
 EOF
+}
+
+# $1 url, $2 the allowed primary key fingerprints (space separated),
+# $3 keyring. Written only when every key in the download is one of them.
+fetch_apt_key() {
+  local tmp fprs f
+  tmp=$(mktemp) || return 1
+  if ! curl -fsSL --proto '=https' -o "$tmp" "$1"; then
+    rm -f "$tmp"
+    lib_warn "ERROR: download of $1 failed."
+    return 1
+  fi
+  fprs=$(gpg --show-keys --with-colons "$tmp" 2>/dev/null | awk -F: '$1=="pub" {p=1; next} p && $1=="fpr" {print $10; p=0}')
+  for f in ${fprs:-none}; do
+    case " $2 " in
+    *" $f "*) ;;
+    *)
+      rm -f "$tmp"
+      lib_warn "ERROR: $1 holds the key ${f}, expected only ${2}."
+      return 1
+      ;;
+    esac
+  done
+  sudo gpg --dearmor --yes -o "$3" "$tmp"
+  f=$?
+  rm -f "$tmp"
+  return "$f"
+}
+
+# $1 the letsencrypt directory, $2 group, $3 KEY_FILE. root owns the tree,
+# certbot.timer runs its renewal hooks as root. The group reads live/ and
+# archive/ (nats-server reads privkey.pem); uwsgi and daphne run as group
+# www-data and only pass through to the 0644 certificates.
+letsencrypt_perms() {
+  local d
+  [ -d "$1" ] || return 0
+  case "$3" in
+  "$1"/live/* | "$1"/archive/*) ;;
+  "$1"/*)
+    lib_warn "WARNING: ${3} is in ${1} outside live/ and archive/, the permissions there are left as they are."
+    return 0
+    ;;
+  esac
+  sudo chown -R root:root "$1" || return 1
+  for d in "${1}/live" "${1}/archive"; do
+    if [ -d "$d" ]; then
+      sudo chgrp -R "$2" "$d" && sudo chmod -R g+rX,o+X "$d" || return 1
+    fi
+  done
 }
 
 # $1 url, $2 sha256, $3 file. A file that does not match is removed.

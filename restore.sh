@@ -7,7 +7,7 @@
 #
 #   bash ulrmm/restore.sh [options] rmm-backup-xxxx.tar[.age]     (--help lists the options)
 
-SCRIPT_VERSION="78"
+SCRIPT_VERSION="79"
 
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 GREEN='\033[0;32m'
@@ -26,6 +26,7 @@ SCRIPTS_DIR='/opt/ulrmm-community-scripts'
 SETTINGS_PY='/rmm/api/ulrmm/ulrmm/settings.py'
 non_interactive=false
 skip_agent_build=false
+resume=false
 arg_source='' arg_git_base='' arg_server_repo='' arg_web_repo='' arg_agent_repo=''
 arg_branch='' arg_web_branch='' arg_agent_branch='' arg_git_user='' arg_token=''
 arg_token_file='' arg_scripts_git_url='' age_identity=''
@@ -59,6 +60,8 @@ settings and the token come from the backup; these options override them:
   --rustdesk HOST               also install the RustDesk server for HOST
   --age-identity FILE           age key file of an encrypted backup (.tar.age)
   --non-interactive             never ask
+  --resume                      run again on the server of a restore that
+                                failed; databases already loaded are kept
   -h, --help                    this list
 
 Every --option value also works as --option=value.
@@ -82,6 +85,7 @@ while [ $# -gt 0 ]; do
     ;;
   --non-interactive) non_interactive=true ;;
   --skip-agent-build) skip_agent_build=true ;;
+  --resume) resume=true ;;
   --source | --git-base | --server-repo | --web-repo | --agent-repo | --branch | --web-branch | \
     --agent-branch | --git-user | --token | --token-file | --scripts-git-url | --rustdesk | --age-identity)
     [ $# -ge 2 ] || lib_die "$1 needs a value."
@@ -129,7 +133,8 @@ fi
 # host checks
 
 [ "$(systemd-detect-virt 2>/dev/null)" != lxc ] || lib_die "LXC is not supported, use a VM instead."
-[ ! -d /rmm/api ] || lib_die "Existing UniversalLocal RMM installation found. The restore script must be run on a clean server, please re-read the docs."
+[ "$resume" = true ] || [ ! -d /rmm/api ] ||
+  lib_die "Existing UniversalLocal RMM installation found. The restore script must be run on a clean server, or with --resume after a restore that failed."
 arch=$(uname -m)
 case "$arch" in
 x86_64 | aarch64) ;;
@@ -184,6 +189,8 @@ unpack_backup() {
   else
     tar -xf "$1" -C "$2" --no-same-owner || lib_die "${1} could not be unpacked."
   fi
+  # certs, CA and RustDesk keys are installed from here with sudo
+  [ -z "$(find "$2" ! -type f ! -type d -print -quit)" ] || lib_die "${1} has links or special files."
 }
 unpack_backup "$backup_file" "$STAGING"
 B=$STAGING
@@ -373,20 +380,19 @@ sudo systemctl restart systemd-journald
 sudo mkdir -p /etc/apt/keyrings
 
 lib_info "Installing NodeJS"
-curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg ||
+fetch_apt_key https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key "$NODESOURCE_KEY_FPR" /etc/apt/keyrings/nodesource.gpg ||
   lib_die "could not fetch the NodeSource signing key."
 echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" |
   sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
 sudo apt update
 sudo apt install -y gcc g++ make || lib_die "apt install gcc g++ make failed."
 sudo apt install -y nodejs || lib_die "apt install nodejs failed."
-sudo npm install -g npm
 
 
 lib_info "Installing nginx"
-curl -fsSL https://nginx.org/keys/nginx_signing.key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/nginx-archive-keyring.gpg ||
+fetch_apt_key https://nginx.org/keys/nginx_signing.key "$NGINX_KEY_FPRS" /etc/apt/keyrings/nginx-archive-keyring.gpg ||
   lib_die "could not fetch the nginx signing key."
-echo "deb [signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/${os_id} ${codename} nginx" |
+echo "deb [signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] https://nginx.org/packages/${os_id} ${codename} nginx" |
   sudo tee /etc/apt/sources.list.d/nginx.list >/dev/null
 sudo apt update
 sudo apt install -y nginx || lib_die "apt install nginx failed."
@@ -397,11 +403,15 @@ sudo apt install -y certbot openssl || lib_die "apt install certbot failed."
 
 lib_info "Restoring certificates"
 if [ -f "${B}/certs/etc-letsencrypt.tar.gz" ]; then
+  if [ -n "$(sudo ls -A /etc/letsencrypt 2>/dev/null)" ]; then
+    le_old="/etc/letsencrypt.pre-restore-$(date +%s)"
+    sudo mv /etc/letsencrypt "$le_old" || lib_die "could not move /etc/letsencrypt away."
+    lib_info "The certificates that were in /etc/letsencrypt are in ${le_old} now."
+  fi
   sudo rm -rf /etc/letsencrypt
   sudo mkdir -p /etc/letsencrypt
   sudo tar -xzf "${B}/certs/etc-letsencrypt.tar.gz" -C /etc/letsencrypt ||
     lib_die "could not restore /etc/letsencrypt."
-  sudo chown -R "$ME" /etc/letsencrypt
   # hooks run as root on renewal and are not taken from an archive, whatever
   # the member names; links exist only below live/ (check_tarball)
   sudo rm -rf /etc/letsencrypt/renewal-hooks /etc/letsencrypt/cli.ini &&
@@ -410,6 +420,7 @@ if [ -f "${B}/certs/etc-letsencrypt.tar.gz" ]; then
     sudo find /etc/letsencrypt -type f -name '*.conf' \
       -exec sed -i -E '/^[[:space:]]*["\x27]?[a-z_-]*hook["\x27]?[[:space:]]*=/Id' {} + ||
     lib_die "could not remove the renewal hooks from /etc/letsencrypt."
+  letsencrypt_perms /etc/letsencrypt "$(id -gn)" "$key_file" || lib_die "could not set the permissions of /etc/letsencrypt."
   lib_info "Renewal hooks and cli.ini are not restored, set them up again if you used them."
 fi
 
@@ -469,7 +480,7 @@ sudo apt install -y redis || lib_die "apt install redis failed."
 start_redis
 
 lib_info "Installing PostgreSQL 18"
-curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/postgresql-archive-keyring.gpg ||
+fetch_apt_key https://www.postgresql.org/media/keys/ACCC4CF8.asc "$PGDG_KEY_FPR" /etc/apt/keyrings/postgresql-archive-keyring.gpg ||
   lib_die "could not fetch the PostgreSQL signing key."
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/postgresql-archive-keyring.gpg] https://apt.postgresql.org/pub/repos/apt/ ${codename}-pgdg main" |
   sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
@@ -510,9 +521,17 @@ clone_repos
 settings_ver() { grep "^${1}" "$SETTINGS_PY" | awk -F'[= "]' '{print $5}'; }
 install_nats_server "$(settings_ver NATS_SERVER_VER)"
 
-# $1 dump, $2 database, $3 role, $4 password
+# $1 dump, $2 database, $3 role, $4 password. A database with tables is a
+# dump loaded by an earlier run, kept only with --resume.
 load_dump() (
   set -o pipefail
+  local has
+  has=$(PGPASSWORD=$4 psql -tA -h localhost -U "$3" -d "$2" -c "SELECT 1 FROM pg_tables WHERE schemaname = 'public' LIMIT 1") || exit 1
+  if [ -n "$has" ]; then
+    [ "$resume" = true ] || lib_die "the database ${2} already has tables, restore.sh needs a clean server."
+    lib_info "The database ${2} was loaded by an earlier run, kept (--resume)."
+    exit 0
+  fi
   gzip -dc "$1" | PGPASSWORD=$4 psql -q -v ON_ERROR_STOP=1 --single-transaction -h localhost -U "$3" -d "$2" >/dev/null
 )
 
@@ -530,7 +549,10 @@ printf '{"dependencies": {"archiver": "7.0.1", "meshcentral": "%s", "otplib": "1
 (cd /meshcentral && npm install) || lib_die "npm install of MeshCentral failed."
 
 lib_info "Restoring the backend"
-install -m 600 "$backup_settings" "$local_settings" || lib_die "could not restore ${local_settings}."
+# --resume keeps the file of the earlier run: its generated keys may be in use
+if [ "$resume" != true ] || [ ! -f "$local_settings" ]; then
+  install -m 600 "$backup_settings" "$local_settings" || lib_die "could not restore ${local_settings}."
+fi
 if [ -f "${B}/rmm/packages.tar" ]; then
   mkdir -p /rmm/api/ulrmm/ulrmm/private/packages
   chmod 755 /rmm/api/ulrmm/ulrmm/private/packages
@@ -614,7 +636,11 @@ MESHDOMAIN=$(manage get_config meshdomain)
 CERT_PUB_KEY=$(manage get_config certfile)
 CERT_PRIV_KEY=$(manage get_config keyfile)
 for v in API FRONTEND MESHDOMAIN; do
-  [ -n "${!v}" ] || lib_warn "WARNING: manage.py get_config returned no ${v} (no core settings in the restored database?), the nginx sites will not load."
+  if [ -z "${!v}" ]; then
+    lib_warn "WARNING: manage.py get_config returned no ${v} (no core settings in the restored database?), the nginx sites will not load."
+  elif ! valid_name "${!v}"; then
+    lib_die "${v} '${!v}' from the restored settings is not a host name."
+  fi
 done
 
 # the certificate the old server's nginx used, when it came back with the backup

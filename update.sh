@@ -13,7 +13,7 @@
 # All code sits in functions and main runs from the last line: the checkout
 # replaces this file while it runs.
 
-SCRIPT_VERSION="189"
+SCRIPT_VERSION="190"
 
 # cron and some sudo setups leave USER unset
 USER=${USER:-$(id -un)}
@@ -235,8 +235,7 @@ on_exit() {
 # NodeJS 24 from the signed NodeSource repository, as install.sh sets it up
 setup_node() {
   sudo mkdir -p /etc/apt/keyrings
-  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key |
-    sudo gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg || return 1
+  fetch_apt_key https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key "$NODESOURCE_KEY_FPR" /etc/apt/keyrings/nodesource.gpg || return 1
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" |
     sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
   sudo apt update && sudo apt install -y nodejs
@@ -846,12 +845,15 @@ EOF
   expired=$(gpg --show-keys --with-colons "$nginx_key" 2>/dev/null |
     awk -F: -v now="$(date +%s)" '$1=="pub" {ex=$7} $1=="fpr" && $10=="573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62" {print (ex != "" && ex < now) ? "yes" : "no"; exit}')
   if [ ! -f "$nginx_key" ] || [ "$expired" = yes ]; then
-    curl -fsSL https://nginx.org/keys/nginx_signing.key | sudo gpg --dearmor --yes -o "$nginx_key" ||
+    fetch_apt_key https://nginx.org/keys/nginx_signing.key "$NGINX_KEY_FPRS" "$nginx_key" ||
       warn "WARNING: could not refresh the nginx signing key."
   fi
   if [ ! -f /etc/apt/sources.list.d/nginx.list ]; then
-    echo "deb [signed-by=${nginx_key}] http://nginx.org/packages/${os_id} ${codename} nginx" |
+    echo "deb [signed-by=${nginx_key}] https://nginx.org/packages/${os_id} ${codename} nginx" |
       sudo tee /etc/apt/sources.list.d/nginx.list >/dev/null
+  else
+    # earlier installs used http
+    sudo sed -i 's#http://nginx\.org/#https://nginx.org/#g' /etc/apt/sources.list.d/nginx.list
   fi
   local nconf=/etc/nginx/nginx.conf
   if ! sudo grep -q 'include /etc/nginx/sites-enabled' "$nconf"; then
@@ -895,7 +897,6 @@ EOF
     sudo systemctl start meshcentral
     MESH_STOPPED=false
   fi
-  sudo npm install -g npm
 
   MESH_CHANGED=0
   if ! command -v jq >/dev/null; then
@@ -963,7 +964,8 @@ EOF
   fi
 
   sudo chown -R "$ME" /rmm "$SCRIPTS_DIR" /var/log/celery /etc/conf.d
-  [ -d /etc/letsencrypt ] && sudo chown -R "$ME" /etc/letsencrypt
+  # earlier builds gave the whole tree, renewal hooks included, to the user
+  letsencrypt_perms /etc/letsencrypt "$(id -gn)" "$(ls_get KEY_FILE)" || warn "WARNING: could not set the permissions of /etc/letsencrypt."
   [ -d /rmmbackups ] && sudo chown -R "$ME" /rmmbackups
 
   if ! grep -q '^ADMIN_ENABLED' "$local_settings"; then

@@ -85,6 +85,12 @@ jobs:
         run: |
           python manage.py makemigrations --check --dry-run
 
+      # root for the letsencrypt chown cases, stdlib only
+      - name: Run maintenance script tests
+        working-directory: riddix/scripts
+        run: |
+          sudo python3 -m unittest -v test_install_lib test_maint_runner test_backup_iso test_build_guard test_check_versions test_docs_site
+
       - name: Run django tests
         env:
           GHACTIONS: "yes"

@@ -50,7 +50,9 @@ class TestMaintRunner(unittest.TestCase):
         self.assertFalse((self.maint / "request").exists())
         self.assertEqual((self.maint / "update.log").read_text(), "0022\nargs --yes\n")
         st = self.state("update")
-        self.assertEqual((st["action"], st["state"], st["exit_code"]), ("update", "done", 0))
+        self.assertEqual(
+            (st["action"], st["state"], st["exit_code"]), ("update", "done", 0)
+        )
         self.assertLessEqual(st["started"], st["finished"])
 
     def test_backup_keeps_its_own_umask_077(self):
@@ -83,7 +85,6 @@ class TestUpdateOrder(unittest.TestCase):
             "    install_python\n",
             'install_nats_server "$NATS_SERVER_VER"',
             'setup_node || die "could not install NodeJS."',
-            "sudo npm install -g npm",
             'mesh_reinstall "$LATEST_MESH_VER"',
             "if ! sudo nginx -t; then",
         ):

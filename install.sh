@@ -353,17 +353,15 @@ else
   CERT_PRIV_KEY="/etc/letsencrypt/live/${rootdomain}/privkey.pem"
   CERT_PUB_KEY="/etc/letsencrypt/live/${rootdomain}/fullchain.pem"
 fi
-if [ -d /etc/letsencrypt ]; then
-  sudo chown -R "$ME" /etc/letsencrypt
-fi
+letsencrypt_perms /etc/letsencrypt "$(id -gn)" "$CERT_PRIV_KEY" || lib_die "could not set the permissions of /etc/letsencrypt."
 
 sudo mkdir -p /etc/apt/keyrings
 
 
 lib_info "Installing nginx"
-curl -fsSL https://nginx.org/keys/nginx_signing.key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/nginx-archive-keyring.gpg ||
+fetch_apt_key https://nginx.org/keys/nginx_signing.key "$NGINX_KEY_FPRS" /etc/apt/keyrings/nginx-archive-keyring.gpg ||
   lib_die "could not fetch the nginx signing key."
-echo "deb [signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/${os_id} ${codename} nginx" |
+echo "deb [signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] https://nginx.org/packages/${os_id} ${codename} nginx" |
   sudo tee /etc/apt/sources.list.d/nginx.list >/dev/null
 sudo apt update
 sudo apt install -y nginx || lib_die "apt install nginx failed."
@@ -372,21 +370,20 @@ nginx_conf_text | sudo tee /etc/nginx/nginx.conf >/dev/null
 sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 
 lib_info "Installing NodeJS"
-curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg ||
+fetch_apt_key https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key "$NODESOURCE_KEY_FPR" /etc/apt/keyrings/nodesource.gpg ||
   lib_die "could not fetch the NodeSource signing key."
 echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" |
   sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
 sudo apt update
 sudo apt install -y gcc g++ make || lib_die "apt install gcc g++ make failed."
 sudo apt install -y nodejs || lib_die "apt install nodejs failed."
-sudo npm install -g npm
 
 install_python
 sudo apt install -y redis git || lib_die "apt install redis failed."
 start_redis
 
 lib_info "Installing PostgreSQL 18"
-curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/postgresql-archive-keyring.gpg ||
+fetch_apt_key https://www.postgresql.org/media/keys/ACCC4CF8.asc "$PGDG_KEY_FPR" /etc/apt/keyrings/postgresql-archive-keyring.gpg ||
   lib_die "could not fetch the PostgreSQL signing key."
 echo "$pgdg_line" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
 sudo apt update
