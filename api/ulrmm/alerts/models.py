@@ -183,6 +183,7 @@ def _source_of(instance: Any) -> Optional[_Source]:
     from autotasks.models import TaskResult
     from checks.models import CheckResult
     from netmon.models import NetworkDevice
+    from notify.dispatch import in_maintenance
 
     if isinstance(instance, Agent):
         from agents import tasks as t
@@ -190,7 +191,7 @@ def _source_of(instance: Any) -> Optional[_Source]:
         return _Source(
             family="agent",
             template=instance.alert_template,
-            maintenance=instance.maintenance_mode,
+            maintenance=in_maintenance(instance),
             severity=AlertSeverity.ERROR,
             email=instance.overdue_email_alert,
             text=instance.overdue_text_alert,
@@ -220,7 +221,7 @@ def _source_of(instance: Any) -> Optional[_Source]:
         return _Source(
             family="check",
             template=agent.alert_template,
-            maintenance=agent.maintenance_mode,
+            maintenance=in_maintenance(agent),
             severity=severity,
             email=check.email_alert,
             text=check.text_alert,
@@ -249,7 +250,7 @@ def _source_of(instance: Any) -> Optional[_Source]:
         return _Source(
             family="task",
             template=agent.alert_template,
-            maintenance=agent.maintenance_mode,
+            maintenance=in_maintenance(agent),
             severity=task.alert_severity,
             email=task.email_alert,
             text=task.text_alert,
@@ -582,16 +583,16 @@ class Alert(models.Model):
     # failure / resolve handling
 
     def _sync_severity(self, severity: Optional[str]) -> None:
-        if not severity or severity == self.severity:
+        # an open alert keeps its peak, so a flapping check mails once per escalation
+        if not severity or SEVERITY_RANK.get(severity, 0) <= SEVERITY_RANK.get(
+            self.severity, 0
+        ):
             return
-        fields = ["severity"]
-        if SEVERITY_RANK.get(severity, 0) > SEVERITY_RANK.get(self.severity, 0):
-            # an escalation is news, the earlier mail or text does not cover it
-            self.email_sent = None
-            self.sms_sent = None
-            fields += ["email_sent", "sms_sent"]
+        # an escalation is news, the earlier mail or text does not cover it
         self.severity = severity
-        self.save(update_fields=fields)
+        self.email_sent = None
+        self.sms_sent = None
+        self.save(update_fields=["severity", "email_sent", "sms_sent"])
 
     @classmethod
     def handle_alert_failure(cls, instance: "AlertSource") -> None:
@@ -599,11 +600,11 @@ class Alert(models.Model):
         from notify.dispatch import notify_alert
 
         source = _source_of(instance)
-        if source is None:
+        if source is None or source.maintenance:
             return None
 
         alert = instance.get_or_create_alert_if_needed(source.template)
-        if alert is None or source.maintenance:
+        if alert is None:
             return None
 
         alert._sync_severity(source.severity)
@@ -680,20 +681,26 @@ class Alert(models.Model):
         template, family = source.template, source.family
         _, _, email_task, sms_task = source.tasks
 
-        def wanted(channel: str, flag: str) -> bool:
+        def wanted(channel: str, stamp: str) -> bool:
             on_resolved = getattr(source, f"{channel}_on_resolved") or bool(
                 template and getattr(template, f"{family}_{channel}_on_resolved")
             )
-            if not on_resolved or getattr(alert, flag) or _muted(alert.severity, core):
+            # nobody heard about the failure, the recovery is no news either
+            if (
+                not on_resolved
+                or not getattr(alert, f"{stamp}_sent")
+                or getattr(alert, f"resolved_{stamp}_sent")
+                or _muted(alert.severity, core)
+            ):
                 return False
             return not template or alert.severity in _severities(
                 template, family, channel
             )
 
-        if core.email_is_configured and wanted("email", "resolved_email_sent"):
+        if core.email_is_configured and wanted("email", "email"):
             email_task.delay(pk=alert.pk)
 
-        if core.sms_is_configured and wanted("text", "resolved_sms_sent"):
+        if core.sms_is_configured and wanted("text", "sms"):
             sms_task.delay(pk=alert.pk)
 
         if template and not alert.resolved_action_run:

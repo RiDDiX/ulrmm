@@ -198,7 +198,10 @@ def test_harden_logs_restricts_celery(tmp_path):
     ):
         assert line in calls, line
     text = _lib("logrotate_text", env={"USER": "rmmuser"})
-    assert "/var/log/celery/*.log {" in text and "copytruncate" in text
+    assert (
+        "/var/log/celery/*.log /rmm/api/ulrmm/ulrmm/private/log/*_debug.log {" in text
+        and "copytruncate" in text
+    )
 
 
 # backup.sh / restore.sh with a stand-in for age: what reaches it, and what

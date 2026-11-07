@@ -186,15 +186,15 @@ class Summary(APIView):
                         "days_left": (a.warranty_end - today).days,
                     }
                 )
-        over = [
-            {
-                "id": lic.pk,
-                "name": lic.name,
-                "seats": lic.seats,
-                "assigned": len(lic.agents.all()),
-            }
+        visible = _visible(request.user)
+        seats = [
+            (lic, sum(visible is None or a.pk in visible for a in lic.agents.all()))
             for lic in _licenses(request.user).filter(seats__isnull=False)
-            if len(lic.agents.all()) > lic.seats
+        ]
+        over = [
+            {"id": lic.pk, "name": lic.name, "seats": lic.seats, "assigned": n}
+            for lic, n in seats
+            if n > lic.seats
         ]
         return Response(
             {

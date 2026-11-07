@@ -23,12 +23,14 @@ class Command(BaseCommand):
 
         try:
             gib = math.ceil(psutil.virtual_memory().total / (1024**3))
+            # 20 at most: with celery (20), nats-api (20) and MeshCentral (10)
+            # that stays under the postgres default of 100 connections
             if gib <= 2:
                 max_requests, workers = 15, 6
             elif gib <= 4:
                 max_requests, workers = 75, 20
             else:
-                max_requests, workers = 100, 40
+                max_requests, workers = 100, 20
         except Exception:
             max_requests, workers = 50, 10
 

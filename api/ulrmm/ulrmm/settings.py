@@ -290,7 +290,7 @@ if in_ci:
 
 # DRF >= 3.18 reads JSON and form bodies through request.body, which applies
 # this cap (Django default 2.5 MB). Large reports, scripts and imports never
-# had it; nginx client_max_body_size (300M) is the limit
+# had it; nginx client_max_body_size (300M, 64k on the anonymous POSTs) is the limit
 DATA_UPLOAD_MAX_MEMORY_SIZE = None
 
 REST_FRAMEWORK = {
@@ -464,11 +464,11 @@ def _log_handler(level: str, handler_class: str, **target) -> dict:
     }
 
 
-def configure_logging_handler():
+def configure_logging_handler(level: str, name: str) -> dict:
     if os.getenv("ULRMM_LOG_TO", ULRMM_LOG_TO) == "stdout":
-        return _log_handler(get_log_level(), "logging.StreamHandler", stream=sys.stdout)
-    debug_log = os.path.join(LOG_DIR, "ulrmm_debug.log")
-    return _log_handler(get_log_level(), "logging.FileHandler", filename=debug_log)
+        return _log_handler(level, "logging.StreamHandler", stream=sys.stdout)
+    path = os.path.join(LOG_DIR, name)
+    return _log_handler(level, "logging.FileHandler", filename=path)
 
 
 LOGGING = {
@@ -482,12 +482,8 @@ LOGGING = {
         },
     },
     "handlers": {
-        "file": _log_handler(
-            "ERROR",
-            "logging.FileHandler",
-            filename=os.path.join(LOG_DIR, "django_debug.log"),
-        ),
-        "ulrmm": configure_logging_handler(),
+        "file": configure_logging_handler("ERROR", "django_debug.log"),
+        "ulrmm": configure_logging_handler(get_log_level(), "ulrmm_debug.log"),
     },
     "loggers": {
         "django.request": {"handlers": ["file"], "level": "ERROR", "propagate": True},

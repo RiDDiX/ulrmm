@@ -57,7 +57,7 @@ ACTIVE = (
     RunState.REBOOTING,
     RunState.IDLE_WAIT,
 )
-PINGED = (RunState.NEW, RunState.WAKING, RunState.REBOOTING)
+PINGED = (RunState.NEW, RunState.WAKING, RunState.REBOOTING, RunState.IDLE_WAIT)
 IDLE_SECS = 900
 WAKE_SPAN = dt.timedelta(minutes=30)
 WAKE_RETRY = dt.timedelta(minutes=5)
@@ -310,8 +310,12 @@ def _busy(run) -> bool:
     )
 
 
-def _idle(run, now) -> None:
-    if _busy(run):
+def _idle(run, now, answered: bool | None = True) -> None:
+    # the 5 s ping decides, a stale connection would hold the idle call 20 s
+    if answered is None or _busy(run):
+        return
+    if not answered:
+        _move(run, RunState.LEFT_AWAKE, now, "not reachable, asleep or off")
         return
 
     agent = run.agent
@@ -352,7 +356,7 @@ def _sleep_step(run, now, answered) -> None:
             _move(run, RunState.SKIPPED, now, "not reachable, asleep or off")
             return
         _move(run, RunState.IDLE_WAIT, now, "waiting for 15 minutes without input")
-    _idle(run, now)
+    _idle(run, now, answered)
 
 
 def _step(run, now, refuse: str, answered, wake: list) -> None:
@@ -422,7 +426,7 @@ def _step(run, now, refuse: str, answered, wake: list) -> None:
             _after_install(run, now)
 
     elif st == RunState.IDLE_WAIT:
-        _idle(run, now)
+        _idle(run, now, answered)
 
 
 def _open_runs(now) -> None:

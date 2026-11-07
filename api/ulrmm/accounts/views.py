@@ -185,6 +185,12 @@ def _check_grant(request, values=None, role=None) -> None:
         )
 
 
+def _check_target_grant(request, user) -> None:
+    # acting on another login needs everything its role holds
+    if user.pk != request.user.pk and user.role is not None:
+        _check_grant(request, role=user.role)
+
+
 def _keep_for(request, target):
     return request.auth if target.pk == request.user.pk else None
 
@@ -420,6 +426,7 @@ class GetUpdateDeleteUser(APIView):
 
         if not has_superuser_rights(request.user):
             self._check_limited_editor(request, user, data)
+        _check_target_grant(request, user)
 
         serializer = UserSerializer(instance=user, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -485,6 +492,7 @@ class GetUpdateDeleteUser(APIView):
             return notify_error("The root user cannot be deleted from the UI")
         if has_superuser_rights(user) and not has_superuser_rights(request.user):
             raise PermissionDenied("Only superusers can delete superuser accounts.")
+        _check_target_grant(request, user)
         if _active_super(user) and not _other_active_superuser_exists(user):
             return notify_error("At least one active superuser has to remain.")
 
@@ -498,6 +506,7 @@ class GetUpdateDeleteUser(APIView):
 def _check_session_boundary(request, user) -> None:
     if has_superuser_rights(user) and not has_superuser_rights(request.user):
         raise PermissionDenied("Only superusers can manage superuser sessions.")
+    _check_target_grant(request, user)
 
 
 def _audit_session_end(request, user) -> None:
@@ -596,6 +605,7 @@ class UserActions(APIView):
         if user.pk != request.user.pk:
             if has_superuser_rights(user) and not has_superuser_rights(request.user):
                 raise PermissionDenied("Only superusers can reset superuser accounts.")
+            _check_target_grant(request, user)
             return user, None
 
         return user, _require_dashboard_code(request, data.get("code"))

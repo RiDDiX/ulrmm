@@ -357,7 +357,8 @@ class CheckRunner(AgentTokenView):
         agent = _token_agent(request, agentid)
         now = djangotime.now()
         due = []
-        for check in _agent_run_checks(agent):
+        checks = _agent_run_checks(agent)
+        for check in checks:
             result = check.check_result
             if not isinstance(result, CheckResult) or not result.last_run:
                 due.append(check)
@@ -371,7 +372,7 @@ class CheckRunner(AgentTokenView):
         return Response(
             {
                 "agent": agent.pk,
-                "check_interval": agent.check_run_interval(),
+                "check_interval": agent.check_run_interval(checks),
                 "checks": CheckRunnerGetSerializer(
                     due, context={"agent": agent}, many=True
                 ).data,

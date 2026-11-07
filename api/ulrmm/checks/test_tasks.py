@@ -55,9 +55,7 @@ class TestCheckTasks(ULRMMTestCase):
                 alert.refresh_from_db()
                 self.assertIsNotNone(getattr(alert, stamp))
 
-    @patch(
-        "checks.models.CheckResult.send_email", side_effect=RuntimeError("smtp down")
-    )
+    @patch("checks.models.CheckResult.send_email", return_value=("boom", False))
     @patch("alerts.tasks.sleep")
     def test_failed_send_hands_the_claim_back(self, *_):
         baker.make("checks.CheckResult", agent=self.agent, assigned_check=self.check)
@@ -67,8 +65,7 @@ class TestCheckTasks(ULRMMTestCase):
             assigned_check=self.check,
             alert_type=AlertType.CHECK,
         )
-        with self.assertRaises(RuntimeError):
-            tasks.handle_check_email_alert_task(alert.pk)
+        self.assertEqual(tasks.handle_check_email_alert_task(alert.pk), "send failed")
         alert.refresh_from_db()
         self.assertIsNone(alert.email_sent)
 

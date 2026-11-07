@@ -4416,9 +4416,9 @@
   "body_masked": "\"ok\"",
   "sql_masked": [
    "253|12|failing|warning|5|Average CPU Load: 95%||||{90,100}|t|",
-   "check|warning|12|253|||f|f|f|f|f|f|f|f|f|bench cpu",
+   "check|error|12|253|||f|f|f|f|f|f|f|f|f|bench cpu",
    "100|\n10|\"bench\"\n11|\"bench\"\n12|\"bench\"\n90|",
-   "warning|f|f"
+   "error|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S43-win-cpu-mark-notified": {
@@ -4433,7 +4433,7 @@
   "body_masked": "\"ok\"",
   "sql_masked": [
    "253|12|failing|warning|4|Average CPU Load: 90%||||{90}|t|",
-   "check|warning|12|253|||f|f|f|f|f|f|f|f|f|bench cpu",
+   "check|error|12|253|||f|f|f|f|f|f|f|f|f|bench cpu",
    "10|\"bench\"\n11|\"bench\"\n12|\"bench\"\n90|"
   ]
  },
@@ -4689,7 +4689,7 @@
   "body_masked": "\"ok\"",
   "sql_masked": [
    "failing|synced|completed|1||0|13|0.8|t",
-   "task|info|1||40||f|f|f|f|f|f|f|f|f|bench task warn",
+   "task|warning|1||40||f|f|f|f|f|f|f|f|f|bench task warn",
    "task_run|Bench daily-dc01|{\"stderr\": \"access denied\", \"stdout\": \"\", \"retcode\": 1, \"exe"
   ]
  },
@@ -4698,7 +4698,7 @@
   "body_masked": "\"ok\"",
   "sql_masked": [
    "failing|synced|completed|1||0|13|0.8|t",
-   "task|info|1||40||f|f|f|f|f|f|f|f|f|bench task warn",
+   "task|warning|1||40||f|f|f|f|f|f|f|f|f|bench task warn",
    "task_run|Bench daily-dc01|{\"stderr\": \"access denied\", \"stdout\": \"\", \"retcode\": 1, \"exe"
   ]
  },
@@ -5094,23 +5094,23 @@
  },
  "r3-alerts-checks-tasks-S51-check-email-first": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "t|f|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S51-check-email-interval": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
    "t|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S51-check-email-second": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "t|f|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S51-check-empty-history-mail": {
@@ -5150,9 +5150,9 @@
  },
  "r3-alerts-checks-tasks-S51-check-resolved-email": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "f|f|t|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S51-check-resolved-sms": {
@@ -5164,16 +5164,16 @@
  },
  "r3-alerts-checks-tasks-S51-check-sms-first": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "f|t|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S51-check-sms-second": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "f|t|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S51-prune-check-history": {
@@ -5192,16 +5192,16 @@
  },
  "r3-alerts-checks-tasks-S52-task-email-first": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "t|f|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S52-task-email-interval": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "t|f|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S52-task-email-resolved-alert-not-sent": {
@@ -5210,9 +5210,9 @@
  },
  "r3-alerts-checks-tasks-S52-task-email-second": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "t|f|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S52-task-missing-handle_resolved_task_email_alert": {
@@ -5261,9 +5261,9 @@
  },
  "r3-alerts-checks-tasks-S52-task-resolved-email": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "f|f|t|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S52-task-resolved-sms": {
@@ -5404,30 +5404,30 @@
  },
  "r3-alerts-checks-tasks-S54-agent_outage_email_task": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "t|f|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S54-agent_outage_sms_task": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "f|t|f|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S54-agent_recovery_email_task": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "f|f|t|f"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S54-agent_recovery_sms_task": {
   "status": 0,
-  "body_masked": "RESULT 'ok'\n",
+  "body_masked": "RESULT 'send failed'\n",
   "sql_masked": [
-   "f|f|f|t"
+   "f|f|f|f"
   ]
  },
  "r3-alerts-checks-tasks-S54-capture-outage-alert": {

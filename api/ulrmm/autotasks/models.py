@@ -520,11 +520,28 @@ class TaskResult(models.Model):
         )
 
     def save_collector_results(self) -> None:
+        from logs.models import DebugLog
+        from ulrmm.constants import CustomFieldModel, DebugLogType
+
+        field = self.task.custom_field
+        owners = {
+            CustomFieldModel.AGENT: lambda: self.agent,
+            CustomFieldModel.CLIENT: lambda: self.agent.client,
+            CustomFieldModel.SITE: lambda: self.agent.site,
+        }
+        if field.model not in owners:
+            DebugLog.warning(
+                agent=self.agent,
+                log_type=DebugLogType.SCRIPTING,
+                message=f"Collector field {field.name} has an unknown model "
+                f"{field.model}, result not saved",
+            )
+            return
+
         output = (self.stdout or "").strip()
         if not self.task.collector_all_output:
             output = output.split("\n")[-1].strip()
-        field_value = self.task.custom_field.get_or_create_field_value(self.agent)
-        field_value.save_to_field(output)
+        field.get_or_create_field_value(owners[field.model]()).save_to_field(output)
 
     def _subject(self, outcome: str) -> str:
         agent = self.agent
@@ -539,30 +556,30 @@ class TaskResult(models.Model):
             f"Stdout:{self.stdout}\nStderr: {self.stderr}"
         )
 
-    def _mail(self, outcome: str) -> None:
+    def _mail(self, outcome: str) -> tuple[str, bool]:
         from core.utils import get_core_settings
 
         subject = self._subject(outcome)
-        get_core_settings().send_mail(
+        return get_core_settings().send_mail(
             subject, self._body(subject), alert_template=self.agent.alert_template
         )
 
-    def _text(self, outcome: str) -> None:
+    def _text(self, outcome: str) -> tuple[str, bool]:
         from core.utils import get_core_settings
 
-        get_core_settings().send_sms(
+        return get_core_settings().send_sms(
             self._body(self._subject(outcome)),
             alert_template=self.agent.alert_template,
         )
 
-    def send_email(self) -> None:
-        self._mail("Failed")
+    def send_email(self) -> tuple[str, bool]:
+        return self._mail("Failed")
 
-    def send_sms(self) -> None:
-        self._text("Failed")
+    def send_sms(self) -> tuple[str, bool]:
+        return self._text("Failed")
 
-    def send_resolved_email(self) -> None:
-        self._mail("Resolved")
+    def send_resolved_email(self) -> tuple[str, bool]:
+        return self._mail("Resolved")
 
-    def send_resolved_sms(self) -> None:
-        self._text("Resolved")
+    def send_resolved_sms(self) -> tuple[str, bool]:
+        return self._text("Resolved")

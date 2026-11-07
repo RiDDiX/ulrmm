@@ -348,7 +348,7 @@ class TestLicenses(LicenseMixin, ULRMMTestCase):
         self.assertEqual({x["id"] for x in r.data}, {mine.pk, everyone.pk})
         shared = next(x for x in r.data if x["id"] == everyone.pk)
         self.assertEqual([a["agent_id"] for a in shared["agents"]], [self.a1.agent_id])
-        self.assertEqual(shared["assigned"], 2)
+        self.assertEqual(shared["assigned"], 1)
 
         self.assertEqual(
             self.client.get(f"/lifecycle/licenses/{theirs.pk}/").status_code, 404

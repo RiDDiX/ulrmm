@@ -111,6 +111,8 @@ _KB_VERSION_RE = re.compile(r"\((?:Version|Versão)\s+([^)]+)\)")
 _SHELL_TOKENS = frozenset({"cmd", "powershell", "bash", "sh"})
 _TEMPLATE_KEYS = ("site_policy", "client_policy")
 _MIN_RUN_INTERVAL = 15
+# the cap of the web edit form
+_MAX_CHECK_INTERVAL = 86400
 _SHA256_HEX = re.compile(r"[0-9a-f]{64}")
 SELF_BUILT_SHA_TTL = 30 * 24 * 60 * 60
 SELF_BUILT_FAIL_TTL = 5 * 60
@@ -685,9 +687,11 @@ class Agent(BaseAuditModel):
         if isinstance(cached, list):
             return cached
 
-        # get_policy_checks marks the agent checks a policy overrides again
-        self.agentchecks.update(overridden_by_policy=False)
-        checks = Policy.get_policy_checks(self)
+        # get_policy_checks marks the agent checks a policy overrides again;
+        # one transaction, so no reader sees them all active in between
+        with transaction.atomic():
+            self.agentchecks.update(overridden_by_policy=False)
+            checks = Policy.get_policy_checks(self)
         cache.set(key, strip_relation_caches_for_cache(checks), 600)
         return checks
 
@@ -732,9 +736,12 @@ class Agent(BaseAuditModel):
         own = list(self.autotasks.order_by("pk"))
         return self.add_task_results(own + list(from_policies))
 
-    def check_run_interval(self) -> int:
-        interval = self.check_interval
-        for check in self.get_checks_with_policies():
+    def check_run_interval(self, checks: "Optional[list[Check]]" = None) -> int:
+        # rows saved before the edit form had a lower bound may hold 0
+        interval = max(self.check_interval, _MIN_RUN_INTERVAL)
+        if checks is None:
+            checks = self.get_checks_with_policies(exclude_overridden=True)
+        for check in checks:
             # metric checks run on the state push, not on the agent's schedule
             if check.check_type == CheckType.METRIC:
                 continue
@@ -1016,8 +1023,8 @@ class Agent(BaseAuditModel):
     def _outage_subject(self, what: str) -> str:
         return f"{self.client.name}, {self.site.name}, {self.hostname} - {what}"
 
-    def send_outage_email(self) -> None:
-        get_core_settings().send_mail(
+    def send_outage_email(self) -> tuple[str, bool]:
+        return get_core_settings().send_mail(
             self._outage_subject("data overdue"),
             (
                 f"Data has not been received from client {self.client.name}, "
@@ -1027,8 +1034,8 @@ class Agent(BaseAuditModel):
             alert_template=self.alert_template,
         )
 
-    def send_recovery_email(self) -> None:
-        get_core_settings().send_mail(
+    def send_recovery_email(self) -> tuple[str, bool]:
+        return get_core_settings().send_mail(
             self._outage_subject("data received"),
             (
                 f"Data has been received from client {self.client.name}, "
@@ -1038,13 +1045,13 @@ class Agent(BaseAuditModel):
             alert_template=self.alert_template,
         )
 
-    def send_outage_sms(self) -> None:
-        get_core_settings().send_sms(
+    def send_outage_sms(self) -> tuple[str, bool]:
+        return get_core_settings().send_sms(
             self._outage_subject("data overdue"), alert_template=self.alert_template
         )
 
-    def send_recovery_sms(self) -> None:
-        get_core_settings().send_sms(
+    def send_recovery_sms(self) -> tuple[str, bool]:
+        return get_core_settings().send_sms(
             self._outage_subject("data received"), alert_template=self.alert_template
         )
 

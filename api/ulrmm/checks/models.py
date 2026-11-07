@@ -37,17 +37,6 @@ if TYPE_CHECKING:
     from alerts.models import Alert, AlertTemplate
     from automation.models import Policy
 
-# check types whose severity is decided per result rather than on the check
-RESULT_SEVERITY_TYPES = (
-    CheckType.MEMORY,
-    CheckType.CPU_LOAD,
-    CheckType.DISK_SPACE,
-    CheckType.SCRIPT,
-    CheckType.SECURITY,
-    CheckType.HW_HEALTH,
-    CheckType.METRIC,
-)
-
 # rolling window of cpu / memory samples the average is taken over
 LOAD_SAMPLES = 15
 
@@ -479,10 +468,12 @@ class CheckResult(models.Model):
         return str(self.assigned_check)
 
     def save(self, *args, **kwargs) -> None:
+        from alerts.models import RESULT_SEVERITY_CHECKS
+
         # a result of a computed-severity type always carries one
         if (
             not self.alert_severity
-            and self.assigned_check.check_type in RESULT_SEVERITY_TYPES
+            and self.assigned_check.check_type in RESULT_SEVERITY_CHECKS
         ):
             self.alert_severity = AlertSeverity.WARNING
         super().save(*args, **kwargs)
@@ -769,38 +760,38 @@ class CheckResult(models.Model):
 
         return subject
 
-    def send_email(self) -> None:
+    def send_email(self) -> tuple[str, bool]:
         from core.utils import get_core_settings
 
         subject = self._subject("Failed")
-        get_core_settings().send_mail(
+        return get_core_settings().send_mail(
             subject,
             self._failure_body(subject, short=False),
             alert_template=self.agent.alert_template,
         )
 
-    def send_sms(self) -> None:
+    def send_sms(self) -> tuple[str, bool]:
         from core.utils import get_core_settings
 
         subject = self._subject("Failed")
-        get_core_settings().send_sms(
+        return get_core_settings().send_sms(
             self._failure_body(subject, short=True),
             alert_template=self.agent.alert_template,
         )
 
-    def send_resolved_email(self) -> None:
+    def send_resolved_email(self) -> tuple[str, bool]:
         from core.utils import get_core_settings
 
         agent = self.agent
         body = f"{agent.client.name}, {agent.site.name}, {agent.hostname} - {self} is now back to normal"
-        get_core_settings().send_mail(
+        return get_core_settings().send_mail(
             self._subject("Resolved"), body, alert_template=agent.alert_template
         )
 
-    def send_resolved_sms(self) -> None:
+    def send_resolved_sms(self) -> tuple[str, bool]:
         from core.utils import get_core_settings
 
-        get_core_settings().send_sms(
+        return get_core_settings().send_sms(
             self._subject("Resolved"), alert_template=self.agent.alert_template
         )
 

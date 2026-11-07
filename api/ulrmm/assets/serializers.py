@@ -57,22 +57,24 @@ class LicenseSerializer(serializers.ModelSerializer):
     def get_key_set(self, obj) -> bool:
         return bool(obj.key)
 
+    def _visible_agents(self, obj) -> list:
+        visible = self.context.get("visible")
+        return [a for a in obj.agents.all() if visible is None or a.pk in visible]
+
     def get_assigned(self, obj) -> int:
-        return len(obj.agents.all())
+        return len(self._visible_agents(obj))
 
     def get_over_seats(self, obj) -> bool:
-        return obj.seats is not None and len(obj.agents.all()) > obj.seats
+        return obj.seats is not None and self.get_assigned(obj) > obj.seats
 
     def get_activation(self, obj) -> list | None:
         return self.context.get("activation", {}).get(obj.pk)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        visible = self.context.get("visible")
         ret["agents"] = [
             {"agent_id": a.agent_id, "name": a.effective_name}
-            for a in instance.agents.all()
-            if visible is None or a.pk in visible
+            for a in self._visible_agents(instance)
         ]
         return ret
 

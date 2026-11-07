@@ -659,8 +659,11 @@ class TestPollerAndAlerts(ULRMMTestCase):
         degraded = up_result(ports={"443": False}, status="degraded")
         record(self.device, degraded, now)
         alert.refresh_from_db()
-        self.assertEqual(alert.severity, AlertSeverity.WARNING)
+        # an open alert keeps its peak severity
+        self.assertEqual(alert.severity, AlertSeverity.ERROR)
 
+        # the failure mail went out, so the recovery is news
+        Alert.objects.filter(pk=alert.pk).update(email_sent=now)
         record(self.device, up_result(), now)
         alert.refresh_from_db()
         self.assertTrue(alert.resolved)

@@ -15,7 +15,6 @@ from accounts.utils import grant_console_stepup
 from agents.models import UNINSTALL_CODE_INFO, Agent
 from agents.serializers import AgentAuditSerializer, AgentSerializer
 from alerts.models import Alert
-from beta.v1.serializers import ListAgentSerializer
 from logs.models import AuditLog
 from notify import tamper
 from remote.utils import decrypt_secret, encrypt_secret
@@ -138,7 +137,6 @@ class TestUninstallCode(ULRMMTestCase):
         self.assertTrue(audit["uninstall_code"].startswith("hmac:"))
         r = self.client.get(f"/agents/{self.agent.agent_id}/")
         self.assertNotIn(self.agent.uninstall_code, json.dumps(r.data, default=str))
-        self.assertNotIn("uninstall_code", ListAgentSerializer(self.agent).data)
 
 
 class TestAssetFields(ULRMMTestCase):

@@ -786,13 +786,13 @@ class TestGrantOnlyWhatYouHold(ULRMMTestCase):
         self.target.refresh_from_db()
         self.assertEqual(self.target.role, narrow)
 
-        # a user that already has a wider role can still be edited otherwise
+        # a user that already has a wider role is out of reach as a whole
         self.target.role = wide
         self.target.save()
         r = self.client.put(
             url, {"role": wide.pk, "email": "t@example.com"}, format="json"
         )
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 403)
 
     def test_superusers_are_not_limited(self):
         john = baker.make(

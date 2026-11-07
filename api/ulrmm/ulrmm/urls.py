@@ -80,9 +80,6 @@ if not getattr(settings, "ULRMM_DISABLE_SSO", False):
         path("accounts/", include("sso.urls")),
     )
 
-if getattr(settings, "BETA_API_ENABLED", False):
-    urlpatterns += (path("beta/v1/", include("beta.v1.urls")),)
-
 if getattr(settings, "ADMIN_ENABLED", False):
     from django.contrib import admin
 

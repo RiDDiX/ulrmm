@@ -100,6 +100,7 @@ from winupdate.serializers import WinUpdatePolicySerializer
 from winupdate.tasks import bulk_check_for_updates_task, bulk_install_updates_task
 
 from .models import UNINSTALL_CODE_INFO, Agent, AgentCustomField, AgentHistory, Note
+from .models import _MAX_CHECK_INTERVAL, _MIN_RUN_INTERVAL
 from .perf import parse_perf, perf_command
 from .permissions import AgentHistoryPerms, AgentMaintenancePerms, AgentNotesPerms
 from .permissions import AgentPerms, AgentRegistryPerms, AgentTerminalPerms
@@ -290,7 +291,13 @@ class _AgentEditSerializer(serializers.ModelSerializer):
             "warranty_end",
             "lifecycle_notes",
         )
-        extra_kwargs = {"purchase_price": {"min_value": Decimal("0")}}
+        extra_kwargs = {
+            "purchase_price": {"min_value": Decimal("0")},
+            "check_interval": {
+                "min_value": _MIN_RUN_INTERVAL,
+                "max_value": _MAX_CHECK_INTERVAL,
+            },
+        }
 
     def validate_display_name(self, value: str) -> str:
         # U+2028/2029 are separators (Z*), not C*, but break lines all the same

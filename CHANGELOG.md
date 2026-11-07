@@ -1,5 +1,31 @@
 # Server changelog
 
+## 4.07.11.2026 (2026-11-07)
+
+- deleting a client or site refuses when a role is limited to exactly what goes away; a role without clients and sites sees everything, so the delete would have widened it, and the role cache is dropped after the delete
+- resetting the password or two-factor key of another user, editing, deleting or ending the sessions of another user check that the target's role is within the actor's own grant, the same rule as assigning the role
+- a failed e-mail or text message (SMTP or Twilio error, nothing configured) hands the notification back, so the next failure pass sends it; before, the alert counted as notified and the message was lost; a recovery message goes out only when the failure message went out
+- an open alert keeps its highest severity; a check hugging its threshold no longer sends a new e-mail and text on every move between warning and error
+- maintenance schedule runs silence check, task and availability alerts like maintenance mode does; no alert row is created while a device is in maintenance
+- snoozes end within a minute instead of at the next full hour
+- the resolve pass loads only the agents with an open availability alert, the outage pass no longer loads every check and task result
+- vulnerability findings that are fixed or ignored are deleted 90 days after they were last seen; an ignored finding that disappears stays ignored and is not reopened when it returns
+- a sleep schedule no longer waits 20 seconds per device whose connection went stale; the shared 5 second ping decides
+- task collectors with a client or site field write to the client or site; before, the value landed in a row on the device
+- closing a terminal or command tab stops every command of that connection, not only the last one
+- rebuilding the merged policy checks runs in one transaction, so a check overridden by a policy is never active for a moment
+- a false or zero value in a script argument placeholder reaches the script as $False or 0 instead of the placeholder text
+- the device check interval accepts 15 to 86400 seconds; stored values below 15 run at 15; a check overridden by a policy no longer shortens the poll interval
+- running a URL action with a key store placeholder needs the key store permission, like the test run
+- group membership audit entries and license seat counts show only the devices the user may see
+- anonymous requests (login, SSO start, monitoring status, agent token and recovery) are limited to 64 KiB bodies in nginx, on hosts and in the Docker image; large uploads keep 300 MB
+- the Docker example sets no release version any more; ULRMM_VERSION must be filled in, and the compose services rotate their logs (5 x 10 MB); with ULRMM_LOG_TO=stdout the Django error log also goes to stdout
+- the Django debug logs are rotated with the celery logs
+- uwsgi runs at most 20 workers so the connection pools stay under the Postgres default of 100 connections
+- the release workflow runs the tests, signs and builds the images before it publishes a release
+- the version check also compares the MeshCentral and NATS pins of the Docker files and runs in CI
+- removed the beta API (unused, off by default, no object scoping), the qrcode, refurb, django-types and djangorestframework-types packages and a duplicate severity constant
+
 ## 3.07.11.2026 (2026-11-07)
 
 - Update Center: starting an update drops the state of the previous run first; before, the dashboard showed the old Done or Failed at once while the new run was still queued

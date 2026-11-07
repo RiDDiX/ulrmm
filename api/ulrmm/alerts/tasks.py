@@ -18,7 +18,8 @@ def notify_once(alert: Alert, field: str, send, alert_interval=None) -> str:
     """Calls send unless the notification went out already.
 
     The stamp is claimed on the alert first, so two workers never both send;
-    a failed send hands it back for the next run.
+    a failed send (an exception or a (message, False) answer of
+    CoreSettings.send_mail / send_sms) hands it back for the next run.
     """
     previous = getattr(alert, field)
     stamp = Alert.claim_notification(alert.pk, field, alert_interval)
@@ -28,10 +29,13 @@ def notify_once(alert: Alert, field: str, send, alert_interval=None) -> str:
     # spread a burst of notifications out a little
     sleep(rand_range(100, 1500))
     try:
-        send()
+        result = send()
     except Exception:
         Alert.release_notification(alert.pk, field, stamp, previous)
         raise
+    if isinstance(result, tuple) and result[1] is False:
+        Alert.release_notification(alert.pk, field, stamp, previous)
+        return "send failed"
     return "ok"
 
 

@@ -673,6 +673,14 @@ $(nginx_uwsgi_api)
         uwsgi_read_timeout 300s;
     }
 
+    # anonymous requests: logins, the monitoring status, agent token and
+    # recovery (a CSR of at most 8 KiB). 300M is for reports, scripts and imports.
+    location ~ ^/(v2/(login|checkcreds)/|_allauth/|accounts/oidc/|core/(v2/)?status/|api/v3/[^/]+/(token|recover)/) {
+        client_max_body_size 64k;
+$(nginx_uwsgi_api)
+        uwsgi_ignore_client_abort on;
+    }
+
     location = /api/v3/natsauth/ {
         internal;
 $(nginx_uwsgi_api)
@@ -893,14 +901,14 @@ logrotate_text() {
 }
 
 # task errors can name hosts and paths
-/var/log/celery/*.log {
+/var/log/celery/*.log /rmm/api/ulrmm/ulrmm/private/log/*_debug.log {
     weekly
     rotate 8
     compress
     delaycompress
     missingok
     notifempty
-    # celery keeps its files open; the copies keep the 0640 of harden_logs
+    # celery and Django keep their files open; the copies keep the 0640 of harden_logs
     copytruncate
 }
 EOF

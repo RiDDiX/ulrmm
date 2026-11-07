@@ -6,7 +6,7 @@ import uuid
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Prefetch
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q
 from django.http import HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as djangotime
@@ -16,7 +16,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User
+from accounts.models import Role, User, drop_role_cache
 from accounts.utils import (
     DELETE_NEEDS_TOTP,
     audit_role_scope,
@@ -153,6 +153,29 @@ def _grow_role_scope(user, attr: str, obj) -> None:
     before = role.serialize(role)
     getattr(role, attr).add(obj)
     audit_role_scope(role, before)
+
+
+def _scope_roles(clients, sites):
+    return Role.objects.filter(
+        Q(can_view_clients__in=clients) | Q(can_view_sites__in=sites)
+    ).distinct()
+
+
+def _roles_left_unscoped(clients, sites) -> str:
+    """Roles whose whole scope goes with these rows; an empty scope sees everything."""
+    names = [
+        role.name
+        for role in _scope_roles(clients, sites)
+        if not role.is_superuser
+        and not role.can_view_clients.exclude(pk__in=clients).exists()
+        and not role.can_view_sites.exclude(pk__in=sites).exists()
+    ]
+    if not names:
+        return ""
+    return (
+        f"These roles are limited to what is being deleted and would see "
+        f"everything afterwards: {', '.join(sorted(names))}. Change their scope first."
+    )
 
 
 def _filtered_sites(user):
@@ -304,6 +327,11 @@ class GetUpdateDeleteClient(APIView):
             if target.client_id == client.pk:
                 return notify_error("Pick a site of another client.")
 
+        clients = [client.pk]
+        sites = list(client.sites.values_list("pk", flat=True))
+        if unscoped := _roles_left_unscoped(clients, sites):
+            return notify_error(unscoped)
+
         # single use, so checked after every other refusal
         if not verify_fresh_totp(request.user, _body(request).get("totp_code")):
             return notify_error(DELETE_NEEDS_TOTP)
@@ -311,6 +339,10 @@ class GetUpdateDeleteClient(APIView):
         gone = f"{client.name} was deleted"
         with transaction.atomic():
             Client.objects.select_for_update().filter(pk=client.pk).first()
+            # again under the lock: a role or site may have changed meanwhile
+            sites = list(client.sites.values_list("pk", flat=True))
+            if unscoped := _roles_left_unscoped(clients, sites):
+                return notify_error(unscoped)
             agents = Agent.objects.filter(site__client=client)
             if target:
                 _move_agents(request, agents, target)
@@ -320,7 +352,10 @@ class GetUpdateDeleteClient(APIView):
                     "Agents exist under this client. There needs to be a site "
                     "specified to move existing agents to"
                 )
+            # the cascade does not send m2m_changed, so the cache is dropped here
+            roles = list(_scope_roles(clients, sites).values_list("pk", flat=True))
             client.delete()
+        drop_role_cache(roles)
 
         if target:
             cache_agents_alert_template.delay()
@@ -435,17 +470,24 @@ class GetUpdateDeleteSite(APIView):
             if target.pk == site.pk:
                 return notify_error("Pick another site to move the agents to.")
 
+        if unscoped := _roles_left_unscoped([], [site.pk]):
+            return notify_error(unscoped)
+
         if not verify_fresh_totp(request.user, _body(request).get("totp_code")):
             return notify_error(DELETE_NEEDS_TOTP)
 
         with transaction.atomic():
             Site.objects.select_for_update().filter(pk=site.pk).first()
+            if unscoped := _roles_left_unscoped([], [site.pk]):
+                return notify_error(unscoped)
             agents = Agent.objects.filter(site=site)
             if target:
                 _move_agents(request, agents, target)
             elif agents.exists():
                 return notify_error("Choose a site to move the agents to first.")
+            roles = list(_scope_roles([], [site.pk]).values_list("pk", flat=True))
             site.delete()
+        drop_role_cache(roles)
 
         if target:
             cache_agents_alert_template.delay()

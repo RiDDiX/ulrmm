@@ -224,9 +224,8 @@ class CommandStreamConsumer(AsyncJsonWebsocketConsumer):
             self._claims = set()
         return self._claims
 
-    async def _release_claims(self, running) -> None:
-        # a stream still running keeps its id until the TTL runs out
-        for cmd_id in self._claimed() - set(running):
+    async def _release_claims(self) -> None:
+        for cmd_id in self._claimed():
             key = f"agent_cmd_owner_{self.agent_id}_{cmd_id}"
             if await cache.aget(key) == self.channel_name:
                 await cache.adelete(key)
@@ -262,22 +261,20 @@ class CommandStreamConsumer(AsyncJsonWebsocketConsumer):
         )
 
     async def disconnect(self, code):
-        streams = active_streams.get(self.channel_name, {})
-        stream = streams.pop(self.cmd_id, None) if self.cmd_id else None
-        if stream is not None:
-            stop, task = stream
+        streams = active_streams.pop(self.channel_name, {})
+        for stop, _ in streams.values():
             stop.set()
-            with suppress(asyncio.CancelledError, Exception):
-                await task
-        if not streams:
-            active_streams.pop(self.channel_name, None)
+        # a cancelled disconnect still raises; a failed or cancelled stream does not
+        await asyncio.gather(
+            *(task for _, task in streams.values()), return_exceptions=True
+        )
 
         groups = set(self._joined())
         if self.group_name:
             groups.add(self.group_name)
         for group in groups:
             await self.channel_layer.group_discard(group, self.channel_name)
-        await self._release_claims(streams)
+        await self._release_claims()
 
 
 class InvalidTerminalShellError(Exception):

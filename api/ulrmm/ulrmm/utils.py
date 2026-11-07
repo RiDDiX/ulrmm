@@ -287,7 +287,7 @@ def get_db_value(*, string, instance=None, readable=None):
         if callable(value):
             return None
         current = value
-        if not current:
+        if current is None:
             return None
 
     return None if is_credential_model(current) else current

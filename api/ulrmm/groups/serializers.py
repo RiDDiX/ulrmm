@@ -104,9 +104,11 @@ class DeviceGroupSerializer(serializers.ModelSerializer):
             )
         return group
 
-    @staticmethod
-    def _member_names(group) -> list:
-        return sorted(group.members.values_list("hostname", flat=True))
+    def _member_names(self, group) -> list:
+        # the audit row is readable by its author, so only what they can see
+        visible = self.fields["members"].child_relation.queryset
+        members = group.members.filter(pk__in=visible.values("pk"))
+        return sorted(members.values_list("hostname", flat=True))
 
     def to_representation(self, group):
         data = super().to_representation(group)

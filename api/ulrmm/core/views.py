@@ -534,6 +534,11 @@ class RunURLAction(APIView):
         if not action_id:
             return notify_error("The action is required.")
         action = get_object_or_404(URLAction, pk=action_id)
+        # same rule as the test run: global keys only for those who may read them
+        if re.search(r"\{\{\s*global\.", action.pattern) and not _has_perm(
+            request, "can_view_global_keystore"
+        ):
+            raise PermissionDenied()
 
         new_url = find_and_replace_db_values_str(
             text=action.pattern, instance=instance, escape="url"

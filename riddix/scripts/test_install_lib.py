@@ -228,6 +228,55 @@ class TestCloneOrFetch(Base):
         self.assertNotEqual(first.stdout, head)
 
 
+class TestTexts(Base):
+    def render(self, call):
+        r = self.bash(f'. "{LIB}"\n{call}')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout
+
+    def test_anonymous_posts_get_a_small_body_cap(self):
+        conf = self.render(
+            "rmm_nginx_conf api.example.com rmm.example.com /c/cert.pem /c/key.pem"
+        )
+        self.assertIn("\n    client_max_body_size 300M;\n", conf)
+        blocks = re.findall(
+            r"^    location ~ (\S+) \{\n(.*?)^    \}\n", conf, re.S | re.M
+        )
+        capped = [(p, b) for p, b in blocks if "client_max_body_size 64k;" in b]
+        self.assertEqual(len(capped), 1, blocks)
+        pattern, body = capped[0]
+        self.assertIn("        uwsgi_pass  ulrmm;\n", body)
+        agent = "aB3_-" * 8
+        for uri in (
+            "/v2/login/",
+            "/v2/checkcreds/",
+            "/_allauth/browser/v1/auth/provider/redirect/",
+            "/accounts/oidc/1/login/callback/",
+            "/core/status/",
+            "/core/v2/status/",
+            f"/api/v3/{agent}/token/grant/",
+            f"/api/v3/{agent}/token/refresh/",
+            f"/api/v3/{agent}/recover/",
+        ):
+            self.assertTrue(re.search(pattern, uri), uri)
+        for uri in (
+            "/api/v3/newagent/",
+            "/api/v3/software/",
+            f"/api/v3/{agent}/config/",
+            "/scripts/upload/",
+            "/accounts/users/",
+        ):
+            self.assertFalse(re.search(pattern, uri), uri)
+
+    def test_logrotate_takes_the_django_debug_logs(self):
+        text = self.render("logrotate_text")
+        m = re.search(
+            r"^(\S.*) \{\n(.*?)^\}\n", text.split("/var/log/celery", 1)[1], re.S | re.M
+        )
+        self.assertIn("/rmm/api/ulrmm/ulrmm/private/log/*_debug.log", m.group(1))
+        self.assertIn("    copytruncate\n", m.group(2))
+
+
 class TestRestore(Base):
     def test_unpack_refuses_links(self):
         for name, link in (("plain", False), ("linked", True)):

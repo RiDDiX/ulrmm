@@ -51,7 +51,7 @@ BEAT_TABLE = (
         crontab(minute=50, hour="*/2"),
     ),
     ("agent-outages-task", "agents.tasks.agent_outages_task", timedelta(seconds=150.0)),
-    ("unsnooze-alerts", "alerts.tasks.unsnooze_alerts", crontab(minute=10, hour="*")),
+    ("unsnooze-alerts", "alerts.tasks.unsnooze_alerts", every_minute),
     (
         "core-maintenance-tasks",
         "core.tasks.core_maintenance_tasks",

@@ -48,6 +48,7 @@ def raise_tamper(agent, detail: str):
 
 def report_stop(agent, reason) -> None:
     """stop_reason from the agent's check-in after a restart."""
+    # the agent is back already: the alert records the stop until someone resolves it
     if reason == "manual" and get_core_settings().tamper_watch:
         raise_tamper(agent, "The agent service was stopped by hand.")
 

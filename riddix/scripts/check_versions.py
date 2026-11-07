@@ -2,7 +2,8 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
-"""Check that every version string agrees with the canonical VERSION file.
+"""Check that every version string agrees with the canonical VERSION file,
+and the MeshCentral and NATS pins of docker/ with settings.py.
 
 Standard library only and no Django: this runs in the gate, where the api
 virtualenv is not necessarily importable and the web and agent repositories are
@@ -116,7 +117,12 @@ def check(repo, web, agent):
         )
     elif "VERSION" not in (ast.get_source_segment(settings_src, node) or ""):
         rows.append(
-            ("ULRMM_VERSION", "unrelated expression", "read from VERSION", settings_file)
+            (
+                "ULRMM_VERSION",
+                "unrelated expression",
+                "read from VERSION",
+                settings_file,
+            )
         )
 
     node = assigned_value(settings_tree, "LATEST_AGENT_VER")
@@ -124,6 +130,27 @@ def check(repo, web, agent):
     if not valid_version(agent_ver):
         rows.append(("LATEST_AGENT_VER", str(agent_ver), FORMAT, settings_file))
         agent_ver = None
+
+    # third-party pins the Compose stack spells out a second time
+    for what, path, pattern, name in (
+        (
+            "mesh Dockerfile",
+            repo / "docker" / "mesh" / "Dockerfile",
+            r"^ARG MESH_VER=(\S+)",
+            "MESH_VER",
+        ),
+        (
+            "compose.yml nats",
+            repo / "docker" / "compose.yml",
+            r"^\s*image:\s*nats:([0-9.]+)",
+            "NATS_SERVER_VER",
+        ),
+    ):
+        node = assigned_value(settings_tree, name)
+        want = node.value if isinstance(node, ast.Constant) else None
+        found = first_match(path, pattern, rows, what)
+        if found is not None and found != want:
+            rows.append((what, found, f"{name} {want}", path))
 
     if web:
         pkg = Path(web) / "package.json"

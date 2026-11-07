@@ -7,6 +7,8 @@ on:
   pull_request:
     branches:
       - "*"
+  # release.yml runs it before anything is published
+  workflow_call:
 
 permissions:
   contents: read
@@ -84,6 +86,10 @@ jobs:
         working-directory: api/ulrmm
         run: |
           python manage.py makemigrations --check --dry-run
+
+      # server files only, the web and agent repos are not checked out here
+      - name: Check versions
+        run: python3 riddix/scripts/check_versions.py
 
       # root for the letsencrypt chown cases, stdlib only
       - name: Run maintenance script tests

@@ -41,12 +41,22 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  release:
-    runs-on: ubuntu-latest
-    name: Release
-    needs: web
-    # Gitea Actions would run this too, the GitHub release needs GitHub
+  tests:
+    name: Tests
     if: github.server_url == 'https://github.com'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-tests.yml
+    secrets: inherit
+
+  # packs and signs only; a wrong key stops here, before images or a release
+  sign:
+    runs-on: ubuntu-latest
+    name: Sign
+    needs: [web, tests]
+    if: github.server_url == 'https://github.com'
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -88,9 +98,31 @@ jobs:
           print("signature matches the pinned key")
           EOF
 
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dist
+          path: dist/ulrmm-*
+          if-no-files-found: error
+          retention-days: 1
+
+  # images first: servers see a published release at once and Compose
+  # updates pull its images
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    needs: [sign, images]
+    # Gitea Actions would run this too, the GitHub release needs GitHub
+    if: github.server_url == 'https://github.com'
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: dist
+
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
             --notes "UniversalLocal RMM ${GITHUB_REF_NAME#v}" dist/ulrmm-*
@@ -115,7 +147,7 @@ jobs:
   images:
     runs-on: ubuntu-latest
     name: Images
-    needs: release
+    needs: sign
     permissions:
       contents: read
       packages: write

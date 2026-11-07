@@ -605,11 +605,12 @@ class TestScan(ULRMMTestCase):
         self.assertEqual(
             status, {"DEBIAN-CVE-2024-6387": "ignored", "DEBIAN-CVE-2007-2243": "open"}
         )
+        # the old version is gone, its row stays ignored until pruned
         self.assertEqual(
             Finding.objects.get(
                 vuln_id="DEBIAN-CVE-2024-6387", version=OPENSSH[1]
             ).status,
-            "fixed",
+            "ignored",
         )
 
     def test_skips_agents_without_ecosystem_or_inventory(self):

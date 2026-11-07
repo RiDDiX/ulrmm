@@ -185,17 +185,21 @@ def resolve_alerts_task(self):
         if not acquired:
             return f"{self.app.oid} still running"
 
+        from agents.models import Agent
         from alerts.models import Alert
 
         floor = agent_ver("1.6.0")
-        for agent in _get_agent_qs():
-            if (
-                agent_ver(agent.version) >= floor
-                and agent.is_online
-                and Alert.objects.filter(
-                    agent=agent, alert_type=AlertType.AVAILABILITY, resolved=False
-                ).exists()
-            ):
+        open_alerts = Alert.objects.filter(
+            alert_type=AlertType.AVAILABILITY, resolved=False
+        ).values("agent_id")
+        agents = (
+            Agent.objects.defer(*AGENT_DEFER)
+            .filter(pk__in=open_alerts)
+            .select_related("site__client", "alert_template")
+            .order_by("pk")
+        )
+        for agent in agents:
+            if agent_ver(agent.version) >= floor and agent.is_online:
                 Alert.handle_alert_resolve(agent)
         return "completed"
 

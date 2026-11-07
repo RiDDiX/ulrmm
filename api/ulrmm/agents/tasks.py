@@ -77,12 +77,16 @@ def agent_recovery_sms_task(pk: int) -> str:
 
 @app.task(bind=True)
 def agent_outages_task(self) -> str:
-    from core.tasks import _get_agent_qs
-
     with redis_lock(AGENT_OUTAGES_LOCK, self.app.oid) as got_lock:
         if not got_lock:
             return f"{self.app.oid} still running"
-        overdue = (a for a in _get_agent_qs() if a.status == AGENT_STATUS_OVERDUE)
+        # status and the alert need the template and names, not checks or tasks
+        agents = (
+            Agent.objects.defer(*AGENT_DEFER)
+            .select_related("site__client", "alert_template")
+            .order_by("pk")
+        )
+        overdue = (a for a in agents if a.status == AGENT_STATUS_OVERDUE)
         for agent in overdue:
             Alert.handle_alert_failure(agent)
     return "completed"

@@ -471,14 +471,14 @@
   }
  },
  "accounts-clients-099": {
-  "status": 200,
-  "body_masked": "\"ok\"",
+  "status": 403,
+  "body_masked": "{\n \"detail\": \"Your role does not have can_list_agents, so you cannot grant it.\"\n}",
   "db_masked": {
-   "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_readonly'": "[\n {\n  \"block_dashboard_login\": false,\n  \"email\": \"readonly@bench.invalid\",\n  \"first_name\": \"\",\n  \"is_active\": true,\n  \"is_installer_user\": false,\n  \"last_login_ip\": null,\n  \"last_name\": \"Reader\",\n  \"role_id\": 15,\n  <X>,\n  \"username\": \"bench_readonly\"\n }\n]"
+   "accounts_user(username,first_name,last_name,email,is_active,block_dashboard_login,role_id,last_login_ip,is_installer_user,totp_key) where username='bench_readonly'": "[\n {\n  \"block_dashboard_login\": false,\n  \"email\": \"readonly@bench.invalid\",\n  \"first_name\": \"\",\n  \"is_active\": true,\n  \"is_installer_user\": false,\n  \"last_login_ip\": null,\n  \"last_name\": \"\",\n  \"role_id\": 15,\n  <X>,\n  \"username\": \"bench_readonly\"\n }\n]"
   }
  },
  "accounts-clients-100": {
-  "status": 400,
+  "status": 403,
   "body_masked": ""
  },
  "accounts-clients-101": {
@@ -695,8 +695,8 @@
   "body_masked": "{\n \"detail\": \"Changing your own login needs a dashboard login.\"\n}"
  },
  "accounts-clients-142": {
-  "status": 400,
-  "body_masked": "\"Changing other accounts or roles needs a current code from your authenticator app.\"",
+  "status": 403,
+  "body_masked": "{\n \"detail\": \"Your role does not have can_list_agents, so you cannot grant it.\"\n}",
   "db_masked": {
    "knox_authtoken(user_id) where user_id=26": "[\n {\n  \"user_id\": 26\n }\n]"
   }
@@ -1856,7 +1856,7 @@
  },
  "accounts-clients-369": {
   "status": 400,
-  "body_masked": "\"Deleting needs a current code from your authenticator app.\"",
+  "body_masked": "\"These roles are limited to what is being deleted and would see everything afterwards: Bench site Bremen. Change their scope first.\"",
   "db_masked": {
    "agents_agent(id,site_id) where site_id=2": "[\n {\n  \"id\": 10,\n  \"site_id\": 2\n },\n {\n  \"id\": 8,\n  \"site_id\": 2\n },\n {\n  \"id\": 9,\n  \"site_id\": 2\n }\n]"
   }
@@ -1878,12 +1878,12 @@
   "body_masked": "{\n \"detail\": \"No Site matches the given query.\"\n}"
  },
  "accounts-clients-374": {
-  "status": 200,
-  "body_masked": "\"Bremen Warehouse was deleted\"",
+  "status": 400,
+  "body_masked": "\"These roles are limited to what is being deleted and would see everything afterwards: Bench site Bremen. Change their scope first.\"",
   "db_masked": {
-   "agents_agent(id,site_id) where id in (8,9,10)": "[\n {\n  \"id\": 10,\n  \"site_id\": 1\n },\n {\n  \"id\": 8,\n  \"site_id\": 1\n },\n {\n  \"id\": 9,\n  \"site_id\": 1\n }\n]",
-   "clients_site(id) where id=2": "[]",
-   "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id=13": "[]"
+   "agents_agent(id,site_id) where id in (8,9,10)": "[\n {\n  \"id\": 10,\n  \"site_id\": 2\n },\n {\n  \"id\": 8,\n  \"site_id\": 2\n },\n {\n  \"id\": 9,\n  \"site_id\": 2\n }\n]",
+   "clients_site(id) where id=2": "[\n {\n  \"id\": 2\n }\n]",
+   "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id=13": "[\n {\n  \"goarch\": \"amd64\",\n  \"id\": 13,\n  \"install_flags\": {\n   \"ping\": 1,\n   \"power\": 1,\n   \"rdp\": 0\n  },\n  \"mon_type\": \"workstation\",\n  \"site_id\": 2\n }\n]"
   }
  },
  "accounts-clients-375": {
@@ -2241,8 +2241,8 @@
   }
  },
  "accounts-clients-445": {
-  "status": 403,
-  "body_masked": "{\n \"detail\": \"You cannot change patch policies.\"\n}",
+  "status": 400,
+  "body_masked": "\"These roles are limited to what is being deleted and would see everything afterwards: Bench site Bremen. Change their scope first.\"",
   "db_masked": {
    "agents_agent(id,site_id) where id in (8,9,10)": "[\n {\n  \"id\": 10,\n  \"site_id\": 2\n },\n {\n  \"id\": 8,\n  \"site_id\": 2\n },\n {\n  \"id\": 9,\n  \"site_id\": 2\n }\n]",
    "clients_site(id) where id=2": "[\n {\n  \"id\": 2\n }\n]"
@@ -2313,11 +2313,11 @@
   }
  },
  "accounts-clients-454": {
-  "status": 200,
-  "body_masked": "\"Bremen Warehouse was deleted\"",
+  "status": 400,
+  "body_masked": "\"These roles are limited to what is being deleted and would see everything afterwards: Bench site Bremen. Change their scope first.\"",
   "db_masked": {
-   "agents_agent(id,site_id) where id in (8,9,10)": "[\n {\n  \"id\": 10,\n  \"site_id\": 3\n },\n {\n  \"id\": 8,\n  \"site_id\": 3\n },\n {\n  \"id\": 9,\n  \"site_id\": 3\n }\n]",
-   "clients_site(id) where id=2": "[]"
+   "agents_agent(id,site_id) where id in (8,9,10)": "[\n {\n  \"id\": 10,\n  \"site_id\": 2\n },\n {\n  \"id\": 8,\n  \"site_id\": 2\n },\n {\n  \"id\": 9,\n  \"site_id\": 2\n }\n]",
+   "clients_site(id) where id=2": "[\n {\n  \"id\": 2\n }\n]"
   }
  },
  "accounts-clients-455": {

@@ -8,6 +8,7 @@ from django.db.models import F
 from django.utils import timezone as djangotime
 
 from alerts.models import Alert
+from alerts.tasks import notify_once
 from core.utils import get_core_settings
 from ulrmm.celery import app
 from ulrmm.constants import NETMON_POLL_LOCK, AlertSeverity
@@ -38,11 +39,6 @@ def record(device: NetworkDevice, result: dict, checked: dt.datetime) -> None:
     )
 
     if status in FAILING and device.fail_count >= device.fails_b4_alert:
-        if device.alert_severity == AlertSeverity.ERROR:
-            # a warning mail must not hold back the one for the error
-            Alert.objects.filter(
-                network_device=device, resolved=False, severity=AlertSeverity.WARNING
-            ).update(email_sent=None, sms_sent=None)
         Alert.handle_alert_failure(device)
     elif (
         status == DeviceStatus.UP
@@ -97,19 +93,12 @@ def _notify(pk: int, channel: str, resolved: bool, alert_interval=None) -> str:
         return "alert not found"
 
     field = f"{'resolved_' if resolved else ''}{channel}_sent"
-    previous = getattr(alert, field)
-    stamp = Alert.claim_notification(pk, field, alert_interval)
-    if stamp is None:
-        return "ok"
-    try:
-        _send(alert, channel, resolved)
-    except Exception:
-        Alert.release_notification(pk, field, stamp, previous)
-        raise
-    return "ok"
+    return notify_once(
+        alert, field, lambda: _send(alert, channel, resolved), alert_interval
+    )
 
 
-def _send(alert: Alert, channel: str, resolved: bool) -> None:
+def _send(alert: Alert, channel: str, resolved: bool) -> tuple[str, bool]:
     device = alert.network_device
     site = device.site
     if resolved:
@@ -130,9 +119,8 @@ def _send(alert: Alert, channel: str, resolved: bool) -> None:
     core = get_core_settings()
     template = device.get_alert_template()
     if channel == "email":
-        core.send_mail(subject, text, alert_template=template)
-    else:
-        core.send_sms(text, alert_template=template)
+        return core.send_mail(subject, text, alert_template=template)
+    return core.send_sms(text, alert_template=template)
 
 
 @app.task

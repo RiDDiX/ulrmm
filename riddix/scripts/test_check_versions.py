@@ -20,6 +20,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 VERSION_FILE = BASE_DIR.parent.parent / "VERSION"
 ULRMM_VERSION = VERSION_FILE.read_text().strip()
 LATEST_AGENT_VER = "1.22.09.2026"
+MESH_VER = "1.2.4"
+NATS_SERVER_VER = "2.14.4"
 """
 
 
@@ -28,6 +30,13 @@ def tree(root, version="1.23.09.2026", settings=SETTINGS):
     api = root / "api" / "ulrmm" / "ulrmm"
     api.mkdir(parents=True)
     (api / "settings.py").write_text(settings)
+    (root / "docker" / "mesh").mkdir(parents=True)
+    (root / "docker" / "mesh" / "Dockerfile").write_text(
+        "FROM node:24\nARG MESH_VER=1.2.4\n"
+    )
+    (root / "docker" / "compose.yml").write_text(
+        "services:\n  nats:\n    image: nats:2.14.4-alpine\n"
+    )
 
     web = root / "web"
     web.mkdir()
@@ -36,9 +45,7 @@ def tree(root, version="1.23.09.2026", settings=SETTINGS):
     agent = root / "agent"
     (agent / "build").mkdir(parents=True)
     (agent / "main.go").write_text('var (\n\tversion = "1.22.09.2026"\n)\n')
-    (agent / "build" / "setup.iss").write_text(
-        '#define MyAppVersion "1.22.09.2026"\n'
-    )
+    (agent / "build" / "setup.iss").write_text('#define MyAppVersion "1.22.09.2026"\n')
     return web, agent
 
 
@@ -86,9 +93,33 @@ class TestCheckVersions(unittest.TestCase):
 
     def test_second_assignment_wins_and_is_reported(self):
         # the last module level assignment is what the import actually ends up with
-        web, agent = tree(self.root, settings=SETTINGS + 'ULRMM_VERSION = "1.23.09.2026"\n')
+        web, agent = tree(
+            self.root, settings=SETTINGS + 'ULRMM_VERSION = "1.23.09.2026"\n'
+        )
         rows = self.run_check(web=web, agent=agent)
         self.assertEqual([r[0] for r in rows], ["ULRMM_VERSION"])
+
+    def test_mesh_dockerfile_out_of_step(self):
+        web, agent = tree(self.root)
+        dockerfile = self.root / "docker" / "mesh" / "Dockerfile"
+        dockerfile.write_text("ARG MESH_VER=1.2.3\n")
+        rows = self.run_check(web=web, agent=agent)
+        self.assertEqual(
+            [r[:3] for r in rows], [("mesh Dockerfile", "1.2.3", "MESH_VER 1.2.4")]
+        )
+
+    def test_compose_nats_out_of_step(self):
+        web, agent = tree(self.root)
+        (self.root / "docker" / "compose.yml").write_text(
+            "    image: nats:2.12.0-alpine\n"
+        )
+        rows = self.run_check(web=web, agent=agent)
+        self.assertEqual([r[0] for r in rows], ["compose.yml nats"])
+
+    def test_server_files_only(self):
+        # CI has no web or agent checkout
+        tree(self.root)
+        self.assertEqual(self.run_check(web=None, agent=None), [])
 
     def test_unparseable_settings_is_a_row_not_a_traceback(self):
         web, agent = tree(self.root, settings="ULRMM_VERSION = (\n")

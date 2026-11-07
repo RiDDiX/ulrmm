@@ -36,6 +36,8 @@ from .models import (
 )
 
 LOOKUP_TTL = dt.timedelta(days=7)
+# fixed and ignored findings are kept this long after they were last seen
+FIXED_KEEP = dt.timedelta(days=90)
 FETCH_WORKERS = 8
 # Windows and macOS: MSRC for pending Windows updates, NVD for known apps
 PLAT_NAMES = {AgentPlat.WINDOWS: "Windows", AgentPlat.DARWIN: "macOS"}
@@ -190,9 +192,9 @@ def _record(
     unchecked: set[tuple[str, str]],
 ) -> list[Finding]:
     """Findings of one source on one agent. current is (package, version,
-    vuln id) -> ecosystem. A finding that is gone is fixed, unless its package
-    could not be checked. Returns the open findings that are new or just got
-    their advisory."""
+    vuln id) -> ecosystem. An open finding that is gone is fixed, unless its
+    package could not be checked; an ignored one stays ignored. Returns the
+    open findings that are new or just got their advisory."""
     now = djangotime.now()
     existing = {
         (f.package, f.version, f.vuln_id): f
@@ -239,7 +241,7 @@ def _record(
     for key, f in existing.items():
         if (
             key not in current
-            and f.status != FindingStatus.FIXED
+            and f.status == FindingStatus.OPEN
             and key[:2] not in unchecked
         ):
             f.status = FindingStatus.FIXED
@@ -660,7 +662,12 @@ def scan(agent_pks: list[int] | None = None) -> str:
     )
 
     if agent_pks is None:
-        Lookup.objects.filter(fetched_at__lt=djangotime.now() - LOOKUP_TTL).delete()
+        now = djangotime.now()
+        Lookup.objects.filter(fetched_at__lt=now - LOOKUP_TTL).delete()
+        Finding.objects.filter(
+            status__in=(FindingStatus.FIXED, FindingStatus.IGNORED),
+            last_seen__lt=now - FIXED_KEEP,
+        ).delete()
     return (
         f"Checked {len(targets)} agents, {len(keys)} package versions, "
         f"{len(vulns)} advisories, {others} Windows and macOS agents"

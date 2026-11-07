@@ -347,7 +347,7 @@ in the `init` log.
 git clone https://github.com/RiDDiX/ulrmm.git
 cd ulrmm/docker
 cp .env.example .env
-# edit .env: names, passwords, ULRMM_TLS, ADMIN_PASSWORD
+# edit .env: ULRMM_VERSION (the release to run), names, passwords, ULRMM_TLS, ADMIN_PASSWORD
 docker compose pull          # or: docker compose build
 docker compose up -d
 docker compose logs -f init  # ends with "[init] done"
