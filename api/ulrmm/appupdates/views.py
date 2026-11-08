@@ -26,12 +26,15 @@ from ulrmm.permissions import _has_perm, _has_perm_on_agent, _has_perm_on_site
 from .models import AppUpdate, AppUpdateScan, AppUpdateSettings, State
 from .tasks import (
     ID_RE,
+    IDS_PER_CALL,
     LIST,
     LIST_TIMEOUT,
     OPEN,
     PLATS,
     apply_app_updates_task,
+    busy,
     effective,
+    mark_applying,
     parse_list,
     store,
 )
@@ -161,8 +164,12 @@ def collect(request, agent_id: str):
     agent = _agent(request, agent_id)
     if error := _ready(agent):
         return error
+    ret = asyncio.run(agent.nats_cmd(LIST, timeout=LIST_TIMEOUT))
+    if busy(ret):
+        # the last scan stays, the upgrade lists again when it is done
+        return notify_error(f"App updates are running on {agent.hostname}.")
     try:
-        rows = parse_list(asyncio.run(agent.nats_cmd(LIST, timeout=LIST_TIMEOUT)))
+        rows = parse_list(ret)
     except ValueError as e:
         store(agent, {}, str(e))
         return notify_error(str(e))
@@ -194,6 +201,7 @@ def apply(request, agent_id: str):
 
     pks = [u.pk for u in rows]
     queued = sorted({u.app_id for u in rows})
+    mark_applying([agent], -(-len(pks) // IDS_PER_CALL))
     AppUpdate.objects.filter(pk__in=pks).update(state=State.UPDATING, last_error="")
     apply_app_updates_task.delay(pks=pks, username=request.user.username)
     _audit(

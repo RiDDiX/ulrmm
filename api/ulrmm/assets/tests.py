@@ -176,6 +176,27 @@ class TestWarranty(ULRMMTestCase):
             self.assertEqual(warranty_lookup_task(), "2 looked up")
         self.assertEqual(req.call_count, 3)
 
+    def test_weekly_task_stops_at_its_cap_oldest_first(self):
+        old = posix_agent("Dell Inc. A", serial="A1")
+        new = posix_agent("Dell Inc. B", serial="B2")
+        old.warranty_status = {"fetched_at": "2026-01-01T00:00:00+00:00"}
+        old.save(update_fields=["warranty_status"])
+        new.warranty_status = {"fetched_at": "2026-06-01T00:00:00+00:00"}
+        new.save(update_fields=["warranty_status"])
+        fresh = posix_agent("Dell Inc. C", serial="C3")
+        order = []
+
+        def refresh(agent, tokens):
+            order.append(agent.pk)
+
+        with patch("assets.tasks.warranty.refresh", side_effect=refresh):
+            warranty_lookup_task()
+            self.assertEqual(order, [fresh.pk, old.pk, new.pk])
+            order.clear()
+            with patch("assets.tasks.WARRANTY_RUN_CAP", -1):
+                self.assertEqual(warranty_lookup_task(), "0 looked up")
+        self.assertEqual(order, [])
+
     def test_failed_dell_token_is_requested_once(self):
         agents = [
             posix_agent("Dell Inc. A", serial="A1"),

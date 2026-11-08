@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import DatabaseError, transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone as djangotime
 
 from core.mesh_utils import (
@@ -27,6 +27,7 @@ from ulrmm.constants import (
     AGENT_DEFER,
     AGENT_STATUS_OVERDUE,
     CACHE_DB_FIELDS_TASK_LOCK,
+    MINUTE_LOCK_EXPIRE,
     SCHED_TASK_RUNNER_LOCK,
     RESOLVE_ALERTS_LOCK,
     SYNC_MESH_PERMS_TASK_LOCK,
@@ -45,7 +46,7 @@ from ulrmm.constants import (
 from ulrmm.helpers import agent_ver, make_random_password, setup_nats_options
 from ulrmm.logger import logger
 from ulrmm.nats_utils import a_nats_cmd, abulk_nats_command
-from ulrmm.permissions import _has_perm_on_agent
+from ulrmm.permissions import agent_perm_check
 from ulrmm.utils import redis_lock, reload_nats
 
 
@@ -113,20 +114,23 @@ def delete_expired_tasks() -> None:
     expired.filter(remove_if_not_scheduled=True).delete()
 
 
+ORPHAN_BATCH = 5000
+
+
 def remove_orphaned_history_results() -> int:
     from agents.models import Agent
     from checks.models import CheckHistory
 
+    # rows without an agent_id are not orphans of a deleted agent
+    orphaned = CheckHistory.objects.filter(agent_id__isnull=False).exclude(
+        Exists(Agent.objects.filter(agent_id=OuterRef("agent_id")))
+    )
+    count = 0
     try:
-        with transaction.atomic():
-            agent_ids = set(Agent.objects.values_list("agent_id", flat=True))
-            # rows without an agent_id are not orphans of a deleted agent
-            orphaned = CheckHistory.objects.exclude(agent_id__in=agent_ids).exclude(
-                agent_id__isnull=True
-            )
-            count = orphaned.count()
-            orphaned.delete()
-            return count
+        # in batches, one statement over all history would hold its locks long
+        while pks := list(orphaned.values_list("pk", flat=True)[:ORPHAN_BATCH]):
+            count += CheckHistory.objects.filter(pk__in=pks).delete()[0]
+        return count
     except Exception as e:
         logger.error("remove_orphaned_history_results failed: %s", e)
         return 0
@@ -181,7 +185,7 @@ def resolve_pending_actions():
 
 @app.task(bind=True)
 def resolve_alerts_task(self):
-    with redis_lock(RESOLVE_ALERTS_LOCK, self.app.oid) as acquired:
+    with redis_lock(RESOLVE_ALERTS_LOCK, self.app.oid, MINUTE_LOCK_EXPIRE) as acquired:
         if not acquired:
             return f"{self.app.oid} still running"
 
@@ -233,7 +237,7 @@ async def _run_win_task_sync(creates, modifies, deletes):
 
 @app.task(bind=True)
 def sync_scheduled_tasks(self):
-    with redis_lock(SYNC_SCHED_TASK_LOCK, self.app.oid) as acquired:
+    with redis_lock(SYNC_SCHED_TASK_LOCK, self.app.oid, MINUTE_LOCK_EXPIRE) as acquired:
         if not acquired:
             return f"{self.app.oid} still running"
 
@@ -380,7 +384,8 @@ def _get_failing_data(agents) -> dict:
 
 @app.task(bind=True)
 def cache_db_fields_task(self):
-    with redis_lock(CACHE_DB_FIELDS_TASK_LOCK, self.app.oid) as acquired:
+    lock = redis_lock(CACHE_DB_FIELDS_TASK_LOCK, self.app.oid, MINUTE_LOCK_EXPIRE)
+    with lock as acquired:
         if not acquired:
             return f"{self.app.oid} still running"
 
@@ -391,13 +396,15 @@ def cache_db_fields_task(self):
         from clients.models import Client, Site
 
         # status reads the alert template of a long silent agent
-        failing_prefetch = Agent.objects.select_related(
-            "alert_template"
-        ).prefetch_related(
-            "agentchecks__script",
-            "checkresults__assigned_check",
-            "taskresults__task",
-            "autotasks",
+        failing_prefetch = (
+            Agent.objects.defer(*AGENT_DEFER)
+            .select_related("alert_template")
+            .prefetch_related(
+                "agentchecks__script",
+                "checkresults__assigned_check",
+                "taskresults__task",
+                "autotasks",
+            )
         )
 
         for site in Site.objects.all():
@@ -506,11 +513,17 @@ def _run_mesh_sync():
             mesh_node_names[node["_id"]] = node.get("name", "")
 
     users = _eligible_mesh_users(core)
+    allowed = [
+        (info["_id"], (lambda agent: True) if is_super else agent_perm_check(user))
+        for user, info, is_super in users
+        if has_mesh_perms(user=user)
+    ]
 
     desired_by_node = {}
     desired_everywhere = set()
     for agent in (
         Agent.objects.defer(*AGENT_DEFER)
+        .select_related("site")
         .exclude(mesh_node_id__isnull=True)
         .exclude(mesh_node_id="")
     ):
@@ -518,12 +531,7 @@ def _run_mesh_sync():
         if not hex_id or hex_id == "error":
             continue
         node_id = f"node//{hex_id}"
-        desired = set()
-        for user, info, is_super in users:
-            if has_mesh_perms(user=user) and (
-                is_super or _has_perm_on_agent(user, agent.agent_id)
-            ):
-                desired.add(info["_id"])
+        desired = {user_id for user_id, allows in allowed if allows(agent)}
         desired_by_node[node_id] = {
             "users": desired,
             "name": mesh_node_name(agent.effective_name),
@@ -654,7 +662,9 @@ def rename_mesh_node_task(self, agent_pk):
 
 @app.task(bind=True)
 def scheduled_task_runner(self):
-    with redis_lock(SCHED_TASK_RUNNER_LOCK, self.app.oid) as acquired:
+    with redis_lock(
+        SCHED_TASK_RUNNER_LOCK, self.app.oid, MINUTE_LOCK_EXPIRE
+    ) as acquired:
         if not acquired:
             return f"{self.app.oid} still running"
 

@@ -2,20 +2,25 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 import datetime as dt
+import time
 
 from asgiref.sync import async_to_sync
+from django.db.models import F
 from django.utils import timezone as djangotime
 
 from agents.models import Agent
 from notify.dispatch import dispatch
 from ulrmm.celery import app
-from ulrmm.constants import ONLINE_AGENTS, AgentPlat
+from ulrmm.constants import ONLINE_AGENTS, REDIS_LOCK_EXPIRE, AgentPlat
 from ulrmm.utils import redis_lock
 
 from . import activation, warranty
 from .models import Activation, License
 
 NOTICE = dt.timedelta(days=30)
+# a run stops before its lock expires; the devices it did not reach come
+# first next time, they have the oldest lookup
+WARRANTY_RUN_CAP = REDIS_LOCK_EXPIRE - 10 * 60
 
 
 @app.task(bind=True)
@@ -25,12 +30,15 @@ def warranty_lookup_task(self) -> str:
             return "already running"
         tokens: dict = {}
         done = 0
+        stop = time.monotonic() + WARRANTY_RUN_CAP
         agents = Agent.objects.only(
             "pk", "agent_id", "hostname", "plat", "wmi_detail", "warranty_end"
-        )
+        ).order_by(F("warranty_status__fetched_at").asc(nulls_first=True), "pk")
         # one request per device in sequence. Dell takes up to 100 service
         # tags per call if this gets slow
         for agent in agents.iterator(chunk_size=100):
+            if time.monotonic() > stop:
+                break
             if warranty.maker(agent) in ("dell", "lenovo"):
                 warranty.refresh(agent, tokens)
                 done += 1

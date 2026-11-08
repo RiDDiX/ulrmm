@@ -39,6 +39,8 @@ AGENT_STATUS_OFFLINE = "offline"
 AGENT_STATUS_OVERDUE = "overdue"
 
 REDIS_LOCK_EXPIRE = 60 * 60 * 2
+# tasks that run every minute: a killed worker must not stop them for hours
+MINUTE_LOCK_EXPIRE = 15 * 60
 
 # distributed lock names (one holder per cluster)
 RESOLVE_ALERTS_LOCK = "resolve-alerts-lock-key"

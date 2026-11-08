@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
@@ -143,6 +143,7 @@ func Svc(log *logrus.Logger, cfg string) {
 
 	queue := make(chan *nats.Msg, queueSize)
 	var dropped atomic.Int64
+	var missed idSet
 	enqueue := func(m *nats.Msg) {
 		// Django's commands to agents arrive here too (_INBOX replies);
 		// only the check-in kinds are of interest.
@@ -159,6 +160,9 @@ func Svc(log *logrus.Logger, cfg string) {
 		case queue <- m:
 		default:
 			dropped.Add(1)
+			if m.Reply == modeHello {
+				missed.add(subjectAgent(m.Subject))
+			}
 		}
 	}
 	subs := make([]*nats.Subscription, 0, len(checkinSubjects))
@@ -209,6 +213,9 @@ func Svc(log *logrus.Logger, cfg string) {
 		case <-tick.C:
 			if n := dropped.Swap(0); n > 0 {
 				log.Errorf("queue full, dropped %d check-ins in the last minute", n)
+			}
+			if ids := missed.take(); len(ids) > 0 {
+				w.exec(missedHellos, time.Now().UTC(), pq.Array(ids))
 			}
 			n := 0
 			for _, sub := range subs {
@@ -366,6 +373,36 @@ func (w *worker) handle(m *nats.Msg) {
 	}
 }
 
+// Hellos dropped on a full queue still keep their agents online, in one
+// statement a minute. The subject is the agent's own (NATS permissions), so
+// there is nothing to decode.
+const missedHellos = "UPDATE agents_agent SET last_seen=$1 WHERE agents_agent.agent_id = ANY($2)"
+
+type idSet struct {
+	mu  sync.Mutex
+	ids map[string]struct{}
+}
+
+func (s *idSet) add(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ids == nil {
+		s.ids = map[string]struct{}{}
+	}
+	s.ids[id] = struct{}{}
+}
+
+func (s *idSet) take() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := make([]string, 0, len(s.ids))
+	for id := range s.ids {
+		ids = append(ids, id)
+	}
+	s.ids = nil
+	return ids
+}
+
 // powerUpdate is the statement for a power announcement. Server time is
 // stored, the agent sends none; a cancel stores an empty kind.
 func powerUpdate(p *PowerMsg, now time.Time) (string, []interface{}, bool) {
@@ -379,7 +416,8 @@ func powerUpdate(p *PowerMsg, now time.Time) (string, []interface{}, bool) {
 	if len(by) > maxInitiator {
 		by = by[:maxInitiator]
 	}
-	// a server command names its user itself (Django), the agent sends ""
-	return "UPDATE agents_agent SET power_event=$1, power_event_at=$2, power_event_by=CASE WHEN $5 = 'rmm' AND $3 = '' THEN power_event_by ELSE $3 END WHERE agents_agent.agent_id=$4",
+	// a server command names its user itself (Django, "rmm: ..." just before);
+	// an agent saying rmm much later must not keep that name
+	return "UPDATE agents_agent SET power_event=$1, power_event_at=$2, power_event_by=CASE WHEN $5 = 'rmm' AND $3 = '' AND power_event_by LIKE 'rmm: %' AND power_event_at > $2::timestamptz - interval '15 minutes' THEN power_event_by ELSE $3 END WHERE agents_agent.agent_id=$4",
 		[]interface{}{kind, now, string(by), p.AgentID, p.Source}, true
 }

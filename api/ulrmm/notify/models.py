@@ -34,6 +34,7 @@ class ChannelKind(models.TextChoices):
 
 class State(models.TextChoices):
     QUEUED = "queued", "Queued"
+    SENDING = "sending", "Sending"
     HELD = "held", "Held for quiet hours"
     SENT = "sent", "Sent"
     FAILED = "failed", "Failed"

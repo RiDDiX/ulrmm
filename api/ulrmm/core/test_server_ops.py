@@ -6,8 +6,10 @@ import json
 import os
 import shutil
 import tempfile
+import threading
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.test import override_settings
@@ -62,6 +64,44 @@ class ServerOpsBase(ULRMMTestCase):
         path = self.backups / sub / name
         path.write_bytes(b"x" * size)
         return path
+
+
+class TestRequestAndLog(ServerOpsBase):
+    def test_two_requests_at_once_queue_one(self):
+        real = server_ops.busy_with
+        errors = []
+
+        def slow_busy_with():
+            current = real()
+            time.sleep(0.2)
+            return current
+
+        def request(action):
+            try:
+                server_ops.request_action(action)
+            except server_ops.MaintError as e:
+                errors.append(str(e))
+
+        threads = [
+            threading.Thread(target=request, args=(a,)) for a in ("update", "backup")
+        ]
+        with patch.object(server_ops, "busy_with", slow_busy_with):
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        self.assertEqual(errors, ["Another maintenance task is queued."])
+        self.assertIn((self.maint / "request").read_text(), ("update\n", "backup\n"))
+
+    def test_log_chunk_ends_on_a_whole_character(self):
+        (self.maint / "update.log").write_bytes("abcdä€x".encode())
+        with patch.object(server_ops, "LOG_CHUNK", 5):
+            first = server_ops.read_log("update")
+            second = server_ops.read_log("update", first["offset"])
+            third = server_ops.read_log("update", second["offset"])
+        self.assertEqual((first["text"], first["offset"]), ("abcd", 4))
+        self.assertEqual((second["text"], second["offset"]), ("ä€", 9))
+        self.assertEqual((third["text"], third["offset"]), ("x", 10))
 
 
 class TestRunnerHandoff(ServerOpsBase):

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+import datetime as dt
 from unittest.mock import PropertyMock, patch
 
 from django.utils import timezone as djangotime
@@ -157,3 +158,36 @@ class TestRecoveryNeedsAFailureNotice(ULRMMTestCase):
             alert.refresh_from_db()
             self.assertTrue(alert.resolved)
         recovery.assert_called_once_with(pk=alert.pk)
+
+
+class TestStandIn(ULRMMTestCase):
+    def test_pings_a_few_online_agents_at_once(self):
+        from agents.models import Agent
+        from alerts.models import _stand_in_agent
+
+        site = baker.make("clients.Site")
+        now = djangotime.now()
+        alerting = baker.make_recipe("agents.agent", site=site, last_seen=None)
+        baker.make_recipe("agents.agent", site=site, last_seen=None)
+        # the newest check-ins first, not the lowest pk
+        online = [
+            baker.make_recipe(
+                "agents.agent", site=site, last_seen=now - dt.timedelta(seconds=40 - i)
+            )
+            for i in range(4)
+        ]
+        other_site = baker.make("clients.Site", client=site.client)
+        baker.make_recipe("agents.agent", site=other_site, last_seen=now)
+        pinged = []
+
+        async def nats_cmd(self, data, timeout=30, wait=True):
+            pinged.append(self.pk)
+            return "pong" if self.pk == online[2].pk else "timeout"
+
+        with patch.object(Agent, "nats_cmd", nats_cmd):
+            self.assertEqual(_stand_in_agent(alerting), online[2])
+            self.assertEqual(sorted(pinged), sorted(a.pk for a in online[1:]))
+            pinged.clear()
+            online[2].delete()
+            self.assertIsNone(_stand_in_agent(alerting))
+            self.assertEqual(len(pinged), 3)

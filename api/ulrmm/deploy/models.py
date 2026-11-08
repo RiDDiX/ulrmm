@@ -275,6 +275,7 @@ class SecurityEventKind(models.TextChoices):
     INTEGRITY_MISMATCH = "integrity_mismatch", "Agent binary does not match the build"
     CONFIG_TAMPERED = "config_tampered", "Agent config changed outside the agent"
     UPDATE_REVERTED = "update_reverted", "Agent update reverted"
+    BACKUP_FAILED = "backup_failed", "Scheduled backup failed"
 
 
 class SecurityEventSeverity(models.TextChoices):

@@ -134,6 +134,70 @@ class TestRotation(LapsBase):
         self.assertNotIn(env_of(run_script)["NEW_PASSWORD"], dump)
 
     @patch("agents.models.Agent.run_script")
+    def test_lost_answer_keeps_pending_password(self, run_script):
+        run_script.return_value = "timeout"
+        with patch.dict(sys.modules, {"notify.dispatch": fake_notify()}):
+            rotate_agent_task(self.agent.pk, force=True)
+        kwargs = run_script.call_args.kwargs
+        self.assertLess(kwargs["timeout"], kwargs["wait_timeout"])
+        sent = env_of(run_script)["NEW_PASSWORD"]
+        state = LapsState.objects.get(agent=self.agent)
+        self.assertEqual(decrypt_secret(state.pending_secret, HKDF_INFO), sent)
+        self.assertIsNotNone(state.pending_at)
+        self.assertFalse(Credential.objects.exists())
+
+        url = f"/laps/{self.agent.agent_id}/"
+        self.login(self.john)
+        r = self.client.get(url)
+        self.assertTrue(r.data["state"]["unconfirmed"])
+        self.assertNotIn(sent, json.dumps(r.data, default=str))
+        r = self.client.post(f"{url}pending/")
+        self.assertEqual(r.data["secret"], sent)
+        self.assertTrue(AuditLog.objects.filter(action=AuditActionType.VIEW).exists())
+
+        # the next run sends the same password and success moves it to the vault
+        run_script.return_value = {"retcode": 0, "stdout": "", "stderr": ""}
+        rotate_agent_task(self.agent.pk, force=True)
+        self.assertEqual(env_of(run_script)["NEW_PASSWORD"], sent)
+        state.refresh_from_db()
+        self.assertEqual((state.pending_secret, state.pending_at), ("", None))
+        self.assertEqual(decrypt_secret(state.credential.secret, HKDF_INFO), sent)
+        r = self.client.post(f"{url}pending/")
+        self.assertEqual(r.status_code, 400)
+
+    @patch("agents.models.Agent.run_script")
+    def test_pending_password_follows_policy(self, run_script):
+        run_script.return_value = "timeout"
+        with patch.dict(sys.modules, {"notify.dispatch": fake_notify()}):
+            rotate_agent_task(self.agent.pk, force=True)
+            first = env_of(run_script)["NEW_PASSWORD"]
+
+            # a longer password in the policy makes a new one
+            self.policy.length = 32
+            self.policy.save()
+            rotate_agent_task(self.agent.pk, force=True)
+            second = env_of(run_script)["NEW_PASSWORD"]
+            self.assertEqual(len(second), 32)
+            self.assertNotEqual(second, first)
+
+            # so does another account
+            self.policy.account = "it-admin"
+            self.policy.save()
+            rotate_agent_task(self.agent.pk, force=True)
+            third = env_of(run_script)["NEW_PASSWORD"]
+            self.assertEqual(env_of(run_script)["TARGET_USER"], "it-admin")
+            self.assertNotEqual(third, second)
+
+        state = LapsState.objects.get(agent=self.agent)
+        self.assertEqual(decrypt_secret(state.pending_secret, HKDF_INFO), third)
+        self.assertEqual(state.pending_account, "it-admin")
+        self.login(self.john)
+        r = self.client.post(f"/laps/{self.agent.agent_id}/pending/")
+        self.assertEqual(r.data["secret"], third)
+        audit = AuditLog.objects.get(action=AuditActionType.VIEW)
+        self.assertEqual(audit.after_value["account"], "it-admin")
+
+    @patch("agents.models.Agent.run_script")
     def test_not_due_is_skipped_unless_forced(self, run_script):
         run_script.return_value = {"retcode": 0, "stdout": "", "stderr": ""}
         rotate_agent_task(self.agent.pk)

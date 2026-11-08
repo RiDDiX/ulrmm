@@ -24,6 +24,7 @@ from django.db import transaction
 from django.utils import timezone as djangotime
 
 from remote.utils import decrypt_secret, encrypt_secret
+from ulrmm.constants import AGENT_DEFER
 
 from . import events
 from .models import (
@@ -118,6 +119,7 @@ def lookup(token: str):
         return None
     return (
         AgentCredential.objects.select_related("agent__user", "agent__identity")
+        .defer(*[f"agent__{f}" for f in AGENT_DEFER])
         .filter(access_digest__in=digests(token))
         .first()
     )

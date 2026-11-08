@@ -13,14 +13,15 @@ from assets.views import _unrestricted
 from clients.models import Site
 from core.utils import stepup_denied
 from logs.models import AuditLog
-from ulrmm.constants import AGENT_DEFER, AuditActionType
+from ulrmm.constants import AGENT_DEFER, AuditActionType, AuditObjType
 from ulrmm.helpers import notify_error
 from ulrmm.middleware import get_debug_info
 from ulrmm.permissions import _has_perm, _has_perm_on_agent, _has_perm_on_site
+from ulrmm.throttles import VaultRevealThrottle
 
 from .models import LapsPolicy, LapsState
 from .serializers import LapsPolicySerializer, LapsStateSerializer
-from .tasks import library_script, rotate_agent_task
+from .tasks import _pending, library_script, rotate_agent_task
 
 STEPUP = "Local admin passwords change on the devices."
 
@@ -141,3 +142,40 @@ class RotateNow(APIView):
         )
         rotate_agent_task.delay(agent.pk, username=request.user.username, force=True)
         return Response("The password is being rotated.")
+
+
+class RevealPending(APIView):
+    """The password sent to the device without a confirmation: the device has
+    it when only the answer got lost, else the vault credential still holds."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [VaultRevealThrottle]
+
+    def post(self, request, agent_id):
+        if not _has_perm(request, "can_view_credentials"):
+            raise PermissionDenied()
+        agent = _agent(request, agent_id)
+        if denied := stepup_denied(
+            request,
+            "Showing a stored secret needs the same 60 minute step-up as terminal "
+            "and files.",
+        ):
+            return denied
+        state = LapsState.objects.filter(agent=agent).first()
+        secret = _pending(state) if state and state.pending_secret else ""
+        if not secret:
+            return notify_error("No unconfirmed password is stored for this device.")
+        AuditLog.objects.create(
+            username=request.user.username,
+            agent=agent.hostname,
+            agent_id=agent.agent_id,
+            object_type=AuditObjType.CREDENTIAL,
+            action=AuditActionType.VIEW,
+            message=f"{request.user.username} revealed the unconfirmed local admin "
+            f"password of {agent.hostname}",
+            after_value={"agent": agent.agent_id, "account": state.pending_account},
+            debug_info=get_debug_info(),
+        )
+        r = Response({"secret": secret})
+        r["Cache-Control"] = "no-store"
+        return r

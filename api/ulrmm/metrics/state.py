@@ -12,6 +12,7 @@ import math
 import re
 from typing import Any, Optional
 
+from django.db import transaction
 from django.utils import timezone as djangotime
 
 from ulrmm.constants import CheckType, ContainerKind, MetricOp
@@ -472,25 +473,29 @@ def _mb(perf: dict) -> tuple[Optional[int], Optional[int]]:
 def ingest(agent, state: dict) -> Optional[Sample]:
     """Stores a cleaned state; returns the new sample, None within SAMPLE_GAP."""
     now = djangotime.now()
-    AgentState.objects.update_or_create(
-        agent=agent,
-        defaults={"received": now, "agent_ts": _agent_ts(state), "data": state},
-    )
-    recent = now - dt.timedelta(seconds=SAMPLE_GAP)
-    if Sample.objects.filter(agent=agent, ts__gt=recent).exists():
-        return None
+    with transaction.atomic():
+        # the state row stays locked to the end, so a second push of the
+        # agent waits and then sees this sample (the first insert of the row
+        # is retried by update_or_create)
+        AgentState.objects.update_or_create(
+            agent=agent,
+            defaults={"received": now, "agent_ts": _agent_ts(state), "data": state},
+        )
+        recent = now - dt.timedelta(seconds=SAMPLE_GAP)
+        if Sample.objects.filter(agent=agent, ts__gt=recent).exists():
+            return None
 
-    perf = state.get("perf", {})
-    mem_total, mem_used = _mb(perf)
-    sample = Sample.objects.create(
-        agent=agent,
-        ts=now,
-        cpu=perf.get("cpu_pct"),
-        mem_total=mem_total,
-        mem_used=mem_used,
-        disks=disk_usage(agent.disks),
-        values=series(state),
-    )
+        perf = state.get("perf", {})
+        mem_total, mem_used = _mb(perf)
+        sample = Sample.objects.create(
+            agent=agent,
+            ts=now,
+            cpu=perf.get("cpu_pct"),
+            mem_total=mem_total,
+            mem_used=mem_used,
+            disks=disk_usage(agent.disks),
+            values=series(state),
+        )
     evaluate_metric_checks(agent, sample)
     return sample
 

@@ -664,8 +664,9 @@ entries over. Superusers only.
    run (valid for 3 days, as many enrollments as devices), macOS an install
    token valid for 3 days; links and tokens nobody received are deleted again.
    The installer starts detached from the other RMM's command, so its timeout
-   does not stop it; on Linux and macOS its output goes to
-   `/tmp/ulrmm-import.log`. The old agent stays installed until you remove it.
+   does not stop it; on Linux and macOS its output goes to `import.log` in a
+   new private temp directory (`mktemp -d`, as root usually `/tmp/tmp.*`).
+   The old agent stays installed until you remove it.
    - Compatible RMM server: Windows, Linux and macOS, through its command
      endpoint. The device has to be online there.
    - NinjaOne runs only scripts from its own library. Create the two scripts

@@ -234,6 +234,24 @@ class TestDeploymentApi(ULRMMTestCase):
         self.assertIsNone(deployment.auth_token_id)
         self.assertEqual(deployment.token_key, "")
 
+    def test_flags_and_expiry_input(self):
+        url = "/clients/deployments/"
+        for bad in ({"ping": 1}, {"rdp": "false"}, {"power": None}):
+            r = self.client.post(url, self._body(**bad), format="json")
+            self.assertEqual(r.status_code, 400, bad)
+        later = djangotime.now() + dt.timedelta(days=3)
+        for bad in (None, 24, "soon", later.replace(tzinfo=None).isoformat()):
+            r = self.client.post(url, self._body(expires=bad), format="json")
+            self.assertEqual(r.status_code, 400, bad)
+        self.assertFalse(self.site.deploysites.exists())
+        offset = later.astimezone(dt.timezone(dt.timedelta(hours=2)))
+        r = self.client.post(url, self._body(expires=offset.isoformat()), format="json")
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(
+            self.site.deploysites.get().install_flags,
+            {"power": False, "ping": True, "rdp": False},
+        )
+
     def test_max_enrollments(self):
         for bad in (0, 100001, "5", True, 2.5):
             r = self.client.post(

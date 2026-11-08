@@ -84,10 +84,11 @@ def windows_command(deployment, arch: str) -> str:
 
 def linux_command(deployment) -> str:
     url = deploy_link(deployment, "sh")
-    f = "/tmp/ulrmm-install.sh"
+    # a private directory: a fixed /tmp name could be planted by another user
     return (
-        f"curl -fsSL --proto '=https' --proto-redir '=https' -o {f} '{url}' "
-        f"&& bash {f}; rc=$?; rm -f {f}; exit $rc"
+        "d=$(mktemp -d) && trap 'rm -rf \"$d\"' EXIT && "
+        "curl -fsSL --proto '=https' --proto-redir '=https' "
+        f'-o "$d/install.sh" \'{url}\' && bash "$d/install.sh"'
     )
 
 
@@ -119,7 +120,8 @@ def mac_command(site, mon_type: str, goarch: str, installer, hours: int):
 def detached(plat: str, command: str) -> str:
     """The installer runs longer than other RMMs wait for a command and
     would be killed at their timeout; this starts it on its own and returns
-    at once. Its output goes to /tmp/ulrmm-import.log on Linux and macOS."""
+    at once. Its output goes to import.log in a new mktemp -d directory
+    (tmp.* in the temp dir) on Linux and macOS."""
     if plat == AgentPlat.WINDOWS:
         encoded = base64.b64encode(command.encode("utf-16-le")).decode()
         return (
@@ -127,14 +129,14 @@ def detached(plat: str, command: str) -> str:
             "-ArgumentList '-NoProfile','-ExecutionPolicy','Bypass',"
             f"'-EncodedCommand','{encoded}'"
         )
-    f = "/tmp/ulrmm-import.sh"
-    # the file holds the link or token, it removes itself
-    body = f"trap 'rm -f {f}' EXIT\n{command}\n"
+    # the file holds the link or token; bash keeps reading it once removed,
+    # and no trap here, the command sets its own
+    body = f'rm -f "$0"\n{command}\n'
     encoded = base64.b64encode(body.encode()).decode()
     return (
-        f"umask 077 && echo {encoded} | base64 --decode > {f} && "
-        "S=$(command -v setsid || true) && "
-        f"(cd /tmp && $S nohup bash {f} > /tmp/ulrmm-import.log 2>&1 < /dev/null &)"
+        f'umask 077 && d=$(mktemp -d) && echo {encoded} | base64 --decode > "$d/import.sh"'
+        " && S=$(command -v setsid || true) && "
+        '(cd / && $S nohup bash "$d/import.sh" > "$d/import.log" 2>&1 < /dev/null &)'
     )
 
 

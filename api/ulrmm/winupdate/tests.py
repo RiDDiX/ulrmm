@@ -4,7 +4,7 @@
 # from itertools import cycle
 import datetime as dt
 from contextlib import contextmanager
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from zoneinfo import ZoneInfo
 
 from celery.exceptions import Retry
@@ -131,7 +131,7 @@ class TestAgentWinUpdatesAPI(ULRMMTestCase):
         self.assertEqual(get_installing(self.agent.pk), set())
 
     @override_settings(CACHES=LOCMEM_CACHE)
-    @patch("agents.models.Agent.nats_cmd")
+    @patch("apiv3.views.abulk_nats_command", new_callable=AsyncMock)
     def test_checkin_only_clears_old_markers(self, nats_cmd):
         django_cache.clear()
         with patch("winupdate.installing.time") as installing_time:
@@ -599,7 +599,7 @@ class TestPosixPackageTasks(ULRMMTestCase):
     @patch("core.management.commands.clear_redis_celery_locks.cache")
     def test_clear_locks_includes_posix(self, cache):
         call_command("clear_redis_celery_locks")
-        cache.delete_many_pattern.assert_called_once_with("posix-packages-*")
+        cache.delete_many_pattern.assert_any_call("posix-packages-*")
 
     @patch("agents.models.Agent.nats_cmd")
     def test_install_marks_results_before_rescan_import(self, nats_cmd):

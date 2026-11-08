@@ -13,6 +13,7 @@ from contextlib import suppress
 from zoneinfo import ZoneInfo
 
 from cryptography.fernet import InvalidToken
+from django.db import connection, transaction
 from django.db.models import Exists, OuterRef
 from django.utils import timezone as djangotime
 
@@ -26,6 +27,16 @@ from .models import HKDF_INFO, Channel, Notification, Route, State
 
 RANK = {AlertSeverity.INFO: 0, AlertSeverity.WARNING: 1, AlertSeverity.ERROR: 2}
 RATE_LIMIT = 60
+# this many failed sends in a row within PAUSE_FOR pause the channel
+PAUSE_AFTER = 5
+PAUSE_FOR = dt.timedelta(minutes=5)
+PAUSED = "channel paused after repeated failures"
+GONE = "the channel is gone or disabled"
+# rows still queued after this lost their task (worker restart, broker loss)
+STALE = dt.timedelta(minutes=10)
+REQUEUE_BATCH = 500
+# pg_advisory_xact_lock(int4, int4) namespace for the dedupe check
+_DEDUPE_LOCK_SPACE = 0x4E_4F_54
 DIGEST_LINES = 40
 KEEP = dt.timedelta(days=90)
 ALERT_SOURCES = {
@@ -94,15 +105,28 @@ def _dispatch(event: dict) -> int:
     if not routes:
         return 0
     key = _line(event.get("dedupe_key"), 200)
-    if key:
-        seen = Notification.objects.filter(dedupe_key=key)
-        if hours := event.get("dedupe_hours", 24):
-            seen = seen.filter(
-                created__gte=djangotime.now() - dt.timedelta(hours=hours)
-            )
-        if seen.exists():
-            return 0
+    with transaction.atomic():
+        if key:
+            # two workers with the same event: the second waits and sees the rows
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(%s, hashtext(%s))",
+                    [_DEDUPE_LOCK_SPACE, key],
+                )
+            seen = Notification.objects.filter(dedupe_key=key)
+            if hours := event.get("dedupe_hours", 24):
+                seen = seen.filter(
+                    created__gte=djangotime.now() - dt.timedelta(hours=hours)
+                )
+            if seen.exists():
+                return 0
+        rows = _queue(event, routes, severity, alert, source, key)
+    if rows:
+        send_notifications_task.delay([r.pk for r in rows])
+    return len(rows)
 
+
+def _queue(event, routes, severity, alert, source, key) -> list:
     agent = event.get("agent") or (alert.agent if alert else None)
     muted = agent is not None and in_maintenance(agent)
     targets: dict[int, tuple] = {}
@@ -113,9 +137,9 @@ def _dispatch(event: dict) -> int:
             if channel.enabled and _rank(severity) >= _rank(channel.min_severity):
                 targets.setdefault(channel.pk, (channel, route))
     if not targets:
-        return 0
+        return []
 
-    rows = Notification.objects.bulk_create(
+    return Notification.objects.bulk_create(
         Notification(
             route=route,
             channel=channel,
@@ -128,8 +152,6 @@ def _dispatch(event: dict) -> int:
         )
         for channel, route in targets.values()
     )
-    send_notifications_task.delay([r.pk for r in rows])
-    return len(rows)
 
 
 def notify_alert(alert, resolved: bool = False) -> int:
@@ -232,6 +254,26 @@ def _send_row(channel, row, n: dict, now) -> None:
     )
 
 
+def _failures(channel, now) -> int:
+    """Failed sends in a row of the channel within PAUSE_FOR, at most PAUSE_AFTER."""
+    last = (
+        Notification.objects.filter(
+            channel=channel,
+            created__gte=now - PAUSE_FOR,
+            state__in=(State.SENT, State.FAILED),
+        )
+        .exclude(error__in=(PAUSED, GONE))
+        .order_by("-pk")
+        .values_list("state", flat=True)[:PAUSE_AFTER]
+    )
+    n = 0
+    for state in last:
+        if state != State.FAILED:
+            break
+        n += 1
+    return n
+
+
 def deliver(ids: list[int]) -> None:
     now = djangotime.now()
     rows = (
@@ -239,24 +281,39 @@ def deliver(ids: list[int]) -> None:
         .select_related("channel", "alert__agent")
         .order_by("pk")
     )
+    sent: dict[int, int] = {}
+    failures: dict[int, int] = {}
     for row in rows:
+        # a requeued row can be in two tasks, only one of them takes it
+        claimed = Notification.objects.filter(pk=row.pk, state=State.QUEUED)
+        if not claimed.update(state=State.SENDING):
+            continue
         channel = row.channel
         if not channel or not channel.enabled:
-            row.state, row.error = State.FAILED, "the channel is gone or disabled"
+            row.state, row.error = State.FAILED, GONE
             row.save(update_fields=["state", "error"])
-        elif in_quiet_hours(channel, now):
+            continue
+        if in_quiet_hours(channel, now):
             row.state = State.HELD
             row.save(update_fields=["state"])
-        elif (
-            sent := Notification.objects.filter(
+            continue
+        if channel.pk not in sent:
+            sent[channel.pk] = Notification.objects.filter(
                 channel=channel,
                 state=State.SENT,
                 sent_at__gte=now - dt.timedelta(hours=1),
             ).count()
-        ) >= RATE_LIMIT:
+            failures[channel.pk] = _failures(channel, now)
+        # a recovery must not get lost, it clears what the failure said
+        recovery = row.dedupe_key.endswith(":resolved")
+        if failures[channel.pk] >= PAUSE_AFTER:
+            # stays queued, requeue_stale() tries it again after the pause
+            row.state, row.error = State.QUEUED, PAUSED
+            row.save(update_fields=["state", "error"])
+        elif sent[channel.pk] >= RATE_LIMIT and not recovery:
             row.state, row.error = State.DROPPED, "over 60 messages in one hour"
             row.save(update_fields=["state", "error"])
-            if sent == RATE_LIMIT:
+            if sent[channel.pk] == RATE_LIMIT:
                 _summary(
                     channel,
                     now,
@@ -264,8 +321,14 @@ def deliver(ids: list[int]) -> None:
                     "More than 60 notifications in the last hour. Further ones "
                     "are kept in the notification history only.",
                 )
+                sent[channel.pk] += 1
         else:
             _send_row(channel, row, _payload(row), now)
+            if row.state == State.SENT:
+                sent[channel.pk] += 1
+                failures[channel.pk] = 0
+            else:
+                failures[channel.pk] += 1
 
 
 def _summary(channel, now, title: str, body: str, held=None) -> None:
@@ -360,6 +423,26 @@ def escalate(now) -> None:
         if new:
             rows = Notification.objects.bulk_create(new)
             send_notifications_task.delay([r.pk for r in rows])
+
+
+def requeue_stale(now) -> int:
+    """Queued rows whose task got lost go out again, oldest first."""
+    from .tasks import send_notifications_task
+
+    # a worker that died while sending left its row claimed.
+    # shortcut: aged by created, a row sent right now can go out twice; add a
+    # claimed_at column if that shows up
+    Notification.objects.filter(state=State.SENDING, created__lt=now - STALE).update(
+        state=State.QUEUED
+    )
+    ids = list(
+        Notification.objects.filter(state=State.QUEUED, created__lt=now - STALE)
+        .order_by("pk")
+        .values_list("pk", flat=True)[:REQUEUE_BATCH]
+    )
+    if ids:
+        send_notifications_task.delay(ids)
+    return len(ids)
 
 
 def prune(now) -> None:

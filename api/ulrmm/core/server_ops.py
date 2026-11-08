@@ -10,6 +10,7 @@ starts riddix/scripts/maint_runner.sh, which writes <action>.log and
 service user owns both directories.
 """
 
+import codecs
 import fcntl
 import json
 import os
@@ -136,19 +137,22 @@ def request_action(action: str) -> None:
             "The maintenance runner is not installed on this server yet. "
             "Run update.sh once on the server; it installs the runner."
         )
-    current = busy_with()
-    if current:
-        raise MaintError(
-            "Another maintenance task is queued."
-            if current == "queued"
-            else f"A {current} is already running."
-        )
-    tmp = maint_dir() / ".request"
-    tmp.write_text(action + "\n")
-    os.chmod(tmp, 0o600)
-    # the previous run's done/failed state would end the new run in the UI
-    (maint_dir() / f"{action}.state.json").unlink(missing_ok=True)
-    os.replace(tmp, maint_dir() / "request")
+    # two requests at once: the second must see the first one queued
+    with open(maint_dir() / ".request.lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        current = busy_with()
+        if current:
+            raise MaintError(
+                "Another maintenance task is queued."
+                if current == "queued"
+                else f"A {current} is already running."
+            )
+        tmp = maint_dir() / ".request"
+        tmp.write_text(action + "\n")
+        os.chmod(tmp, 0o600)
+        # the previous run's done/failed state would end the new run in the UI
+        (maint_dir() / f"{action}.state.json").unlink(missing_ok=True)
+        os.replace(tmp, maint_dir() / "request")
 
 
 def write_release_request(version: str | None) -> None:
@@ -188,8 +192,12 @@ def read_log(action: str, offset: int = 0) -> dict:
     with path.open("rb") as f:
         f.seek(offset)
         chunk = f.read(LOG_CHUNK)
-    text = ANSI.sub("", chunk.decode("utf-8", errors="replace")).replace("\r", "")
-    return {"text": text, "offset": offset + len(chunk), "size": size}
+    # a character cut at the chunk end is left for the next read
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    text = decoder.decode(chunk)
+    used = len(chunk) - len(decoder.getstate()[0])
+    text = ANSI.sub("", text).replace("\r", "")
+    return {"text": text, "offset": offset + used, "size": size}
 
 
 # --- backups -----------------------------------------------------------------

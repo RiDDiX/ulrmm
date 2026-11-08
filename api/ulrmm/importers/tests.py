@@ -263,10 +263,14 @@ class TestMigrate(ULRMMTestCase):
         self.assertTrue(lin[3].endswith("?fmt=sh"))
         script = base64.b64decode(lin[2].split("echo ")[1].split(" ")[0]).decode()
         self.assertIn(
-            f"curl -fsSL --proto '=https' --proto-redir '=https' -o /tmp/ulrmm-install.sh '{lin[3]}'",
+            "curl -fsSL --proto '=https' --proto-redir '=https' "
+            f"-o \"$d/install.sh\" '{lin[3]}'",
             script,
         )
-        self.assertTrue(script.startswith("trap 'rm -f /tmp/ulrmm-import.sh' EXIT"))
+        self.assertTrue(script.startswith('rm -f "$0"\nd=$(mktemp -d) && trap'))
+        for command in (lin[2], script):
+            self.assertIn("mktemp -d", command)
+            self.assertNotIn("/tmp/ulrmm-", command)
         mac = ImportedDevice.objects.get(ref="d3")
         self.assertEqual(mac.migrate_state, MigrateState.FAILED)
         lost = ImportedDevice.objects.get(ref="d4")
@@ -370,6 +374,9 @@ class TestViews(ULRMMTestCase):
             f"{BASE}/{src.pk}/import/", {"parts": ["bogus"]}, format="json"
         )
         self.assertEqual(r.status_code, 400)
+        for path in ("import", "migrate"):
+            r = self.client.post(f"{BASE}/{src.pk}/{path}/", ["x"], format="json")
+            self.assertEqual(r.status_code, 400)
         r = self.client.post(
             f"{BASE}/{src.pk}/import/", {"parts": list(engine.PARTS)}, format="json"
         )

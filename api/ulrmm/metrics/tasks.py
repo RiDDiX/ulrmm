@@ -9,7 +9,9 @@ from agents.models import Agent
 from agents.perf import parse_perf, perf_command
 from core.stats import _offline_q
 from core.utils import get_core_settings
+from logs.tasks import BATCH
 from ulrmm.celery import app
+from ulrmm.constants import MINUTE_LOCK_EXPIRE
 from ulrmm.utils import redis_lock
 
 from .models import Sample
@@ -80,7 +82,8 @@ async def _collect(agents: list["Agent"]):
 
 @app.task
 def sample_metrics_task() -> str:
-    with redis_lock(SAMPLE_LOCK, sample_metrics_task.app.oid) as acquired:
+    lock = redis_lock(SAMPLE_LOCK, sample_metrics_task.app.oid, MINUTE_LOCK_EXPIRE)
+    with lock as acquired:
         if not acquired:
             return "already running"
 
@@ -105,5 +108,9 @@ def sample_metrics_task() -> str:
 def prune_metrics_task() -> str:
     days = min(max(get_core_settings().metric_history_days or 30, 1), 365)
     cutoff = djangotime.now() - djangotime.timedelta(days=days)
-    deleted, _ = Sample.objects.filter(ts__lt=cutoff).delete()
+    old = Sample.objects.filter(ts__lt=cutoff).order_by("pk")
+    deleted = 0
+    # batches keep each DELETE short on big tables
+    while ids := list(old.values_list("pk", flat=True)[:BATCH]):
+        deleted += Sample.objects.filter(pk__in=ids).delete()[0]
     return f"{deleted} samples removed"

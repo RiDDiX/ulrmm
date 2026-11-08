@@ -38,7 +38,7 @@ class AppUpdate(models.Model):
     state = models.CharField(
         max_length=10, choices=State.choices, default=State.AVAILABLE
     )
-    last_error = models.CharField(max_length=500, blank=True, default="")
+    last_error = models.CharField(max_length=1500, blank=True, default="")
 
     class Meta:
         constraints = [

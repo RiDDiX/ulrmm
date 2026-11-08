@@ -5,6 +5,7 @@ import datetime as dt
 import secrets
 import string
 
+from cryptography.fernet import InvalidToken
 from django.db import transaction
 from django.utils import timezone as djangotime
 from rest_framework.exceptions import ValidationError
@@ -12,7 +13,7 @@ from rest_framework.exceptions import ValidationError
 from agents.models import Agent, AgentHistory
 from logs.models import DebugLog
 from netmon.probe import clean
-from remote.utils import encrypt_secret
+from remote.utils import decrypt_secret, encrypt_secret
 from scripts.models import Script, check_env_vars
 from ulrmm.celery import app
 from ulrmm.constants import (
@@ -30,7 +31,9 @@ from .models import SCRIPTS, LapsPolicy, LapsState
 LAPS_LOCK = "laps-rotate-lock"
 # a failed rotation is tried again after this, the notification goes out once
 RETRY_AFTER = dt.timedelta(hours=4)
-TIMEOUT = 120
+# the script ends before the wait for its answer does
+TIMEOUT = 90
+WAIT = 120
 SYMBOLS = "-_.+@#!"
 CLASSES = (string.ascii_lowercase, string.ascii_uppercase, string.digits, SYMBOLS)
 
@@ -75,12 +78,20 @@ def _run(agent: Agent, script: Script, env: list[str], username: str) -> dict | 
             scriptpk=script.pk,
             env_vars=env,
             timeout=TIMEOUT,
+            wait_timeout=WAIT,
             full=True,
             wait=True,
             history_pk=hist.pk,
         )
     except Exception as e:
         return clean(e, 200) or type(e).__name__
+
+
+def _pending(state: LapsState) -> str:
+    try:
+        return decrypt_secret(state.pending_secret, HKDF_INFO)
+    except InvalidToken:
+        return ""
 
 
 def rotate(agent: Agent, username: str = "laps") -> str:
@@ -91,7 +102,11 @@ def rotate(agent: Agent, username: str = "laps") -> str:
         return "Local admin rotation is off for this site."
     state, _ = LapsState.objects.get_or_create(agent=agent)
     account = policy.account
-    password = new_password(policy.length)
+    # the device may already have it when the last run got no answer; a changed
+    # length or account makes a new one
+    pending = _pending(state) if state.pending_secret else ""
+    reuse = len(pending) == policy.length and state.pending_account == account
+    password = pending if reuse else new_password(policy.length)
     env = [
         f"TARGET_USER={account}",
         f"NEW_PASSWORD={password}",
@@ -108,6 +123,10 @@ def rotate(agent: Agent, username: str = "laps") -> str:
         except ValidationError as e:
             error = f"The library script does not take its variables: {e.detail[0]}"
     if not error:
+        state.pending_secret = encrypt_secret(password, HKDF_INFO)
+        state.pending_at = (reuse and state.pending_at) or djangotime.now()
+        state.pending_account = account
+        state.save(update_fields=["pending_secret", "pending_at", "pending_account"])
         r = _run(agent, script, env, username)
         if not isinstance(r, dict):
             error = "The agent did not answer." if r == "timeout" else str(r)
@@ -155,6 +174,9 @@ def rotate(agent: Agent, username: str = "laps") -> str:
         state.last_rotation = now
         state.next_rotation = now + dt.timedelta(days=policy.rotate_days)
         state.last_error = ""
+        state.pending_secret = ""
+        state.pending_at = None
+        state.pending_account = ""
         state.save()
     return ""
 

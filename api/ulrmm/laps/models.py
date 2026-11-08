@@ -66,6 +66,11 @@ class LapsState(models.Model):
         on_delete=models.SET_NULL,
         related_name="+",
     )
+    # sent to the device, not yet confirmed: Fernet token with vault HKDF_INFO.
+    # the next run sends it again, so a lost reply cannot lose the password
+    pending_secret = models.TextField(blank=True, default="")
+    pending_at = models.DateTimeField(null=True, blank=True)
+    pending_account = models.CharField(max_length=20, blank=True, default="")
 
     def __str__(self) -> str:
         return f"local admin of {self.agent_id}"

@@ -771,6 +771,7 @@ class Agent(BaseAuditModel):
         history_pk: int = 0,
         run_as_user: bool = False,
         env_vars: list[str] = [],
+        wait_timeout: int = 0,
     ) -> Any:
         from scripts.models import Script
 
@@ -808,7 +809,9 @@ class Agent(BaseAuditModel):
                 return "Unable to find an online agent"
 
         if wait:
-            return asyncio.run(runner.nats_cmd(data, timeout=timeout, wait=True))
+            return asyncio.run(
+                runner.nats_cmd(data, timeout=wait_timeout or timeout, wait=True)
+            )
 
         asyncio.run(runner.nats_cmd(data, wait=False))
         return "ok"

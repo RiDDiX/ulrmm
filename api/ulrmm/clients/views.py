@@ -549,11 +549,13 @@ class AgentDeployment(APIView):
             )
 
         now = djangotime.now()
+        raw = data.get("expires")
         try:
-            expires = dt.datetime.strptime(data["expires"], "%Y-%m-%dT%H:%M:%S%z")
-        except Exception:
+            # ISO 8601 with an offset, the web sends 2026-01-31T12:00:00+0100
+            expires = dt.datetime.fromisoformat(raw if isinstance(raw, str) else "")
+        except ValueError:
             return notify_error("expire date is invalid")
-        if expires <= now:
+        if expires.tzinfo is None or expires <= now:
             return notify_error("expire date is invalid")
         if expires - now > DEPLOYMENT_MAX_TTL:
             return notify_error("A deployment link can be valid for 365 days at most.")
@@ -564,7 +566,7 @@ class AgentDeployment(APIView):
         if (
             mon_type not in AgentMonType.values
             or goarch not in GoArch.values
-            or None in flags.values()
+            or not all(isinstance(v, bool) for v in flags.values())
             or not isinstance(name, str)
             or len(name) > 100
             or not name.isprintable()
@@ -599,7 +601,7 @@ class AgentDeployment(APIView):
                 mon_type=mon_type,
                 goarch=goarch,
                 policy=policy,
-                install_flags={k: bool(v) for k, v in flags.items()},
+                install_flags=flags,
                 max_enrollments=cap,
             )
             _audit_deployment(

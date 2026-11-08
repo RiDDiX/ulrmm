@@ -10,4 +10,5 @@ urlpatterns = [
     path("policies/<int:site_id>/", views.SitePolicy.as_view()),
     path("<str:agent_id>/", views.AgentLaps.as_view()),
     path("<str:agent_id>/rotate/", views.RotateNow.as_view()),
+    path("<str:agent_id>/pending/", views.RevealPending.as_view()),
 ]

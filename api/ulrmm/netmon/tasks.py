@@ -11,7 +11,7 @@ from alerts.models import Alert
 from alerts.tasks import notify_once
 from core.utils import get_core_settings
 from ulrmm.celery import app
-from ulrmm.constants import NETMON_POLL_LOCK, AlertSeverity
+from ulrmm.constants import MINUTE_LOCK_EXPIRE, NETMON_POLL_LOCK, AlertSeverity
 from ulrmm.utils import redis_lock
 
 from .models import DeviceStatus, NetworkDevice, probe_scope
@@ -49,7 +49,10 @@ def record(device: NetworkDevice, result: dict, checked: dt.datetime) -> None:
 
 @app.task(soft_time_limit=55)
 def poll_network_devices() -> str:
-    with redis_lock(NETMON_POLL_LOCK, poll_network_devices.app.oid) as acquired:
+    lock = redis_lock(
+        NETMON_POLL_LOCK, poll_network_devices.app.oid, MINUTE_LOCK_EXPIRE
+    )
+    with lock as acquired:
         if not acquired:
             return "already running"
 

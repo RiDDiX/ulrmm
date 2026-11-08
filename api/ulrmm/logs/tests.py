@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import RequestFactory
 from django.utils import timezone as djangotime
@@ -83,3 +84,40 @@ class TestPrunePendingActions(ULRMMTestCase):
         self.assertEqual(
             sorted(rows[pk] for pk in left), ["new completed", "old pending"]
         )
+
+
+class TestListCaps(ULRMMTestCase):
+    def setUp(self):
+        self.authenticate()
+
+    def test_audit_total_is_capped(self):
+        baker.make("logs.AuditLog", username="john", _quantity=3)
+        search = {
+            "pagination": {
+                "sortBy": "entry_time",
+                "descending": True,
+                "page": 1,
+                "rowsPerPage": 2,
+            }
+        }
+        r = self.client.patch("/logs/audit/", search, format="json")
+        self.assertEqual((r.data["total"], r.data["total_capped"]), (3, False))
+        with patch("logs.views.COUNT_CAP", 2):
+            r = self.client.patch("/logs/audit/", search, format="json")
+        self.assertEqual((r.data["total"], r.data["total_capped"]), (2, True))
+        self.assertEqual(len(r.data["audit_logs"]), 2)
+
+    def test_pending_actions_pages(self):
+        agent = baker.make_recipe("agents.online_agent")
+        baker.make(
+            "logs.PendingAction",
+            agent=agent,
+            action_type="agentupdate",
+            _quantity=3,
+        )
+        url = "/logs/pendingactions/"
+        self.assertEqual(len(self.client.get(url).data), 3)
+        r = self.client.get(url, {"page": 2, "rows": 2})
+        self.assertEqual(r.data["total"], 3)
+        self.assertEqual(len(r.data["actions"]), 1)
+        self.assertEqual(self.client.get(url, {"page": "x"}).status_code, 400)

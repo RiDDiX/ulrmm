@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from django.apps import apps
 from django.core.cache import cache
+from django.db import connection
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone as djangotime
 from model_bakery import baker
@@ -24,6 +25,7 @@ from .state import (
     MAX_BODY,
     clean_state,
     evaluate_metric_checks,
+    ingest,
     parse_key,
     series,
     series_key,
@@ -249,6 +251,26 @@ def doc(**changes):
     body = copy.deepcopy(DOC)
     body.update(changes)
     return body
+
+
+class TestIngestOrder(ULRMMTestCase):
+    def test_gap_check_runs_under_the_state_row_lock(self):
+        agent = baker.make_recipe("agents.online_agent")
+        depth = []
+        real = Sample.objects.filter
+
+        def gap_filter(*args, **kwargs):
+            if "ts__gt" in kwargs:
+                depth.append(len(connection.atomic_blocks))
+            return real(*args, **kwargs)
+
+        base = len(connection.atomic_blocks)
+        with patch.object(Sample.objects, "filter", gap_filter):
+            self.assertIsNotNone(ingest(agent, clean_state({})))
+            self.assertIsNone(ingest(agent, clean_state({})))
+        # a concurrent push waits on the row and then finds this sample
+        self.assertEqual(depth, [base + 1, base + 1])
+        self.assertEqual(Sample.objects.filter(agent=agent).count(), 1)
 
 
 class TestCleanState(SimpleTestCase):

@@ -3,7 +3,7 @@
 
 import datetime as dt
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from django.core.cache import cache
 from django.test import override_settings
@@ -13,6 +13,7 @@ from model_bakery import baker
 
 from accounts.utils import grant_console_stepup
 from agents.models import UNINSTALL_CODE_INFO, Agent
+from winupdate.installing import SCAN_CMD
 from agents.serializers import AgentAuditSerializer, AgentSerializer
 from alerts.models import Alert
 from logs.models import AuditLog
@@ -33,11 +34,11 @@ class TestCheckIn(ULRMMTestCase):
         self.authenticate_agent(self.agent)
 
     def checkin(self, **data):
-        with patch("agents.models.Agent.nats_cmd") as nats_cmd:
+        with patch("apiv3.views.abulk_nats_command", new_callable=AsyncMock) as bulk:
             r = self.client.post("/api/v3/checkin/", data, format="json")
         self.assertEqual(r.status_code, 200)
         self.agent.refresh_from_db()
-        return nats_cmd
+        return bulk
 
     def test_uninstall_code_stored_encrypted(self):
         self.checkin(uninstall_code=CODE)
@@ -75,6 +76,20 @@ class TestCheckIn(ULRMMTestCase):
         ev = dispatch.call_args.args[0]
         self.assertEqual((ev["source"], ev["severity"]), ("tamper", "warning"))
         self.assertEqual(ev["alert"], alert)
+
+    def test_windows_commands_share_one_connection(self):
+        self.agent.choco_installed = False
+        self.agent.save()
+        bulk = self.checkin()
+        bulk.assert_called_once()
+        self.assertEqual(
+            [func for _, func in bulk.call_args.kwargs["items"]],
+            [{"func": "installchoco"}, SCAN_CMD],
+        )
+        self.assertEqual(
+            {subject for subject, _ in bulk.call_args.kwargs["items"]},
+            {self.agent.agent_id},
+        )
 
     def test_posix_agents_get_no_windows_commands(self):
         self.assertTrue(self.checkin().called)

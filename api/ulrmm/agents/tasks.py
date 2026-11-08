@@ -17,7 +17,7 @@ from logs.models import DebugLog
 from scripts.models import Script
 from ulrmm.celery import app
 from ulrmm.constants import AGENT_DEFER, AGENT_OUTAGES_LOCK, AGENT_STATUS_OVERDUE
-from ulrmm.constants import CheckStatus, DebugLogType
+from ulrmm.constants import MINUTE_LOCK_EXPIRE, CheckStatus, DebugLogType
 from ulrmm.logger import logger
 from ulrmm.utils import redis_lock
 
@@ -77,7 +77,7 @@ def agent_recovery_sms_task(pk: int) -> str:
 
 @app.task(bind=True)
 def agent_outages_task(self) -> str:
-    with redis_lock(AGENT_OUTAGES_LOCK, self.app.oid) as got_lock:
+    with redis_lock(AGENT_OUTAGES_LOCK, self.app.oid, MINUTE_LOCK_EXPIRE) as got_lock:
         if not got_lock:
             return f"{self.app.oid} still running"
         # status and the alert need the template and names, not checks or tasks

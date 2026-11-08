@@ -14,7 +14,8 @@ import requests
 
 from core.utils import _is_internal_url, get_core_settings, url_guard
 
-TIMEOUT = 20
+# connect, read: a dead endpoint must not hold the delivery task long
+TIMEOUT = (5, 10)
 PRIORITY = {"info": "3", "warning": "4", "error": "5"}
 
 

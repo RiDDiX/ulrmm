@@ -54,6 +54,8 @@ AUDIT_LIST_FILTERS = (
     "objectFilter",
 )
 MAX_ROWS = 1000
+# counting every match of a big log is slow, past this the total is a floor
+COUNT_CAP = 10_000
 MAX_DAYS = 36500
 
 
@@ -156,6 +158,8 @@ class GetAuditLogs(APIView):
             return notify_error(str(e))
 
         paginator = Paginator(qs, rows)
+        total = qs.order_by()[: COUNT_CAP + 1].count()
+        paginator.count = min(total, COUNT_CAP)
         entries = list(paginator.get_page(page))
         agent_ids = {e.agent_id for e in entries if e.agent_id}
         agents = (
@@ -171,6 +175,7 @@ class GetAuditLogs(APIView):
                     entries, many=True, context={"sites": sites}
                 ).data,
                 "total": paginator.count,
+                "total_capped": total > COUNT_CAP,
             }
         )
 
@@ -242,7 +247,26 @@ class PendingActions(APIView):
             .defer("agent__services", "agent__wmi_detail")
             .order_by("pk")
         )
-        return Response(PendingActionSerializer(actions, many=True).data)
+        # the list without page stays for older web builds
+        if "page" not in request.query_params:
+            return Response(PendingActionSerializer(actions, many=True).data)
+        try:
+            rows = min(
+                max(_number(request.query_params.get("rows", "50"), "rows"), 1),
+                MAX_ROWS,
+            )
+            page = _number(request.query_params["page"], "page")
+        except BadInput as e:
+            return notify_error(str(e))
+        paginator = Paginator(actions, rows)
+        return Response(
+            {
+                "actions": PendingActionSerializer(
+                    paginator.get_page(page), many=True
+                ).data,
+                "total": paginator.count,
+            }
+        )
 
     def delete(self, request, pk=None, agent_id=None):
         if pk is None:

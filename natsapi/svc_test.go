@@ -30,6 +30,20 @@ func TestCheckInSubjects(t *testing.T) {
 	}
 }
 
+func TestMissedHellos(t *testing.T) {
+	var s idSet
+	for _, subject := range []string{"a1", "a1.checkin", "a2.checkin"} {
+		s.add(subjectAgent(subject))
+	}
+	ids := s.take()
+	if len(ids) != 2 || len(s.take()) != 0 {
+		t.Fatalf("took %v", ids)
+	}
+	if !strings.Contains(missedHellos, "SET last_seen=$1 WHERE agents_agent.agent_id = ANY($2)") {
+		t.Errorf("statement %q", missedHellos)
+	}
+}
+
 func TestPowerUpdate(t *testing.T) {
 	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	for _, kind := range []string{"", "reboot", "Shutdown", "hibernate"} {
@@ -51,8 +65,8 @@ func TestPowerUpdate(t *testing.T) {
 			t.Errorf("initiator kept %d runes", n)
 		}
 	}
-	if _, args, _ := powerUpdate(&PowerMsg{AgentID: "a1", Kind: "restart", Source: "rmm"}, now); args[4] != "rmm" {
-		t.Errorf("source not passed: %v", args)
+	if q, args, _ := powerUpdate(&PowerMsg{AgentID: "a1", Kind: "restart", Source: "rmm"}, now); args[4] != "rmm" || !strings.Contains(q, "power_event_by LIKE 'rmm: %' AND power_event_at > $2::timestamptz - interval '15 minutes'") {
+		t.Errorf("rmm source keeps any old name: %q %v", q, args)
 	}
 	if q, _, _ := powerUpdate(&PowerMsg{AgentID: "a1", Kind: "restart"}, now); strings.Contains(q, "last_seen") {
 		t.Errorf("touches last_seen: %q", q)

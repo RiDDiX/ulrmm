@@ -56,6 +56,26 @@ def _has_perm_on_agent(user, agent_id: str) -> bool:
     return not restricted or agent.site.client in clients or agent.site in sites
 
 
+def agent_perm_check(user):
+    """_has_perm_on_agent as a test of agents with their site loaded; the
+    role and its scope are read once for all of them."""
+    if getattr(user, "is_installer_user", False):
+        return lambda agent: False
+    role = _role(user)
+    if _is_super(user, role):
+        return lambda agent: True
+    if not role:
+        return lambda agent: False
+    clients, sites, restricted = _restrictions(role)
+    client_ids = {c.pk for c in clients}
+    site_ids = {s.pk for s in sites}
+    return lambda agent: (
+        not restricted
+        or agent.site.client_id in client_ids
+        or agent.site_id in site_ids
+    )
+
+
 class RoleFlagPermission(permissions.BasePermission):
     """Lets the request through when the caller's role has `flag` set."""
 

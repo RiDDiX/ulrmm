@@ -6,22 +6,27 @@ import sys
 import types
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase
+from django.core.cache import cache
+from django.test import SimpleTestCase, override_settings
 from django.utils import timezone as djangotime
 from model_bakery import baker
 
 from agents.models import Agent, AgentHistory
 from logs.models import AuditLog, DebugLog
 from ulrmm.constants import AgentHistoryType
-from ulrmm.test import ULRMMTestCase
+from ulrmm.test import LOCMEM_CACHE, ULRMMTestCase
 
 from .models import AppUpdate, AppUpdateScan, AppUpdateSettings
 from .tasks import (
+    APPLYING,
     ID_RE,
     NO_ANSWER,
+    TIMED_OUT,
+    _outcome,
     apply_app_updates_task,
     collect_app_updates_task,
     effective,
+    mark_applying,
     parse_list,
     store,
 )
@@ -160,6 +165,19 @@ class TestParse(SimpleTestCase):
                     parse_list(answer)
 
 
+class TestOutcome(SimpleTestCase):
+    def test_markers(self):
+        for result, want in (
+            ({"ok": True, "output_tail": "time limit reached"}, "done"),
+            ({"status": "not_started"}, "not_started"),
+            ({"timed_out": True, "output_tail": "exit 1"}, "timed_out"),
+            ({"output_tail": "not started: time limit reached"}, "not_started"),
+            ({"output_tail": "Installing\nwinget: time limit reached\n"}, "timed_out"),
+            ({"output_tail": "0x8a15002b: no applicable upgrade"}, "failed"),
+        ):
+            self.assertEqual(_outcome(result), want, result)
+
+
 class Base(ULRMMTestCase):
     def setUp(self):
         self.authenticate()
@@ -270,7 +288,7 @@ class TestTasks(Base):
         self.assertEqual(result, "1 app updates installed, 1 failed on 1 agents")
         self.assertEqual(len(calls), 1)
         agent_id, data, timeout = calls[0]
-        self.assertEqual((agent_id, timeout), (self.win.agent_id, 600))
+        self.assertEqual((agent_id, timeout), (self.win.agent_id, 1800))
         self.assertEqual(
             (data["func"], data["payload"]["action"], data["payload"]["source"]),
             ("appupdates", "upgrade", "winget"),
@@ -345,20 +363,142 @@ class TestTasks(Base):
         calls = []
         with fake_nats({}, calls):
             apply_app_updates_task()
-        # 100 ids per call, after a timeout the agent is not asked again
+        # 4 ids per call, after a timeout the agent is not asked again
         self.assertEqual(len(calls), 1)
-        self.assertEqual(len(calls[0][1]["payload"]["ids"].split(",")), 100)
-        self.assertEqual(
-            set(AppUpdate.objects.values_list("state", "last_error")),
-            {("failed", NO_ANSWER)},
-        )
+        self.assertEqual(len(calls[0][1]["payload"]["ids"].split(",")), 4)
+        states = list(AppUpdate.objects.values_list("state", "last_error"))
+        self.assertEqual(states.count(("failed", NO_ANSWER)), 4)
+        # the calls that were never sent are not failures
+        self.assertEqual(states.count(("available", "")), 146)
 
         calls = []
         with fake_nats({self.win.agent_id: upgraded([])}, calls):
             apply_app_updates_task()
         self.assertEqual(
-            [len(c[1]["payload"]["ids"].split(",")) for c in calls], [100, 50]
+            [len(c[1]["payload"]["ids"].split(",")) for c in calls], [4] * 37 + [2]
         )
+
+    def test_not_started_and_timed_out(self):
+        rows = {
+            ("winget", f"App{i}.Id"): {"name": f"App {i}", "available": "2"}
+            for i in range(4)
+        }
+        store(self.win, rows)
+        self.enable()
+        hint = "Hint: close the app and run the update again."
+        tails = {
+            "App0.Id": "",
+            "App1.Id": "x" * 2000 + "\n" + hint,
+            "App2.Id": "Installing\nwinget: time limit reached",
+            "App3.Id": "not started: time limit reached",
+        }
+
+        def answer(data):
+            ids = data["payload"]["ids"].split(",")
+            return {
+                "results": [
+                    {"id": i, "ok": i == "App0.Id", "output_tail": tails[i]}
+                    for i in ids
+                ]
+            }
+
+        with fake_nats({self.win.agent_id: answer}, []):
+            result = apply_app_updates_task()
+        self.assertEqual(result, "1 app updates installed, 1 failed on 1 agents")
+        got = self.rows(self.win)
+        self.assertEqual(got["App0.Id"].state, "done")
+        failed = got["App1.Id"]
+        self.assertEqual((failed.state, len(failed.last_error)), ("failed", 1500))
+        self.assertTrue(failed.last_error.endswith(hint))
+        timed_out = got["App2.Id"]
+        self.assertEqual(timed_out.state, "updating")
+        self.assertTrue(timed_out.last_error.endswith(TIMED_OUT))
+        self.assertIn("winget: time limit reached", timed_out.last_error)
+        self.assertEqual(
+            (got["App3.Id"].state, got["App3.Id"].last_error), ("available", "")
+        )
+        history = AgentHistory.objects.get(agent=self.win).results
+        self.assertIn("App3.Id  -> 2: not started", history)
+        self.assertIn(hint, history)
+
+        # the next collect settles it: installed meanwhile, so no longer listed
+        del rows[("winget", "App2.Id")]
+        store(self.win, rows)
+        self.assertNotIn("App2.Id", self.rows(self.win))
+
+    def test_busy_agent_is_not_started(self):
+        rows = {
+            ("winget", f"App{i}.Id"): {"name": f"App {i}", "available": "2"}
+            for i in range(10)
+        }
+        store(self.win, rows)
+        self.enable()
+        calls = []
+        dispatch, modules = fake_notify()
+        busy = "app updates are already running"
+        with fake_nats({self.win.agent_id: busy}, calls), modules:
+            result = apply_app_updates_task()
+        self.assertEqual(result, "0 app updates installed, 0 failed on 1 agents")
+        # the agent refused the first call, the others are not sent
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            set(AppUpdate.objects.values_list("state", "last_error")),
+            {("available", "")},
+        )
+        history = "\n".join(
+            AgentHistory.objects.filter(agent=self.win).values_list(
+                "results", flat=True
+            )
+        )
+        self.assertIn("App0.Id  -> 2: not started", history)
+        self.assertNotIn("failed", history)
+        dispatch.assert_not_called()
+
+    def test_agent_timed_out_note_not_doubled(self):
+        store(self.win, {("winget", "App0.Id"): {"name": "App 0", "available": "2"}})
+        self.enable()
+        note = "timed out, the installer may still finish; rescan"
+
+        def answer(data):
+            return {
+                "results": [
+                    {
+                        "id": "App0.Id",
+                        "ok": False,
+                        "status": "timed_out",
+                        "output_tail": f"Installing\n{note}",
+                    }
+                ]
+            }
+
+        with fake_nats({self.win.agent_id: answer}, []):
+            apply_app_updates_task()
+        row = self.rows(self.win)["App0.Id"]
+        self.assertEqual(
+            (row.state, row.last_error), ("updating", f"Installing\n{note}")
+        )
+
+    @override_settings(CACHES=LOCMEM_CACHE)
+    def test_collect_while_upgrading(self):
+        cache.clear()
+        store(self.win, parse_list(WINGET_LIST))
+        before = AppUpdateScan.objects.get(agent=self.win).collected_at
+        busy = "app updates are already running"
+        with fake_nats({self.win.agent_id: busy}, []):
+            collect_app_updates_task()
+            r = self.client.post(f"/appupdates/{self.win.agent_id}/collect/")
+        self.assertEqual(r.status_code, 400)
+        scan = AppUpdateScan.objects.get(agent=self.win)
+        self.assertEqual((scan.collected_at, scan.error), (before, ""))
+
+        # a queued or running upgrade keeps its rows
+        mark_applying([self.win], 1)
+        AppUpdate.objects.filter(app_id="Google.Chrome").update(state="updating")
+        store(self.win, parse_list(WINGET_LIST))
+        self.assertEqual(self.rows(self.win)["Google.Chrome"].state, "updating")
+        cache.delete(APPLYING.format(self.win.pk))
+        store(self.win, parse_list(WINGET_LIST))
+        self.assertEqual(self.rows(self.win)["Google.Chrome"].state, "available")
 
     def test_dashboard_run(self):
         store(self.win, parse_list(WINGET_LIST))

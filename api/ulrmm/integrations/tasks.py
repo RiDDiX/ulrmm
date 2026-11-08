@@ -23,7 +23,7 @@ from logs.models import DebugLog
 from netmon.probe import clean
 from remote.utils import decrypt_secret
 from ulrmm.celery import app
-from ulrmm.utils import redis_lock
+from ulrmm.utils import BodyTooLarge, capped_json, redis_lock
 
 from .models import (
     OPNSENSE_INFO,
@@ -35,6 +35,7 @@ from .models import (
 
 SYNC_LOCK = "integrations-sync-lock"
 TIMEOUT = 20
+MAX_BODY = 50_000_000
 # clients not seen for this long are dropped
 KEEP = dt.timedelta(days=30)
 CLIENT_FIELDS = (
@@ -58,8 +59,16 @@ class SyncError(Exception):
 def _call(session, method: str, base: str, path: str, **kwargs):
     # redirects are not followed, so every request stays on the https base
     r = session.request(
-        method, base + path, timeout=TIMEOUT, allow_redirects=False, **kwargs
+        method,
+        base + path,
+        timeout=TIMEOUT,
+        allow_redirects=False,
+        stream=True,
+        **kwargs,
     )
+    if r.status_code >= 300:
+        # refused below, the body is never read
+        r.close()
     if r.is_redirect or 300 <= r.status_code < 400:
         raise SyncError(f"{path} answered with a redirect")
     if r.status_code in (401, 403):
@@ -67,7 +76,9 @@ def _call(session, method: str, base: str, path: str, **kwargs):
     if r.status_code >= 400:
         raise SyncError(f"{path} answered {r.status_code}")
     try:
-        return r.json()
+        return capped_json(r, MAX_BODY)
+    except BodyTooLarge:
+        raise SyncError(f"{path} answered with too much data")
     except ValueError:
         raise SyncError(f"{path} did not answer with JSON")
 
@@ -238,9 +249,15 @@ def opnsense_fetch(f: OpnsenseFirewall, now) -> tuple[dict, list]:
     return clients, sorted(vlans, key=lambda v: (v["vlan_id"], v["name"]))
 
 
-def store(fetched: dict, now) -> None:
-    """fetched: {source: {mac: fields}}. UniFi wins where both know a field."""
+def store(fetched: dict, now, failed=()) -> None:
+    """fetched: {source: {mac: fields}}. UniFi wins where both know a field.
+    What a failed source knew of a client stays until it answers again."""
     merged = {}
+    if failed:
+        macs = {mac for rows in fetched.values() for mac in rows}
+        for c in NetworkClient.objects.filter(mac__in=macs):
+            merged[c.mac] = {f: getattr(c, f) for f in CLIENT_FIELDS}
+            merged[c.mac]["source"] = [s for s in c.source.split(",") if s in failed]
     for source in ("opnsense", "unifi"):
         for mac, row in fetched.get(source, {}).items():
             cur = merged.setdefault(mac, {"source": []})
@@ -316,7 +333,7 @@ def _error(e: Exception) -> str:
 def sync() -> dict:
     """Both integrations that are on. {source: {ok, error | clients, vlans}}."""
     now = djangotime.now()
-    results, fetched = {}, {}
+    results, fetched, failed = {}, {}, []
     for source, model, fetch in (
         ("opnsense", OpnsenseFirewall, opnsense_fetch),
         ("unifi", UniFiController, unifi_fetch),
@@ -332,6 +349,7 @@ def sync() -> dict:
             model.objects.filter(pk=obj.pk).update(last_error=error)
             DebugLog.error(message=f"{obj} sync failed: {error}")
             results[source] = {"ok": False, "error": error}
+            failed.append(source)
             continue
         model.objects.filter(pk=obj.pk).update(
             last_sync=now, last_error="", vlans=vlans
@@ -339,7 +357,7 @@ def sync() -> dict:
         fetched[source] = clients
         results[source] = {"ok": True, "clients": len(clients), "vlans": len(vlans)}
     if fetched:
-        store(fetched, now)
+        store(fetched, now, failed)
         link()
     return results
 

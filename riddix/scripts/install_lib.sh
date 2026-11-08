@@ -901,7 +901,7 @@ logrotate_text() {
 }
 
 # task errors can name hosts and paths
-/var/log/celery/*.log /rmm/api/ulrmm/ulrmm/private/log/*_debug.log {
+/var/log/celery/*.log /rmm/api/ulrmm/ulrmm/private/log/*_debug.log /var/log/ulrmm-backup.log {
     weekly
     rotate 8
     compress

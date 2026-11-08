@@ -23,6 +23,7 @@ def escalate_task(self) -> str:
         now = djangotime.now()
         dispatch.flush_held(now)
         dispatch.escalate(now)
+        dispatch.requeue_stale(now)
         dispatch.prune(now)
     return "ok"
 

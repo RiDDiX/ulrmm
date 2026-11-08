@@ -119,6 +119,20 @@ class TestDispatch(ULRMMTestCase):
         self.assertEqual(d.dispatch(event(dedupe_key="k2", dedupe_hours=0)), 0)
 
     @patch(DELAY)
+    def test_dedupe_check_holds_a_lock(self, delay):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        route([channel()])
+        with CaptureQueriesContext(connection) as queries:
+            self.assertEqual(d.dispatch(event(dedupe_key="k1")), 1)
+        sql = [q["sql"] for q in queries.captured_queries]
+        lock = next(i for i, q in enumerate(sql) if "pg_advisory_xact_lock" in q)
+        insert = next(i for i, q in enumerate(sql) if q.startswith("INSERT"))
+        self.assertLess(lock, insert)
+        delay.assert_called_once()
+
+    @patch(DELAY)
     def test_maintenance_mutes_unless_the_route_says_otherwise(self, delay):
         muted = route([channel()])
         loud = route([channel("slack", "https://hooks.slack.com/x")])
@@ -231,7 +245,7 @@ class TestSenders(ULRMMTestCase):
         self.assertEqual(
             kw["json"], {"msgtype": "m.text", "body": "[warning] disk\nC: 91%"}
         )
-        self.assertEqual(kw["timeout"], 20)
+        self.assertEqual(kw["timeout"], senders.TIMEOUT)
         self.assertFalse(kw["allow_redirects"])
 
     def test_telegram_plain_text(self):
@@ -421,6 +435,102 @@ class TestDelivery(ULRMMTestCase):
         for row in (first, second):
             row.refresh_from_db()
             self.assertEqual(row.state, State.DROPPED)
+
+    def test_failing_channel_pauses_and_rows_wait(self):
+        rows = [self.row(title=f"t{i}") for i in range(7)]
+        recovery = self.row(dedupe_key="alert:1:resolved")
+        with patch(INTERNAL, return_value=False), patch(
+            REQUEST, side_effect=requests.ConnectionError("down")
+        ) as req:
+            d.deliver([r.pk for r in rows] + [recovery.pk])
+        self.assertEqual(req.call_count, d.PAUSE_AFTER)
+        rows[-1].refresh_from_db()
+        self.assertEqual((rows[-1].state, rows[-1].error), (State.QUEUED, d.PAUSED))
+        recovery.refresh_from_db()
+        self.assertEqual((recovery.state, recovery.error), (State.QUEUED, d.PAUSED))
+
+        # once the failures are older than the pause, the queued recovery goes out
+        Notification.objects.exclude(pk=recovery.pk).update(
+            created=djangotime.now() - dt.timedelta(minutes=6)
+        )
+        Notification.objects.filter(pk=recovery.pk).update(
+            created=djangotime.now() - dt.timedelta(minutes=11)
+        )
+        with patch(DELAY) as delay:
+            self.assertEqual(d.requeue_stale(djangotime.now()), 1)
+        self.assertEqual(delay.call_args.args[0], [recovery.pk])
+        with patch(INTERNAL, return_value=False), patch(REQUEST, return_value=ok()):
+            d.deliver([recovery.pk])
+        recovery.refresh_from_db()
+        self.assertEqual((recovery.state, recovery.error), (State.SENT, ""))
+
+    def test_recovery_passes_the_rate_limit(self):
+        now = djangotime.now()
+        Notification.objects.bulk_create(
+            Notification(
+                channel=self.ch,
+                source="check",
+                title="x",
+                state=State.SENT,
+                sent_at=now,
+            )
+            for _ in range(60)
+        )
+        plain, recovery = self.row(), self.row(dedupe_key="alert:7:resolved")
+        with patch(INTERNAL, return_value=False), patch(REQUEST, return_value=ok()):
+            d.deliver([plain.pk, recovery.pk])
+        plain.refresh_from_db()
+        recovery.refresh_from_db()
+        self.assertEqual((plain.state, recovery.state), (State.DROPPED, State.SENT))
+
+    def test_paused_row_is_retried(self):
+        # failures within the pause, then a plain row that waits for it
+        for _ in range(d.PAUSE_AFTER):
+            self.row(state=State.FAILED, error="down")
+        row = self.row()
+        with patch(INTERNAL, return_value=False), patch(REQUEST) as req:
+            d.deliver([row.pk])
+        req.assert_not_called()
+        row.refresh_from_db()
+        self.assertEqual((row.state, row.error), (State.QUEUED, d.PAUSED))
+
+        old = djangotime.now() - dt.timedelta(minutes=11)
+        Notification.objects.update(created=old)
+        with patch(DELAY) as delay:
+            self.assertEqual(d.requeue_stale(djangotime.now()), 1)
+        with patch(INTERNAL, return_value=False), patch(REQUEST, return_value=ok()):
+            d.deliver(delay.call_args.args[0])
+        row.refresh_from_db()
+        self.assertEqual((row.state, row.error), (State.SENT, ""))
+
+    def test_claimed_row_is_sent_once(self):
+        first, second = self.row(), self.row()
+
+        def other_task_takes_second(*args, **kwargs):
+            Notification.objects.filter(pk=second.pk).update(state=State.SENDING)
+            return ok()
+
+        with patch(INTERNAL, return_value=False), patch(
+            REQUEST, side_effect=other_task_takes_second
+        ) as req:
+            d.deliver([first.pk, second.pk])
+        self.assertEqual(req.call_count, 1)
+        second.refresh_from_db()
+        self.assertEqual(second.state, State.SENDING)
+
+        # a worker that died while sending: the row goes out again later
+        Notification.objects.filter(pk=second.pk).update(
+            created=djangotime.now() - dt.timedelta(minutes=11)
+        )
+        with patch(DELAY) as delay:
+            self.assertEqual(d.requeue_stale(djangotime.now()), 1)
+        self.assertEqual(delay.call_args.args[0], [second.pk])
+
+    def test_fresh_queued_rows_are_not_requeued(self):
+        self.row()
+        with patch(DELAY) as delay:
+            self.assertEqual(d.requeue_stale(djangotime.now()), 0)
+        delay.assert_not_called()
 
 
 class TestEscalation(ULRMMTestCase):

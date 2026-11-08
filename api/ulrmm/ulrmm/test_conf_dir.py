@@ -4,6 +4,7 @@
 import json
 import os
 import tempfile
+import threading
 from unittest.mock import patch
 
 from django.conf import settings
@@ -28,6 +29,28 @@ class TestConfDir(ULRMMTestCase):
             run.return_value.returncode = 0
             self.assertTrue(reload_nats())
         self.assertTrue(os.path.exists(os.path.join(self.tmp.name, "nats-rmm.conf")))
+
+    def test_concurrent_writes_keep_the_newer_config(self):
+        agents, others = ["a1"], []
+
+        def config():
+            seen = list(agents)
+            if seen == ["a1"]:
+                # a second enrolment runs while this one builds its config
+                agents.append("a2")
+                other = threading.Thread(target=reload_nats)
+                other.start()
+                other.join(timeout=1)
+                others.append(other)
+            return {"agents": seen}
+
+        with override_settings(
+            ULRMM_CONF_DIR=self.tmp.name, ULRMM_NATS_RELOAD=False
+        ), patch("ulrmm.utils.nats_config", config):
+            reload_nats()
+            others[0].join(timeout=10)
+        with open(os.path.join(self.tmp.name, "nats-rmm.conf")) as fh:
+            self.assertEqual(json.load(fh), {"agents": ["a1", "a2"]})
 
     def test_both_conf_files_follow_the_setting(self):
         with override_settings(ULRMM_CONF_DIR=self.tmp.name), patch(

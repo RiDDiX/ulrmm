@@ -7,6 +7,7 @@ import re
 from collections import defaultdict
 from zoneinfo import ZoneInfo
 
+from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone as djangotime
 
@@ -26,11 +27,12 @@ from .models import AppUpdate, AppUpdateScan, AppUpdateSettings, Source, State
 # winget (Febooti.Hash&CRC, BRÖTJE.ProfiTool), brew (openssl@3) and mas ids, never
 # an option. the agent checks the same; no comma, ids travel comma-joined
 ID_RE = re.compile(r"^(?!-)[\w.+&!@-]{1,128}$")
-# the agent takes at most this many ids per upgrade call
-IDS_PER_CALL = 100
+# ids per upgrade call; each call has its own UPGRADE_TIMEOUT, so a few slow
+# installers do not leave the rest of a long list unstarted
+IDS_PER_CALL = 4
 PLATS = (AgentPlat.WINDOWS, AgentPlat.DARWIN)
 LIST_TIMEOUT = 120
-UPGRADE_TIMEOUT = 600
+UPGRADE_TIMEOUT = 1800
 CONCURRENCY = 10
 # what an update run picks up; updating too, a killed worker leaves rows there
 OPEN = (State.AVAILABLE, State.FAILED, State.UPDATING)
@@ -39,6 +41,15 @@ NO_ANSWER = (
     "older agents have no app updates."
 )
 LIST = {"func": "appupdates", "payload": {"action": "list"}}
+# the agent's answer while an upgrade of its own runs
+BUSY = "already running"
+# set while an upgrade is queued or runs, a collect leaves its rows updating
+APPLYING = "appupdates-applying-{}"
+# agent output kept on a row and in the history
+TAIL = 1500
+TIMED_OUT = "Time limit reached, the installer may still finish."
+# a call that was never sent, an earlier one of the agent got no answer
+NOT_SENT = object()
 
 
 def notify(event: dict) -> None:
@@ -82,6 +93,16 @@ def _error(ret) -> str:
     return "Unexpected answer from the agent."
 
 
+def busy(ret) -> bool:
+    return isinstance(ret, str) and BUSY in ret
+
+
+def mark_applying(agents, calls: int) -> None:
+    """Rows of a killed worker settle once the calls could have ended."""
+    timeout = calls * UPGRADE_TIMEOUT + LIST_TIMEOUT
+    cache.set_many({APPLYING.format(a.pk): 1 for a in agents}, timeout)
+
+
 def parse_list(ret) -> dict[tuple[str, str], dict]:
     """(source, app id) -> fields from the agent's list answer.
     Raises ValueError with the text to show."""
@@ -109,6 +130,7 @@ def parse_list(ret) -> dict[tuple[str, str], dict]:
 def store(agent: Agent, rows: dict, error: str = "") -> None:
     """Rows the agent no longer lists go away, excluded ones stay as the marker."""
     now = djangotime.now()
+    applying = cache.get(APPLYING.format(agent.pk))
     with transaction.atomic():
         AppUpdateScan.objects.update_or_create(
             agent=agent, defaults={"collected_at": now, "error": error}
@@ -133,7 +155,8 @@ def store(agent: Agent, rows: dict, error: str = "") -> None:
             same_failure = (
                 u.state == State.FAILED and u.available == fields["available"]
             )
-            if u.state != State.EXCLUDED and not same_failure:
+            running = applying and u.state == State.UPDATING
+            if u.state != State.EXCLUDED and not same_failure and not running:
                 u.state = State.AVAILABLE
                 u.last_error = ""
             for k, v in fields.items():
@@ -165,10 +188,11 @@ async def _ask(agent: Agent, datas: list[dict], timeout: int, sem) -> list:
                 answers.append(await agent.nats_cmd(data, timeout=timeout))
             except Exception as e:
                 answers.append(str(e))
-            # an old agent, the other calls would only wait as long
-            if answers[-1] == "timeout":
+            # an old agent, the other calls would only wait as long; a busy one
+            # would refuse them too
+            if answers[-1] == "timeout" or busy(answers[-1]):
                 break
-    return answers + ["timeout"] * (len(datas) - len(answers))
+    return answers + [NOT_SENT] * (len(datas) - len(answers))
 
 
 async def _ask_all(calls: list[tuple[Agent, list[dict]]], timeout: int) -> list:
@@ -181,6 +205,9 @@ def collect(agents: list[Agent]) -> int:
     answers = asyncio.run(_ask_all([(a, [LIST]) for a in agents], LIST_TIMEOUT))
     ok = 0
     for agent, (ret,) in zip(agents, answers):
+        # an upgrade runs there, the last scan stays
+        if busy(ret):
+            continue
         try:
             rows = parse_list(ret)
         except ValueError as e:
@@ -191,14 +218,30 @@ def collect(agents: list[Agent]) -> int:
     return ok
 
 
-def _results(ret) -> dict[str, tuple[bool, str]] | str:
-    """app id -> (ok, output tail), or the error text for the whole call."""
+def _outcome(r: dict) -> str:
+    """done, failed, not_started or timed_out; older agents only say it in
+    the output tail."""
+    if r.get("ok") is True:
+        return "done"
+    for marker in ("not_started", "timed_out"):
+        if r.get("status") == marker or r.get(marker) is True:
+            return marker
+    tail = str(r.get("output_tail") or "")
+    if tail.startswith("not started"):
+        return "not_started"
+    if tail.rstrip().endswith("time limit reached"):
+        return "timed_out"
+    return "failed"
+
+
+def _results(ret) -> dict[str, tuple[str, str]] | str:
+    """app id -> (outcome, output tail), or the error text for the whole call."""
     ret = _answer(ret)
     results = ret.get("results") if isinstance(ret, dict) else None
     if not isinstance(results, list):
         return _error(ret)
     return {
-        r["id"]: (r.get("ok") is True, str(r.get("output_tail") or "")[-500:])
+        r["id"]: (_outcome(r), str(r.get("output_tail") or "")[-TAIL:])
         for r in results
         if isinstance(r, dict) and isinstance(r.get("id"), str)
     }
@@ -225,6 +268,7 @@ def apply(due: list[tuple[Agent, list[AppUpdate]]], username: str) -> tuple[int,
         per_agent.append((agent, agent_calls))
     calls = [(a, data, items) for a, cs in per_agent for data, items in cs]
 
+    mark_applying([a for a, _ in per_agent], len(calls))
     AppUpdate.objects.filter(
         pk__in=[u.pk for *_, items in calls for u in items]
     ).update(state=State.UPDATING, last_error="")
@@ -241,18 +285,36 @@ def apply(due: list[tuple[Agent, list[AppUpdate]]], username: str) -> tuple[int,
         results = _results(ret)
         lines = []
         for u in items:
-            if isinstance(results, str):
-                ok, tail = False, results
+            if ret is NOT_SENT or busy(ret):
+                outcome, tail = "not_started", ""
+            elif isinstance(results, str):
+                outcome, tail = "failed", results
             else:
-                ok, tail = results.get(u.app_id, (False, "No result from the agent."))
-            u.state = State.DONE if ok else State.FAILED
-            u.last_error = "" if ok else (tail or "Update failed.")[-500:]
+                outcome, tail = results.get(
+                    u.app_id, ("failed", "No result from the agent.")
+                )
             line = f"{u.app_id} {u.installed} -> {u.available}: "
-            lines.append(line + ("ok" if ok else f"failed\n{u.last_error}"))
+            if outcome == "done":
+                u.state, u.last_error = State.DONE, ""
+                lines.append(line + "ok")
+            elif outcome == "not_started":
+                # never started, the next run tries again
+                u.state, u.last_error = State.AVAILABLE, ""
+                lines.append(line + "not started")
+            elif outcome == "timed_out":
+                # the next collect settles it, an installed app is gone from the list
+                u.state = State.UPDATING
+                # newer agents add their own note, older ones need the server's
+                note = "" if "timed out" in tail.lower() else TIMED_OUT
+                u.last_error = f"{tail}\n{note}".strip()[-TAIL:]
+                lines.append(line + f"timed out\n{u.last_error}")
+            else:
+                u.state, u.last_error = State.FAILED, (tail or "Update failed.")[-TAIL:]
+                lines.append(line + f"failed\n{u.last_error}")
         AppUpdate.objects.bulk_update(items, ["state", "last_error"])
 
         failures = [u.app_id for u in items if u.state == State.FAILED]
-        done += len(items) - len(failures)
+        done += sum(u.state == State.DONE for u in items)
         failed += len(failures)
         AgentHistory.objects.create(
             agent=agent,
@@ -274,6 +336,7 @@ def apply(due: list[tuple[Agent, list[AppUpdate]]], username: str) -> tuple[int,
                     "dedupe_key": f"appupdate:{agent.agent_id}",
                 }
             )
+    cache.delete_many([APPLYING.format(a.pk) for a, _ in per_agent])
     return done, failed
 
 

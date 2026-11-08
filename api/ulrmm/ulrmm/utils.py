@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+import fcntl
 import json
 import os
 import re
@@ -331,6 +332,10 @@ def replace_arg_db_values(string, instance=None, shell=None, quotes=True):
 
     if isinstance(value, bool):
         return format_shell_bool(value, shell)
+    if isinstance(value, list):
+        value = format_shell_array(value)
+    elif isinstance(value, dict):
+        value = json.dumps(value)
     if isinstance(value, str):
         quoted = _quote_str(value, shell, quotes)
         if value and not quoted:
@@ -339,11 +344,6 @@ def replace_arg_db_values(string, instance=None, shell=None, quotes=True):
                 "replaced with an empty string"
             )
         return quoted
-    if isinstance(value, list):
-        joined = format_shell_array(value)
-        return f"'{joined}'" if quotes else joined
-    if isinstance(value, dict):
-        return json.dumps(value)
     try:
         return str(value)
     except Exception:
@@ -394,16 +394,34 @@ def localhost_port_is_open(port: int) -> bool:
             return False
 
 
+class BodyTooLarge(ValueError):
+    pass
+
+
+def capped_json(r, limit: int):
+    """JSON of a response requested with stream=True, read up to limit bytes.
+    None for an empty body, BodyTooLarge past the limit, ValueError for no JSON."""
+    body = bytearray()
+    try:
+        for chunk in r.iter_content(65536):
+            body += chunk
+            if len(body) > limit:
+                raise BodyTooLarge(f"more than {limit} bytes")
+    finally:
+        r.close()
+    return json.loads(body) if body else None
+
+
 @contextmanager
-def redis_lock(lock_id, oid):
+def redis_lock(lock_id, oid, ttl=REDIS_LOCK_EXPIRE):
     from django.core.cache import cache
 
-    acquired = cache.add(lock_id, oid, REDIS_LOCK_EXPIRE)
+    acquired = cache.add(lock_id, oid, ttl)
     started = time.monotonic()
     try:
         yield acquired
     finally:
-        if acquired and (time.monotonic() - started) < (REDIS_LOCK_EXPIRE - 3):
+        if acquired and (time.monotonic() - started) < (ttl - 3):
             cache.delete(lock_id)
 
 
@@ -569,12 +587,15 @@ def reload_nats(*, only_if_changed: bool = False) -> bool:
     from logs.models import DebugLog
 
     path = os.path.join(settings.ULRMM_CONF_DIR or settings.BASE_DIR, "nats-rmm.conf")
-    config = nats_config()
-    if only_if_changed:
-        with suppress(OSError), open(path, "rb") as fh:
-            if fh.read() == json.dumps(config).encode():
-                return False
-    _write_conf_atomic(path, config)
+    # two enrolments at once: the config read first must not be written last
+    with open(f"{path}.lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        config = nats_config()
+        if only_if_changed:
+            with suppress(OSError), open(path, "rb") as fh:
+                if fh.read() == json.dumps(config).encode():
+                    return False
+        _write_conf_atomic(path, config)
     if not settings.ULRMM_NATS_RELOAD:
         # the compose nats service reloads itself (docker/nats/reload-watch.sh)
         return True

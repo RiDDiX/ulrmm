@@ -147,6 +147,11 @@ class TestSampler(ULRMMTestCase):
         self.assertFalse(Sample.objects.filter(pk=old.pk).exists())
         self.assertTrue(Sample.objects.filter(pk=new.pk).exists())
 
+        baker.make(Sample, agent=agent, ts=now - dt.timedelta(days=40), _quantity=3)
+        with patch("metrics.tasks.BATCH", 2):
+            self.assertEqual(prune_metrics_task(), "3 samples removed")
+        self.assertEqual(Sample.objects.count(), 1)
+
 
 def make_samples(agent, count, step=300, now=None):
     now = now or djangotime.now()

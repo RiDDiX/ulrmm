@@ -1911,12 +1911,12 @@
   "body_masked": "{\n \"detail\": \"Authentication credentials were not provided.\"\n}"
  },
  "accounts-clients-381": {
-  "status": 201,
-  "body_masked": "{\n \"client_id\": 4,\n \"client_name\": \"Bench Unreached GmbH\",\n \"created\": \"<TS>\",\n \"enrollments\": 0,\n \"expiry\": \"<TS>\",\n \"goarch\": \"amd64\",\n \"id\": 16,\n \"install_flags\": {\n  \"ping\": false,\n  \"power\": true,\n  \"rdp\": true\n },\n \"legacy_token\": null,\n \"max_enrollments\": null,\n \"mon_type\": \"server\",\n \"name\": \"\",\n \"policy\": null,\n \"policy_name\": null,\n \"site_id\": 5,\n \"site_name\": \"Bench Lab\",\n \"uid\": \"<UUID>\",\n \"url\": \"https://api.example.com/clients/<UUID>/deploy/\"\n}",
+  "status": 400,
+  "body_masked": "\"The request was invalid\"",
   "db_masked": {
-   "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15": "[\n {\n  \"goarch\": \"amd64\",\n  \"id\": 16,\n  \"install_flags\": {\n   \"ping\": false,\n   \"power\": true,\n   \"rdp\": true\n  },\n  \"mon_type\": \"server\",\n  \"site_id\": 5\n }\n]",
+   "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15": "[]",
    "knox_authtoken(user_id) where digest in (select auth_token_id from clients_deployment where id>15)": "[]",
-   "logs_auditlog(username,object_type,action,message) where id > 192": "[\n {\n  \"action\": \"add\",\n  \"message\": \"admin added a deployment for site Bench Lab\",\n  \"object_type\": \"site\",\n  \"username\": \"admin\"\n }\n]"
+   "logs_auditlog(username,object_type,action,message) where id > 192": "[]"
   }
  },
  "accounts-clients-382": {
@@ -1968,19 +1968,19 @@
   "body_masked": "{\n \"detail\": \"You do not have permission to perform this action.\"\n}"
  },
  "accounts-clients-391": {
-  "status": 201,
-  "body_masked": "{\n \"client_id\": 1,\n \"client_name\": \"Nordwind Logistics\",\n \"created\": \"<TS>\",\n \"enrollments\": 0,\n \"expiry\": \"<TS>\",\n \"goarch\": \"arm64\",\n \"id\": 16,\n \"install_flags\": {\n  \"ping\": false,\n  \"power\": false,\n  \"rdp\": false\n },\n \"legacy_token\": null,\n \"max_enrollments\": null,\n \"mon_type\": \"workstation\",\n \"name\": \"\",\n \"policy\": null,\n \"policy_name\": null,\n \"site_id\": 1,\n \"site_name\": \"Hamburg HQ\",\n \"uid\": \"<UUID>\",\n \"url\": \"https://api.example.com/clients/<UUID>/deploy/\"\n}",
+  "status": 400,
+  "body_masked": "\"The request was invalid\"",
   "db_masked": {
-   "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15": "[\n {\n  \"goarch\": \"arm64\",\n  \"id\": 16,\n  \"install_flags\": {\n   \"ping\": false,\n   \"power\": false,\n   \"rdp\": false\n  },\n  \"mon_type\": \"workstation\",\n  \"site_id\": 1\n }\n]",
-   "logs_auditlog(username,object_type,action,message) where id > 192": "[\n {\n  \"action\": \"add\",\n  \"message\": \"bench_clienta added a deployment for site Hamburg HQ\",\n  \"object_type\": \"site\",\n  \"username\": \"bench_clienta\"\n }\n]"
+   "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15": "[]",
+   "logs_auditlog(username,object_type,action,message) where id > 192": "[]"
   }
  },
  "accounts-clients-392": {
-  "status": 201,
-  "body_masked": "{\n \"client_id\": 1,\n \"client_name\": \"Nordwind Logistics\",\n \"created\": \"<TS>\",\n \"enrollments\": 0,\n \"expiry\": \"<TS>\",\n \"goarch\": \"386\",\n \"id\": 16,\n \"install_flags\": {\n  \"ping\": true,\n  \"power\": true,\n  \"rdp\": true\n },\n \"legacy_token\": null,\n \"max_enrollments\": null,\n \"mon_type\": \"workstation\",\n \"name\": \"\",\n \"policy\": null,\n \"policy_name\": null,\n \"site_id\": 2,\n \"site_name\": \"Bremen Warehouse\",\n \"uid\": \"<UUID>\",\n \"url\": \"https://api.example.com/clients/<UUID>/deploy/\"\n}",
+  "status": 400,
+  "body_masked": "\"The request was invalid\"",
   "db_masked": {
-   "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15": "[\n {\n  \"goarch\": \"386\",\n  \"id\": 16,\n  \"install_flags\": {\n   \"ping\": true,\n   \"power\": true,\n   \"rdp\": true\n  },\n  \"mon_type\": \"workstation\",\n  \"site_id\": 2\n }\n]",
-   "logs_auditlog(username,object_type,action,message) where id > 192": "[\n {\n  \"action\": \"add\",\n  \"message\": \"bench_site added a deployment for site Bremen Warehouse\",\n  \"object_type\": \"site\",\n  \"username\": \"bench_site\"\n }\n]"
+   "clients_deployment(id,site_id,mon_type,goarch,install_flags) where id>15": "[]",
+   "logs_auditlog(username,object_type,action,message) where id > 192": "[]"
   }
  },
  "accounts-clients-393": {

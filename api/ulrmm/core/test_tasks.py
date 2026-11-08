@@ -6,10 +6,18 @@ from unittest.mock import AsyncMock, patch
 
 import time_machine
 from django.conf import settings
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from model_bakery import baker
 
 from autotasks.models import TaskResult
-from core.tasks import cache_db_fields_task, resolve_alerts_task, scheduled_task_runner
+from checks.models import CheckHistory
+from core.tasks import (
+    cache_db_fields_task,
+    remove_orphaned_history_results,
+    resolve_alerts_task,
+    scheduled_task_runner,
+)
 from ulrmm.constants import AgentPlat, AlertType, TaskRunStatus, TaskType
 from ulrmm.test import ULRMMTestCase
 
@@ -35,6 +43,30 @@ class TestCoreTasks(ULRMMTestCase):
         ):
             obj.refresh_from_db()
             self.assertEqual(obj.failing_checks, {"error": error, "warning": False})
+
+    def test_cache_db_fields_skips_heavy_agent_fields(self):
+        baker.make_recipe("agents.online_agent", site=baker.make("clients.Site"))
+        with CaptureQueriesContext(connection) as ctx:
+            cache_db_fields_task()
+        agent_sql = [q["sql"] for q in ctx if '"agents_agent"' in q["sql"]]
+        self.assertTrue(agent_sql)
+        self.assertFalse([sql for sql in agent_sql if "wmi_detail" in sql])
+
+    def test_orphaned_history_removed_in_batches(self):
+        agent = baker.make_recipe("agents.agent")
+        keep = baker.make(CheckHistory, agent_id=agent.agent_id)
+        unowned = baker.make(CheckHistory, agent_id=None)
+        baker.make(CheckHistory, agent_id="gone", _quantity=3)
+        with patch("core.tasks.ORPHAN_BATCH", 2), CaptureQueriesContext(
+            connection
+        ) as ctx:
+            self.assertEqual(remove_orphaned_history_results(), 3)
+        self.assertCountEqual(
+            CheckHistory.objects.values_list("pk", flat=True), [keep.pk, unowned.pk]
+        )
+        # NOT EXISTS, no list of every agent id in the statement
+        self.assertTrue(any("NOT (EXISTS" in q["sql"] for q in ctx))
+        self.assertNotIn(agent.agent_id, " ".join(q["sql"] for q in ctx))
 
     def test_cache_db_fields_counts_every_agent(self):
         site = baker.make("clients.Site")

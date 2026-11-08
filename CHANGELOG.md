@@ -1,5 +1,21 @@
 # Server changelog
 
+## 2.08.11.2026 (2026-11-08)
+
+- agents update to 4.08.11.2026
+- app updates: four apps per agent call, each call with its own time budget; apps the agent never started go back to available, apps still installing when the time ran out stay updating until the next scan settles them; a scan during a running upgrade keeps the last result instead of writing an error; 1500 characters of the agent's output are kept
+- LAPS: the new local admin password is stored as unconfirmed before the device sets it, a lost answer keeps it and the next run retries with the same value; admins with the step-up can reveal an unconfirmed password
+- celery locks of the minute tasks expire after 15 minutes instead of 2 hours after a crash; the clear command covers every lock
+- agent requests no longer load the agent's WMI, services and disks JSON for authentication and in the fleet-wide periodic jobs; mesh permission sync computes each user's scope once
+- every agent upload is size-capped before the view reads it; enrolments write the NATS config under a lock, so parallel enrolments cannot drop an agent; a Windows check-in uses one NATS connection
+- nats-api: an agent cannot keep a stale "rmm" power initiator; dropped hellos on a full queue are counted
+- metrics ingest tolerates two pushes at once; server operations state is replaced atomically and log chunks are cut at character boundaries; orphaned check history is removed with a subquery in batches
+- import and integration sources are read in capped streams, a huge or compressed body no longer kills the worker; device migration commands use mktemp instead of fixed /tmp names
+- notifications: short connect timeouts, a channel that keeps failing is paused and recovery messages are exempt from the hourly cap; rows stuck in queued are requeued; duplicate dispatch is prevented by a unique key
+- integration sync keeps the other source's fields when one source fails; the audit log count is capped at 10000; pending actions are paginated and pruned for deleted agents; metrics pruning runs in batches; alert stand-in agents are chosen from the online status, at most three are pinged
+- placeholders of list and dict values are quoted like strings; import endpoints answer 400 to list bodies; deployment flags must be booleans and the expiry accepts ISO 8601 with an offset
+- backup.sh stages the archive next to it instead of in /tmp, a failed automatic backup raises a security event and the cron output goes to a log; warranty lookups have a request timeout and a run cap; restore.sh states that the checksums detect corruption, not tampering
+
 ## 1.08.11.2026 (2026-11-08)
 
 - agents update to 3.08.11.2026 (agent changelog 1.08.11.2026, 2.08.11.2026 and 3.08.11.2026)

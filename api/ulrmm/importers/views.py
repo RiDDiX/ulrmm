@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.utils import has_superuser_rights
+from accounts.views import _body
 from ulrmm.helpers import notify_error
 
 from . import engine, link
@@ -171,7 +172,7 @@ class Import(APIView):
 
     def post(self, request, pk):
         source = get_object_or_404(ImportSource, pk=pk)
-        parts = request.data.get("parts")
+        parts = _body(request).get("parts")
         if (
             not isinstance(parts, list)
             or not parts
@@ -226,7 +227,7 @@ class Migrate(APIView):
 
     def post(self, request, pk):
         source = get_object_or_404(ImportSource, pk=pk)
-        ids = request.data.get("devices")
+        ids = _body(request).get("devices")
         if (
             not isinstance(ids, list)
             or not ids

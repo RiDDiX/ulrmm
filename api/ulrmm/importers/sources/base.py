@@ -29,6 +29,7 @@ from ulrmm.constants import (
     GoArch,
     ScriptShell,
 )
+from ulrmm.utils import BodyTooLarge, capped_json
 
 TIMEOUT = 30
 # more than any fleet this importer is meant for; a bigger answer is refused
@@ -76,22 +77,29 @@ class Source:
                 timeout=timeout,
                 allow_redirects=False,
                 verify=self.verify,
+                stream=True,
                 **kwargs,
             )
         except requests.RequestException as e:
             raise SourceError(f"{path}: {type(e).__name__}")
+        if r.status_code >= 300:
+            # refused below, the body is never read
+            r.close()
         if 300 <= r.status_code < 400:
             raise SourceError(f"{path} answered with a redirect")
         if r.status_code in (401, 403):
             raise SourceError(f"{path}: the key or login was refused ({r.status_code})")
         if r.status_code >= 400:
             raise SourceError(f"{path} answered {r.status_code}")
-        if r.status_code == 204 or not r.content:
+        if r.status_code == 204:
+            r.close()
             return None
-        if len(r.content) > 50 * MAX_BODY:
-            raise SourceError(f"{path} answered with too much data")
         try:
-            return r.json()
+            return capped_json(r, 50 * MAX_BODY)
+        except BodyTooLarge:
+            raise SourceError(f"{path} answered with too much data")
+        except requests.RequestException as e:
+            raise SourceError(f"{path}: {type(e).__name__}")
         except ValueError:
             raise SourceError(f"{path} did not answer with JSON")
 

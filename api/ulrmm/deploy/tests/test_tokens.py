@@ -12,7 +12,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from django.apps import apps
 from django.core.cache import cache
 from django.core.management import CommandError, call_command
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone as djangotime
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
@@ -149,6 +151,18 @@ class TestAuth(TokenBase):
         )
         r = self.config()
         self.assertEqual(r.json(), {"detail": "quarantined", "new_identity": True})
+
+    def test_agent_token_request_skips_heavy_agent_fields(self):
+        def selects_wmi(token=None) -> bool:
+            with CaptureQueriesContext(connection) as ctx:
+                self.assertEqual(self.config(token).status_code, 200)
+            return any("wmi_detail" in q["sql"] for q in ctx.captured_queries)
+
+        self.assertFalse(selects_wmi())
+        # a DRF token of an agent without a credential
+        key = Token.objects.create(user=self.agent.user).key
+        AgentCredential.objects.filter(agent=self.agent).delete()
+        self.assertFalse(selects_wmi(key))
 
     def test_drf_token_only_without_credential(self):
         user = self.agent.user

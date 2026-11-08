@@ -199,7 +199,8 @@ def test_harden_logs_restricts_celery(tmp_path):
         assert line in calls, line
     text = _lib("logrotate_text", env={"USER": "rmmuser"})
     assert (
-        "/var/log/celery/*.log /rmm/api/ulrmm/ulrmm/private/log/*_debug.log {" in text
+        "/var/log/celery/*.log /rmm/api/ulrmm/ulrmm/private/log/*_debug.log "
+        "/var/log/ulrmm-backup.log {" in text
         and "copytruncate" in text
     )
 
@@ -296,6 +297,23 @@ def test_backup_recipients_file_and_bad_values(tmp_path):
     ):
         out = _age(tmp_path, "age_recipients\n", env={"AGE_RECIPIENTS": value}, rc=1)
         assert message in out, value
+
+
+def test_backup_failure_records_an_event_on_auto_runs(tmp_path):
+    py = tmp_path / "py"
+    py.write_text('#!/bin/sh\nprintf "%s|" "$@" >>"$(dirname "$0")/py.log"\n')
+    py.chmod(0o755)
+    fail = _function(REPO / "backup.sh", "fail")
+    script = f'say() {{ :; }}\nPY={py}\nMANAGE=m.py\n{fail}mode=$1\nfail "disk full."\n'
+    _bash(script, "manual", rc=1)
+    assert not (tmp_path / "py.log").exists()
+    _bash(script, "auto", rc=1)
+    assert (tmp_path / "py.log").read_text() == (
+        "m.py|security_event|backup_failed|high|--detail|disk full.|"
+    )
+    text = (REPO / "backup.sh").read_text()
+    assert 'mktemp -d -p "$out_dir" .staging-XXXXXXXX' in text
+    assert "${CRON_CMD} >> ${CRON_LOG} 2>&1" in text
 
 
 def test_backup_without_recipients_stays_a_plain_tar(tmp_path):

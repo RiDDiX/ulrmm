@@ -20,6 +20,7 @@ TOKEN_COLUMNS = (
     ("assets.License", "key", "assets.models", "HKDF_INFO"),
     ("discovery.Scan", "snmp_community", "discovery.models", "HKDF_INFO"),
     ("encryption.RecoveryKey", "key", "encryption.utils", "_KEY_INFO"),
+    ("laps.LapsState", "pending_secret", "vault.models", "HKDF_INFO"),
     (
         "integrations.OpnsenseFirewall",
         "api_key",

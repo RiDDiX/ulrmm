@@ -11,7 +11,10 @@ from unittest.mock import patch
 import requests
 from django.test import SimpleTestCase
 
+from ulrmm.utils import BodyTooLarge, capped_json
+
 from .sources import SourceError, validate
+from .sources import base
 from .sources.base import Source
 from .sources.ninjaone import NinjaOne
 from .sources.upstream import Upstream
@@ -181,7 +184,7 @@ class TestNinjaOne(SimpleTestCase):
 class TestCall(SimpleTestCase):
     def response(self, status, body=b"", headers=None):
         r = requests.Response()
-        r.status_code, r._content = status, body
+        r.status_code, r._content, r._content_consumed = status, body, True
         r.headers.update(headers or {})
         return r
 
@@ -204,3 +207,28 @@ class TestCall(SimpleTestCase):
         ):
             with self.assertRaisesRegex(SourceError, "ConnectionError"):
                 src.call("GET", "/x/")
+        with patch.object(base, "MAX_BODY", 1):
+            with patch.object(
+                src.session, "request", return_value=self.response(200, b"[1]" * 20)
+            ):
+                with self.assertRaisesRegex(SourceError, "too much data"):
+                    src.call("GET", "/x/")
+
+    def test_body_cap_stops_reading(self):
+        class Endless:
+            read = 0
+            closed = False
+
+            def iter_content(self, size):
+                while True:
+                    self.read += size
+                    yield b" " * size
+
+            def close(self):
+                self.closed = True
+
+        r = Endless()
+        with self.assertRaises(BodyTooLarge):
+            capped_json(r, 200_000)
+        self.assertTrue(r.closed)
+        self.assertLess(r.read, 300_000)

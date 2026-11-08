@@ -102,10 +102,11 @@ class Answer:
     def __init__(self, data, status=200, redirect=False):
         self.data, self.status_code, self.is_redirect = data, status, redirect
 
-    def json(self):
-        if self.data is None:
-            raise ValueError("no json")
-        return self.data
+    def iter_content(self, size):
+        yield b"<html>" if self.data is None else json.dumps(self.data).encode()
+
+    def close(self):
+        pass
 
 
 def fake(answers: dict):
@@ -437,6 +438,24 @@ class TestSync(ULRMMTestCase):
         results, _ = self.run_sync(answers)
         self.assertIn("can no longer be read", results["unifi"]["error"])
         self.assertIn("did not answer with JSON", results["opnsense"]["error"])
+
+        # what the failed source knew stays, the other one updates its fields
+        UniFiController.objects.update(
+            password=encrypt_secret("unifi-pass", UNIFI_INFO)
+        )
+        self.assertTrue(all(r["ok"] for r in self.run_sync()[0].values()))
+        answers = network_answers()
+        answers[UNIFI + "/api/auth/login"] = Answer({}, 401)
+        arp = [dict(e) for e in OPN_DATA["/api/diagnostics/interface/getArp"]]
+        arp[0]["ip"] = "192.168.1.21"
+        answers[OPN + "/api/diagnostics/interface/getArp"] = arp
+        results, _ = self.run_sync(answers)
+        self.assertFalse(results["unifi"]["ok"])
+        wired = NetworkClient.objects.get(mac="00:11:22:33:44:55")
+        self.assertEqual(
+            (wired.ip, wired.switch, wired.port), ("192.168.1.21", "Core switch", "7")
+        )
+        self.assertEqual(wired.source, "unifi,opnsense")
 
         def down(*args, **kwargs):
             raise requests.ConnectionError("connection refused")

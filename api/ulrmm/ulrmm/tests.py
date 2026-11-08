@@ -1,10 +1,13 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+from unittest.mock import patch
+
 from django.conf import settings
 from django.test import SimpleTestCase
 
 from ulrmm.helpers import agent_ver
+from ulrmm.test import ULRMMTestCase
 
 
 class TestVersionFile(SimpleTestCase):
@@ -43,3 +46,23 @@ class TestAgentVer(SimpleTestCase):
         self.assertLess(agent_ver("v5.23.09.2026"), agent_ver("v1.24.09.2026"))
         self.assertEqual(agent_ver("not a version"), agent_ver(""))
         self.assertLess(agent_ver(None), agent_ver("0.0.1"))
+
+
+class TestListPlaceholders(ULRMMTestCase):
+    def test_list_items_are_quoted_like_strings(self):
+        from ulrmm.constants import ScriptShell
+        from ulrmm.utils import replace_arg_db_values
+
+        def value(v, shell):
+            with patch("ulrmm.utils.get_db_value", return_value=v):
+                return replace_arg_db_values("client.x", shell=shell)
+
+        self.assertEqual(value(["a", "it's"], ScriptShell.POWERSHELL), "'a,it''s'")
+        self.assertEqual(value(["a&calc"], ScriptShell.CMD), "")
+        self.assertEqual(value(['say "hi"'], ScriptShell.CMD), "")
+        self.assertEqual(value(["a", "b"], ScriptShell.CMD), "'a,b'")
+        # json always holds a quote, cmd gets nothing
+        self.assertEqual(value({"k": "v"}, ScriptShell.CMD), "")
+        self.assertEqual(
+            value({"k": "it's"}, ScriptShell.POWERSHELL), "'{\"k\": \"it''s\"}'"
+        )

@@ -38,6 +38,8 @@ AGENT_CA_DIR=/etc/ulrmm/agent-ca
 PY=/rmm/api/env/bin/python
 MANAGE=/rmm/api/ulrmm/manage.py
 CRON_CMD='/rmm/backup.sh --auto'
+# the cron run's output; rotated with the other logs (install_lib.sh logrotate_text)
+CRON_LOG=/var/log/ulrmm-backup.log
 
 say() { printf '%b%s%b\n' "$1" "$2" "$NC"; }
 
@@ -119,7 +121,11 @@ schedule() {
   minute=$((10#${SCHEDULE_TIME#*:}))
   current=$(crontab -l 2>/dev/null | grep -vF "$CRON_CMD")
   if [ "$SCHEDULE_ENABLED" = 1 ]; then
-    current+="${current:+$'\n'}${minute} ${hour} * * * ${CRON_CMD} > /dev/null 2>&1"
+    sudo touch "$CRON_LOG" && sudo chown "${USER}:$(id -gn)" "$CRON_LOG" && sudo chmod 640 "$CRON_LOG" || {
+      echo "Error: could not prepare ${CRON_LOG}."
+      exit 1
+    }
+    current+="${current:+$'\n'}${minute} ${hour} * * * ${CRON_CMD} >> ${CRON_LOG} 2>&1"
   fi
   printf '%s\n' "$current" | sed '/^$/d' | crontab - || {
     echo "Error: could not write the crontab."
@@ -143,6 +149,10 @@ trap cleanup EXIT
 
 fail() {
   say "$RED" "ERROR: $* Backup aborted."
+  # nobody reads the cron output, the dashboard shows security events
+  if [ "${mode:-}" = auto ] && [ -x "$PY" ]; then
+    "$PY" "$MANAGE" security_event backup_failed high --detail "$*" >/dev/null 2>&1 || true
+  fi
   exit 1
 }
 
@@ -179,6 +189,7 @@ fi
 # leftovers of runs that were killed; a running one is newer than a day
 for d in "$BACKUP_DIR" "${SUBDIRS[@]/#/${BACKUP_DIR}/}"; do
   find "$d" -maxdepth 1 -type f -name 'rmm-backup-*.part' -mmin +1440 -delete 2>/dev/null
+  find "$d" -maxdepth 1 -type d -name '.staging-*' -mmin +1440 -exec rm -rf {} + 2>/dev/null
 done
 
 # age_args from BACKUP_AGE_RECIPIENTS: a recipients file or age1... keys;
@@ -231,7 +242,8 @@ target="${out_dir}/rmm-backup-${dt_now}.tar"
 [ ${#age_args[@]} -eq 0 ] || target+=.age
 [ -e "$target" ] && fail "${target} already exists."
 
-STAGING=$(mktemp -d -t ulrmm-XXXXXXXXXXXXXXXXXXXXX) || fail "cannot create a staging directory."
+# next to the archive: same filesystem, /tmp can be a small tmpfs
+STAGING=$(mktemp -d -p "$out_dir" .staging-XXXXXXXX) || fail "cannot create a staging directory."
 mkdir -p "$STAGING"/{meshcentral,postgres,certs,nginx,systemd,rmm,confd,opt,rustdesk,agent-ca} || fail "cannot create the staging directories."
 
 say "$GREEN" "Backing up the databases"

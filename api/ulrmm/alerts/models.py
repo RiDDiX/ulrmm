@@ -4,13 +4,14 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 from django.contrib.postgres.fields import ArrayField
 from django.db import IntegrityError, connection, models, transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone as djangotime
 
 from logs.models import BaseAuditModel, DebugLog
@@ -112,20 +113,41 @@ def _answers_ping(agent: "Agent") -> bool:
     return asyncio.run(agent.nats_cmd({"func": "ping"}, timeout=1)) == "pong"
 
 
+STAND_INS = 3
+
+
 def _stand_in_agent(agent: "Agent") -> "Optional[Agent]":
-    """A reachable agent of the same site, then of the same client."""
+    """A reachable agent of the same site, then of the same client. Only the
+    first few that checked in lately are pinged, all at once."""
     from agents.models import Agent
 
-    others = Agent.objects.exclude(pk=agent.pk).only(*ONLINE_AGENTS)
+    others = (
+        Agent.objects.exclude(pk=agent.pk)
+        .only(*ONLINE_AGENTS)
+        .order_by(F("last_seen").desc(nulls_last=True), "pk")
+    )
     site = agent.site
-    for candidates in (
-        others.filter(site_id=site.pk),
-        others.filter(site__client_id=site.client_id).exclude(site_id=site.pk),
-    ):
-        for candidate in candidates:
-            if candidate.is_online and _answers_ping(candidate):
-                return candidate
-    return None
+    online = (
+        candidate
+        for candidates in (
+            others.filter(site_id=site.pk),
+            others.filter(site__client_id=site.client_id).exclude(site_id=site.pk),
+        )
+        for candidate in candidates.iterator()
+        if candidate.is_online
+    )
+    picked = list(itertools.islice(online, STAND_INS))
+    if not picked:
+        return None
+
+    async def ping():
+        return await asyncio.gather(
+            *(c.nats_cmd({"func": "ping"}, timeout=1) for c in picked),
+            return_exceptions=True,
+        )
+
+    answers = asyncio.run(ping())
+    return next((c for c, a in zip(picked, answers) if a == "pong"), None)
 
 
 def _run_script_for(

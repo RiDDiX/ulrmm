@@ -11,7 +11,9 @@ from unittest.mock import PropertyMock, patch
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from knox.models import AuthToken
 from model_bakery import baker
 from redis.connection import parse_url
@@ -149,6 +151,46 @@ class TestMeshRightsSync(ULRMMTestCase):
         }
         sync_mesh_perms_task()
         return ms
+
+    def test_rights_follow_each_users_scope(self, _hex_id, mesh_sync, _):
+        site = baker.make("clients.Site")
+        scoped = self.create_user_with_roles(["can_use_mesh"])
+        scoped.role.can_view_sites.add(site)
+        self.create_user_with_roles([])
+        uid = self.user.mesh_user_id
+
+        def sync():
+            ms = mesh_sync.return_value
+            ms.reset_mock()
+            ms.mesh_users = {}
+            ms.get_unique_mesh_users.return_value = []
+            ms.mesh_action.return_value = {"nodes": {}}
+            with CaptureQueriesContext(connection) as ctx:
+                sync_mesh_perms_task()
+            added = {
+                c.kwargs["node_id"]: c.kwargs["user_ids"]
+                for c in ms.add_users_to_node.call_args_list
+            }
+            return added, len(ctx)
+
+        node = property(lambda agent: agent.mesh_node_id)
+        with patch.object(Agent, "hex_mesh_node_id", node):
+            baker.make_recipe("agents.online_agent", site=site, mesh_node_id="in")
+            baker.make_recipe("agents.online_agent", mesh_node_id="out")
+            added = sync()[0]
+            self.assertEqual(
+                added,
+                {
+                    "node//abc": [uid],
+                    "node//in": sorted([uid, scoped.mesh_user_id]),
+                    "node//out": [uid],
+                },
+            )
+            # the scope is read once per user, not once per agent
+            queries = sync()[1]
+            for i in range(3):
+                baker.make_recipe("agents.online_agent", mesh_node_id=f"more{i}")
+            self.assertEqual(sync()[1], queries)
 
     def test_console_rights_only_while_stepped_up(self, hex_id, mesh_sync, _):
         hex_id.return_value = "abc"

@@ -47,6 +47,11 @@ class LapsPolicySerializer(serializers.ModelSerializer):
 
 
 class LapsStateSerializer(serializers.ModelSerializer):
+    unconfirmed = serializers.SerializerMethodField()
+
+    def get_unconfirmed(self, obj) -> bool:
+        return bool(obj.pending_secret)
+
     class Meta:
         model = LapsState
         fields = (
@@ -55,4 +60,7 @@ class LapsStateSerializer(serializers.ModelSerializer):
             "next_rotation",
             "last_error",
             "credential",
+            "unconfirmed",
+            "pending_at",
+            "pending_account",
         )

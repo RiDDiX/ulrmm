@@ -8,6 +8,7 @@ import asyncio
 import logging
 import os
 import re
+from contextlib import suppress
 from typing import Any, Optional
 
 from cryptography.fernet import InvalidToken
@@ -101,6 +102,8 @@ from ulrmm.helpers import (
     make_random_password,
     notify_error,
 )
+from ulrmm.exceptions import NatsDown
+from ulrmm.nats_utils import abulk_nats_command
 from ulrmm.permissions import _has_install_perm
 from ulrmm.utils import AGENT_ID_RE, reload_nats
 from winupdate.installing import (
@@ -149,9 +152,26 @@ SYNCMESH_DEBOUNCE = 60
 # helpers
 
 
+class _TooLarge(Exception):
+    pass
+
+
 class AgentTokenView(APIView):
     authentication_classes = [AgentTokenAuthentication]
     permission_classes = [IsAuthenticated]
+    # result views store a truncation note instead of refusing the upload
+    skip_body_limit = False
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # every agent upload, before a view reads its body
+        if request.method != "GET" and not self.skip_body_limit and _too_large(request):
+            raise _TooLarge
+
+    def handle_exception(self, exc):
+        if isinstance(exc, _TooLarge):
+            return notify_error(TOO_LARGE)
+        return super().handle_exception(exc)
 
 
 def _maybe_sealed(agent, request, data) -> Response:
@@ -415,7 +435,7 @@ class RunChecks(AgentTokenView):
 class State(AgentTokenView):
     def post(self, request, agentid):
         agent = _token_agent(request, agentid)
-        if _too_large(request) or len(request.body) > MAX_STATE:
+        if len(request.body) > MAX_STATE:
             return notify_error(TOO_LARGE)
         try:
             state = clean_state(request.data)
@@ -428,7 +448,7 @@ class State(AgentTokenView):
 class Drivers(AgentTokenView):
     def post(self, request, agentid):
         agent = _token_agent(request, agentid)
-        if _too_large(request) or len(request.body) > MAX_DRIVERS_BODY:
+        if len(request.body) > MAX_DRIVERS_BODY:
             return notify_error(TOO_LARGE)
         try:
             data = clean_drivers(request.data)
@@ -458,6 +478,8 @@ class CheckRunnerInterval(AgentTokenView):
 
 
 class TaskRunner(AgentTokenView):
+    skip_body_limit = True
+
     def get(self, request, pk, agentid):
         agent = _token_agent(
             request, agentid, Agent.objects.select_related("policy", "site")
@@ -534,6 +556,8 @@ class TaskRunner(AgentTokenView):
 
 
 class AgentHistoryResult(AgentTokenView):
+    skip_body_limit = True
+
     def patch(self, request, pk, agentid):
         agent = _token_agent(request, agentid)
         hist = get_object_or_404(
@@ -630,9 +654,14 @@ class CheckIn(AgentTokenView):
             envelope.forget(agent.agent_id)
         if agent.plat != AgentPlat.WINDOWS:
             return Response(answer)
+        cmds = [SCAN_CMD]
         if not agent.choco_installed:
-            asyncio.run(agent.nats_cmd({"func": "installchoco"}, wait=False))
-        asyncio.run(agent.nats_cmd(SCAN_CMD, wait=False))
+            cmds.insert(0, {"func": "installchoco"})
+        # one NATS connection for both; a check-in never fails on NATS
+        with suppress(NatsDown):
+            asyncio.run(
+                abulk_nats_command(items=[(agent.agent_id, cmd) for cmd in cmds])
+            )
         return Response(answer)
 
 
@@ -773,9 +802,6 @@ class WinUpdates(AgentTokenView):
         return Response("ok")
 
     def post(self, request):
-        if _too_large(request):
-            return notify_error(TOO_LARGE)
-
         agent = _token_agent(request)
         data = _data(request)
         if "wua_updates" not in data:
@@ -860,9 +886,6 @@ class SupersededWinUpdate(AgentTokenView):
 
 class Software(AgentTokenView):
     def post(self, request):
-        if _too_large(request):
-            return notify_error(TOO_LARGE)
-
         software = _data(request).get("software")
         if (
             not isinstance(software, list)

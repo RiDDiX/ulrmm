@@ -250,7 +250,11 @@ class AgentTokenAuthentication(TokenAuthentication):
                 return user, token
             if AgentCredential.objects.filter(agent_id=user.agent_id).exists():
                 raise AuthenticationFailed("Invalid token.")
-            self._identity_check(user.agent, revoked=False)
+            from agents.models import Agent
+            from ulrmm.constants import AGENT_DEFER
+
+            agent = Agent.objects.defer(*AGENT_DEFER).filter(pk=user.agent_id).first()
+            self._identity_check(agent, revoked=False)
             return user, token
         user = getattr(cred.agent, "user", None)
         if user is None or not user.is_active:

@@ -200,6 +200,8 @@ if [ -f "${B}/SHA256SUMS" ]; then
   (cd "$B" && sha256sum -c --quiet --strict SHA256SUMS) ||
     lib_die "${backup_file} is damaged: its SHA256SUMS do not match."
   lib_info "Checksums match ($(grep -vE '^(LARGE_PACKAGE|ISO_IMAGE)=' "${B}/MANIFEST" 2>/dev/null | tr '\n' ' '))"
+  [ "$(head -c 21 "$backup_file")" = age-encryption.org/v1 ] ||
+    lib_info "The checksums catch damage only, not changes: anyone who can write an unencrypted backup can rewrite it and its SHA256SUMS."
 fi
 
 if ! grep -qE "['\"]NAME['\"][[:space:]]*:[[:space:]]*['\"]ulrmm['\"]" "$backup_settings" 2>/dev/null; then
