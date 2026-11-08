@@ -1,5 +1,9 @@
 # Server changelog
 
+## 1.08.11.2026 (2026-11-08)
+
+- agents update to 3.08.11.2026 (agent changelog 1.08.11.2026, 2.08.11.2026 and 3.08.11.2026)
+
 ## 5.07.11.2026 (2026-11-07)
 
 - qrcode is back in the requirements: the reset_2fa and generate_barcode commands draw the code with its qr tool; 4.07.11.2026 removed it by mistake
