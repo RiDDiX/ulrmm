@@ -1,22 +1,53 @@
 # UniversalLocal RMM
 
+Self-hosted RMM for Windows, Linux, macOS and FreeBSD/TrueNAS endpoints: SSO,
+mTLS agents with signed commands, an ISO builder, LAPS and a vulnerability
+scanner are included, with no paid tier.
+
 [![Tests](https://github.com/RiDDiX/ulrmm/actions/workflows/ci-tests.yml/badge.svg)](https://github.com/RiDDiX/ulrmm/actions/workflows/ci-tests.yml) [![Release](https://github.com/RiDDiX/ulrmm/actions/workflows/release.yml/badge.svg)](https://github.com/RiDDiX/ulrmm/actions/workflows/release.yml) [![Latest release](https://img.shields.io/github/v/release/RiDDiX/ulrmm)](https://github.com/RiDDiX/ulrmm/releases) [![License](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue)](LICENSE.md) [![Security policy](https://img.shields.io/badge/security-policy-informational)](SECURITY.md)
 
-UniversalLocal RMM is self-hosted remote monitoring and management for Windows,
-Linux, macOS and FreeBSD/TrueNAS endpoints. The server is a Django API with a
-Vue 3 dashboard, the endpoints run a Go agent, and remote access goes through
+<p align="center">
+  <a href="docs/SHOWCASE.md"><img src="docs/showcase/tour.gif" alt="Tour through the dashboard in dark mode: overview board, devices, device page, Security Center and deployment builder" width="100%"></a>
+</p>
+
+<p align="center">
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="docs/SHOWCASE.md">Screenshot tour</a> ·
+  <a href="https://ulrmm.de">Documentation</a> ·
+  <a href="#docker-compose">Docker Compose</a> ·
+  <a href="#sponsoring">Sponsoring</a>
+</p>
+
+## Why UniversalLocal RMM?
+
+One edition, free of charge. Everything in this table is in the public release:
+there is no paid tier, no price per device and no license key that unlocks
+features.
+
+| Included | What you get |
+|---|---|
+| Single sign-on | OpenID Connect built in, next to mandatory TOTP for local accounts and a TOTP step-up for terminal, files and deletes |
+| Agent trust | mTLS client certificates from the server's own CA, every command signed with Ed25519 and encrypted with ChaCha20-Poly1305, the server pinned by key hash |
+| OS deployment | ISO builder for unattended Windows 10/11, Windows Server and Linux installs that enroll the agent on first boot |
+| LAPS | Local admin passwords rotated on Windows, Linux and macOS, on an interval and after a reveal |
+| Vulnerability scanner | Linux packages against OSV.dev, missing Windows updates against Microsoft security data, Windows and macOS apps against the NVD |
+| Network sync | UniFi and OPNsense clients, VLANs, ARP tables, switch ports, access points and SSIDs, plus agentless ping, TCP, SNMP, HTTP(S) and DNS monitoring |
+| Patching | Windows Update, the Linux and macOS package managers, third-party apps through winget, Homebrew and the Mac App Store |
+| Remote access | MeshCentral and a self-hosted RustDesk server, web terminal, file browser, processes, services and registry |
+| Source | All four repositories are public under FSL-1.1-ALv2; every version becomes Apache 2.0 two years after its release |
+
+Details on each row are under [Showcase](#showcase), the license terms under
+[License](#license).
+
+## What it does
+
+The server is a Django API with a Vue 3 dashboard, the endpoints run a Go agent,
+and remote access goes through
 [MeshCentral](https://github.com/Ylianst/MeshCentral), which the installer sets
 up next to the RMM, and, optionally, a self-hosted
 [RustDesk](https://github.com/rustdesk/rustdesk-server) server on the same
 machine. Both are third-party projects under their own licenses, see
 [Third-party software](#third-party-software).
-
-This file is the installation and operations guide, also online at
-[ulrmm.de](https://ulrmm.de). The screenshot tour is in
-[`docs/SHOWCASE.md`](docs/SHOWCASE.md), the release procedure in
-[`docs/VERSIONING_AND_RELEASES.md`](docs/VERSIONING_AND_RELEASES.md).
-
-## What it does
 
 - Clients, sites and agents in one dashboard, with role-based access, SSO and
   mandatory two-factor login (TOTP).
@@ -46,13 +77,15 @@ A feature tour with 51 screenshots is in [`docs/SHOWCASE.md`](docs/SHOWCASE.md),
 also as PDF in [English](docs/UniversalLocal-RMM-Showcase-EN.pdf) and
 [German](docs/UniversalLocal-RMM-Showcase-DE.pdf).
 
-![Overview board](docs/showcase/overview.png)
+![Overview board, dark mode](docs/showcase/overview-dark.png)
 
 ![Devices workspace, dark mode](docs/showcase/devices-dark.png)
 
 ![Device page of a Windows endpoint](docs/showcase/device-overview-windows.png)
 
 ### Security Center and agent trust
+
+![Security Center, trust matrix](docs/showcase/security-center.png)
 
 - Every command to an agent is signed with the server's Ed25519 command key and
   encrypted with ChaCha20-Poly1305. The session key comes from an ephemeral
@@ -102,6 +135,8 @@ also as PDF in [English](docs/UniversalLocal-RMM-Showcase-EN.pdf) and
   rows; LUKS status is collected on Linux.
 
 ### Deployment builder and OS images
+
+![Deployment builder, target step](docs/showcase/deploy-builder.png)
 
 - Per-deployment agent installers built on request: Windows setup `.exe` and
   PowerShell bootstrap (amd64, i386); Linux `.deb`, `.rpm`, `.tar.gz` and a

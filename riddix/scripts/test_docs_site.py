@@ -84,10 +84,12 @@ class TestDocsSite(unittest.TestCase):
                 self.assertIn(f'href="{base}/quickstart/"', index)
                 self.assertIn("<li>Windows</li>", index)
                 self.assertIn("<li>FreeBSD/TrueNAS</li>", index)
-                self.assertEqual(index.count('class="tile"'), what.count("\n- ") + 1)
+                bullets = len(re.findall(r"^- ", what, re.M))
+                self.assertEqual(index.count('class="tile"'), bullets)
                 self.assertNotIn('ico-dot"', index, "add new bullets to FEATURES")
                 self.assertNotIn("<h3>", index, "tile titles are no headings")
-                self.assertNotIn("This file", index)
+                self.assertNotIn("<p align", index, "the README banner stays out")
+                self.assertIn("| Single sign-on |", index)
                 self.assertNotIn("[![", index, "no badge images from other hosts")
                 # every local file the page points to is in the site
                 for path in re.findall(r'(?:src|href)="([^"#]+)"', index):

@@ -8,7 +8,7 @@
 README.md stays the only source: every "## " section becomes a page,
 grouped in the navigation by GROUPS, plus the showcase (docs/SHOWCASE.md)
 and the versioning notes. The home page is built from the README intro,
-"What it does" and "Showcase". Links between sections point to the pages,
+"Why UniversalLocal RMM?", "What it does" and "Showcase". Links between sections point to the pages,
 links to other repository files to GitHub. The pages workflow builds the
 result with Jekyll and the just-the-docs theme; docs/pages holds its config
 and the theme overrides (layout, colours, icons) and is copied as is."""
@@ -24,6 +24,7 @@ REPO = "https://github.com/RiDDiX/ulrmm/blob/main/"
 # navigation groups in order; a section that is not listed lands in "More"
 GROUPS = {
     "Overview": [
+        "Why UniversalLocal RMM?",
         "What it does",
         "Showcase",
         "Architecture",
@@ -222,13 +223,14 @@ def stats(body: str) -> str:
     return "\n".join(out)
 
 
-def landing(intro: str, what: str, showcase: str, pages: dict, base: str) -> str:
-    """The home page: hero, the rest of the intro, feature tiles, screenshots."""
-    # badges load images from other hosts, and "This file ..." means the README
+def landing(
+    intro: str, why: str, what: str, showcase: str, pages: dict, base: str
+) -> str:
+    """The home page: hero, the rest of the intro, why, feature tiles, screenshots."""
+    # badges load images from other hosts, and the centered blocks are the
+    # README's own banner and links
     paras = [
-        p
-        for p in intro.split("\n\n")
-        if p.strip() and not p.startswith(("[![", "This file"))
+        p for p in intro.split("\n\n") if p.strip() and not p.startswith(("[![", "<p"))
     ]
     lead, _, rest = " ".join(paras[0].split()).partition(". ")
     lead = lead.rstrip(".") + "."
@@ -293,6 +295,7 @@ def landing(intro: str, what: str, showcase: str, pages: dict, base: str) -> str
         parts.append(
             rewrite("\n\n".join(([rest] if rest else []) + paras[1:]), "", pages, base)
         )
+    parts += ["## Why UniversalLocal RMM?", rewrite(why, "", pages, base)]
     parts += ["## What it does", "\n".join(['<div class="tiles">', *tiles, "</div>"])]
     parts += ["## Showcase", "\n".join(['<div class="shot-grid">', *strip, "</div>"])]
     parts += [rewrite(p, "", pages, base) for p in text]
@@ -342,7 +345,14 @@ def build(out: Path, base: str) -> list[str]:
         out / "index.md",
         # its text is on the What it does and Showcase pages too
         {"title": "Home", "nav_order": 1, "permalink": "/", "search_exclude": "true"},
-        landing(intro, section["What it does"], section["Showcase"], pages, base),
+        landing(
+            intro,
+            section["Why UniversalLocal RMM?"],
+            section["What it does"],
+            section["Showcase"],
+            pages,
+            base,
+        ),
     )
 
     groups = list(GROUPS) + ["More"]
