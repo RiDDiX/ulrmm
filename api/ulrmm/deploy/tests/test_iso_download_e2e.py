@@ -25,21 +25,26 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        body = self.server.body
+        etag = '"%s"' % hashlib.sha256(body).hexdigest()[:16]
         rng = self.headers.get("Range")
         self.server.ranges.append(rng)
         start = 0
-        if rng:
+        if rng and self.headers.get("If-Range", etag) == etag:
             start = int(rng.split("=")[1].rstrip("-"))
+            sent = start + self.server.skew
             self.send_response(206)
             self.send_header(
-                "Content-Range", f"bytes {start}-{len(BODY) - 1}/{len(BODY)}"
+                "Content-Range", f"bytes {sent}-{len(body) - 1}/{len(body)}"
             )
+            start = sent
         else:
             self.send_response(200)
-        self.send_header("Content-Length", str(len(BODY) - start))
+        self.send_header("ETag", etag)
+        self.send_header("Content-Length", str(len(body) - start))
         self.end_headers()
-        for i in range(start, len(BODY), 256 * 1024):
-            self.wfile.write(BODY[i : i + 256 * 1024])
+        for i in range(start, len(body), 256 * 1024):
+            self.wfile.write(body[i : i + 256 * 1024])
 
 
 class DownloadE2E(IsoTestCase):
@@ -47,6 +52,8 @@ class DownloadE2E(IsoTestCase):
         super().setUp()
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.srv.ranges = []
+        self.srv.body = BODY
+        self.srv.skew = 0
         t = threading.Thread(target=self.srv.serve_forever, daemon=True)
         t.start()
         self.addCleanup(self.srv.server_close)
@@ -158,11 +165,65 @@ class TestIsoDownload(DownloadE2E):
         row = self.start()
         with open(self.part, "wb") as f:
             f.write(BODY[: 1024 * 1024])
+        with open(self.part + ".validator", "w") as f:
+            f.write('"%s"' % SHA[:16])
         self.assertEqual(tasks.download_base_iso(row.pk), "ready")
         self.assertEqual(self.srv.ranges, ["bytes=1048576-"])
         with open(self.dest, "rb") as f:
             self.assertEqual(f.read(), BODY)
         self.assertFalse(os.path.exists(self.part))
+        self.assertFalse(os.path.exists(self.part + ".validator"))
+
+    def test_changed_file_is_not_spliced(self):
+        row = self.start("")
+        self.hook = lambda i: tasks.dl_cancel(row.pk)
+        self.assertEqual(tasks.download_base_iso(row.pk), "cancelled")
+        self.assertTrue(os.path.exists(self.part + ".validator"))
+        self.hook = None
+        new = random.Random(8).randbytes(len(BODY))
+        self.srv.body = new
+        self.assertEqual(tasks.download_base_iso(row.pk), "ready")
+        self.assertTrue(self.srv.ranges[1].startswith("bytes="))
+        with open(self.dest, "rb") as f:
+            self.assertEqual(f.read(), new)
+        row.refresh_from_db()
+        self.assertEqual(row.sha256, hashlib.sha256(new).hexdigest())
+
+    def test_replaced_part_is_gone_before_the_first_write(self):
+        row = self.start("")
+        with open(self.part, "wb") as f:
+            f.write(BODY[: 1024 * 1024])
+        with open(self.part + ".validator", "w") as f:
+            f.write('"%s"' % SHA[:16])
+        new = random.Random(8).randbytes(len(BODY))
+        self.srv.body = new
+        # fails after the 200 answer, before any byte is written
+        with mock.patch.object(tasks, "MAX_DOWNLOAD", len(new) - 1):
+            self.assertEqual(tasks.download_base_iso(row.pk), "error")
+        self.assertEqual(self.srv.ranges, ["bytes=1048576-"])
+        self.assertFalse(os.path.exists(self.part))
+        self.assertTrue(os.path.exists(self.part + ".validator"))
+
+    def test_part_without_validator_starts_clean(self):
+        row = self.start("")
+        with open(self.part, "wb") as f:
+            f.write(b"x" * 1024)
+        self.assertEqual(tasks.download_base_iso(row.pk), "ready")
+        self.assertEqual(self.srv.ranges, [None])
+        with open(self.dest, "rb") as f:
+            self.assertEqual(f.read(), BODY)
+
+    def test_wrong_range_start_starts_clean(self):
+        row = self.start("")
+        with open(self.part, "wb") as f:
+            f.write(BODY[: 1024 * 1024])
+        with open(self.part + ".validator", "w") as f:
+            f.write('"%s"' % SHA[:16])
+        self.srv.skew = 512
+        self.assertEqual(tasks.download_base_iso(row.pk), "ready")
+        self.assertEqual(self.srv.ranges, ["bytes=1048576-", None])
+        with open(self.dest, "rb") as f:
+            self.assertEqual(f.read(), BODY)
 
     def test_cancel_keeps_the_part(self):
         row = self.start()

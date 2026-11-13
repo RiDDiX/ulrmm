@@ -15,6 +15,7 @@ from urllib.parse import quote, urlsplit
 
 from cryptography.fernet import InvalidToken
 from django.conf import settings
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Prefetch, Subquery
 from django.db.models.functions import Coalesce
@@ -71,7 +72,8 @@ from ulrmm.agent_ident import (
     agent_task_prefix,
     render_agent_script,
 )
-from ulrmm.constants import AGENT_DEFER, AGENT_STATUS_OFFLINE, AGENT_STATUS_ONLINE
+from ulrmm.constants import AGENT_CHECKS_CACHE_PREFIX, AGENT_DEFER
+from ulrmm.constants import AGENT_STATUS_OFFLINE, AGENT_STATUS_ONLINE
 from ulrmm.constants import AgentHistoryType, AgentMonType, AgentPlat, GoArch
 from ulrmm.constants import AgentTerminalShellChoices, AuditActionType, AuditObjType
 from ulrmm.constants import CustomFieldModel, DebugLogType, EvtLogNames
@@ -260,12 +262,17 @@ class GetAgents(APIView):
                 has_patches_failed=Exists(approved.filter(result="failed")),
                 _pending_actions_count=Coalesce(Subquery(pending), 0),
             )
+            # shortcut: wmi_detail is decoded for every row; fine for a few hundred agents,
+            # store a small hardware summary next to it when the list gets slow
             .defer(
                 "services", "created_by", "created_time", "modified_by", "modified_time"
             )
             .order_by("pk")
         )
-        return Response(AgentTableSerializer(rows, many=True).data)
+        rows = list(rows)
+        keys = [f"{AGENT_CHECKS_CACHE_PREFIX}{agent.pk}" for agent in rows]
+        context = {"checks": cache.get_many(keys)}
+        return Response(AgentTableSerializer(rows, many=True, context=context).data)
 
 
 class _AgentEditSerializer(serializers.ModelSerializer):
@@ -479,7 +486,8 @@ class GetUpdateDeleteAgent(APIView):
 
     def delete(self, request, agent_id):
         agent = get_object_or_404(Agent, agent_id=agent_id)
-        if not verify_fresh_totp(request.user, request.data.get("totp_code")):
+        data = request.data if isinstance(request.data, dict) else {}
+        if not verify_fresh_totp(request.user, data.get("totp_code")):
             return notify_error(DELETE_NEEDS_TOTP)
 
         try:
@@ -1276,6 +1284,10 @@ class AgentHistoryView(APIView):
             else AgentHistory.objects.filter_by_role(request.user)
         )
         rows = rows.select_related("script").order_by("pk")
+        # ?newest=N: the N latest rows, oldest first; other values are ignored
+        newest = _as_int(request.query_params.get("newest"))
+        if newest is not None and 1 <= newest <= 500:
+            rows = list(rows.reverse()[:newest])[::-1]
         try:
             rows = _paged(request, rows)
         except _Refused as e:

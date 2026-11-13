@@ -290,8 +290,7 @@ func (w *worker) handle(m *nats.Msg) {
 		w.log.Debugf("Hello %+v", p)
 		// awake again a while after a sleep: an agent without power messages
 		// never sends the cancel
-		w.exec("UPDATE agents_agent SET last_seen=$1, version=$2, power_event=CASE WHEN power_event='sleep' AND power_event_at < $1::timestamptz - interval '60 seconds' THEN '' ELSE power_event END WHERE agents_agent.agent_id=$3",
-			time.Now().UTC(), col(p.Version), p.AgentID)
+		w.exec(helloUpdate, time.Now().UTC(), col(p.Version), p.AgentID)
 
 	case modePublicIP:
 		p := &PublicIPMsg{}
@@ -309,7 +308,7 @@ func (w *worker) handle(m *nats.Msg) {
 		w.log.Debugf("Info %+v", p)
 		user := col(loggedInUser(p.Username))
 		// booted after a shutdown or restart was announced: it is back
-		w.exec("UPDATE agents_agent SET hostname=$1, operating_system=$2, plat=$3, total_ram=$4, boot_time=$5, needs_reboot=$6, logged_in_username=$7, goarch=$8, power_event=CASE WHEN power_event IN ('shutdown', 'restart', 'shutdown_or_restart') AND to_timestamp($5) > power_event_at THEN '' ELSE power_event END WHERE agents_agent.agent_id=$9",
+		w.exec(agentInfoUpdate,
 			col(p.Hostname), col(p.OS), col(p.Platform), int64(math.Round(p.TotalRAM)), p.BootTime, p.RebootNeeded, user, col(p.GoArch), p.AgentID)
 		if user != "None" {
 			w.log.Debugln("Updating last logged in user:", user)
@@ -372,6 +371,12 @@ func (w *worker) handle(m *nats.Msg) {
 		w.exec(q, args...)
 	}
 }
+
+// an empty version (a partial check-in) keeps the stored one
+const helloUpdate = "UPDATE agents_agent SET last_seen=$1, version=COALESCE(NULLIF($2, ''), version), power_event=CASE WHEN power_event='sleep' AND power_event_at < $1::timestamptz - interval '60 seconds' THEN '' ELSE power_event END WHERE agents_agent.agent_id=$3"
+
+// an empty hostname keeps the stored one
+const agentInfoUpdate = "UPDATE agents_agent SET hostname=COALESCE(NULLIF($1, ''), hostname), operating_system=$2, plat=$3, total_ram=$4, boot_time=$5, needs_reboot=$6, logged_in_username=$7, goarch=$8, power_event=CASE WHEN power_event IN ('shutdown', 'restart', 'shutdown_or_restart') AND to_timestamp($5) > power_event_at THEN '' ELSE power_event END WHERE agents_agent.agent_id=$9"
 
 // Hellos dropped on a full queue still keep their agents online, in one
 // statement a minute. The subject is the agent's own (NATS permissions), so

@@ -16,6 +16,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as djangotime
@@ -512,39 +513,43 @@ class TaskRunner(AgentTokenView):
             partial=True,
         )
         serializer.is_valid(raise_exception=True)
-        task_result = serializer.save(
-            agent=agent,
-            task=task,
-            last_run=djangotime.now(),
-            run_status=TaskRunStatus.COMPLETED,
-        )
-
-        AgentHistory.objects.create(
-            agent=agent,
-            type=AgentHistoryType.TASK_RUN,
-            command=task.name,
-            script_results={
-                "stdout": task_result.stdout,
-                "stderr": task_result.stderr,
-                "retcode": task_result.retcode,
-                "execution_time": task_result.execution_time,
-            },
-        )
-
-        # collector writes happen on every run: the agent schedules the runs
-        # itself, so a later run cannot be told apart from a replay
-        if task.custom_field:
-            if not task_result.stderr:
-                task_result.save_collector_results()
-                status = TaskStatus.PASSING
-            else:
-                status = TaskStatus.FAILING
-        else:
-            status = (
-                TaskStatus.FAILING if task_result.retcode != 0 else TaskStatus.PASSING
+        # result, history row and status land together; alerts follow
+        with transaction.atomic():
+            task_result = serializer.save(
+                agent=agent,
+                task=task,
+                last_run=djangotime.now(),
+                run_status=TaskRunStatus.COMPLETED,
             )
-        task_result.status = status
-        task_result.save(update_fields=["status"])
+
+            AgentHistory.objects.create(
+                agent=agent,
+                type=AgentHistoryType.TASK_RUN,
+                command=task.name,
+                script_results={
+                    "stdout": task_result.stdout,
+                    "stderr": task_result.stderr,
+                    "retcode": task_result.retcode,
+                    "execution_time": task_result.execution_time,
+                },
+            )
+
+            # collector writes happen on every run: the agent schedules the runs
+            # itself, so a later run cannot be told apart from a replay
+            if task.custom_field:
+                if not task_result.stderr:
+                    task_result.save_collector_results()
+                    status = TaskStatus.PASSING
+                else:
+                    status = TaskStatus.FAILING
+            else:
+                status = (
+                    TaskStatus.FAILING
+                    if task_result.retcode != 0
+                    else TaskStatus.PASSING
+                )
+            task_result.status = status
+            task_result.save(update_fields=["status"])
 
         if status == TaskStatus.PASSING:
             if Alert.create_or_return_task_alert(task, agent=agent, skip_create=True):
@@ -587,7 +592,21 @@ class AgentHistoryResult(AgentTokenView):
             instance=hist, data=data, partial=True
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        fields = serializer.validated_data
+        # only the first of two concurrent writes (an agent retry) may land
+        empty = (
+            AgentHistory.objects.filter(pk=hist.pk)
+            .filter(Q(results__isnull=True) | Q(results=""))
+            .filter(
+                Q(script_results__isnull=True)
+                | Q(script_results=None)
+                | Q(script_results={})
+            )
+        )
+        if fields and not empty.update(**fields):
+            return notify_error("")
+        for name, value in fields.items():
+            setattr(hist, name, value)
 
         results = hist.script_results
         stdout = results.get("stdout") if isinstance(results, dict) else None

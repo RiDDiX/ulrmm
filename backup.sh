@@ -267,15 +267,15 @@ PGPASSWORD=$mesh_pw pg_dump --no-privileges --no-owner -h localhost -p 5432 -U "
   gzip -9 >"${STAGING}/postgres/mesh-db-${dt_now}.psql.gz" || fail "pg_dump of meshcentral failed."
 
 say "$GREEN" "Backing up files"
-tar -czvf "${STAGING}/meshcentral/mesh.tar.gz" --exclude=/meshcentral/node_modules --exclude=/meshcentral/meshcentral-recordings /meshcentral
+tar -czf "${STAGING}/meshcentral/mesh.tar.gz" --exclude=/meshcentral/node_modules --exclude=/meshcentral/meshcentral-recordings /meshcentral
 tar_ok $? /meshcentral
 
 if [ -d /etc/letsencrypt ]; then
-  sudo tar -czvf "${STAGING}/certs/etc-letsencrypt.tar.gz" -C /etc/letsencrypt .
+  sudo tar -czf "${STAGING}/certs/etc-letsencrypt.tar.gz" -C /etc/letsencrypt .
   tar_ok $? /etc/letsencrypt
 fi
 if [ -d /opt/ulrmm-reporting ]; then
-  sudo tar -czvf "${STAGING}/opt/opt-ulrmm-reporting.tar.gz" -C /opt/ulrmm-reporting .
+  sudo tar -czf "${STAGING}/opt/opt-ulrmm-reporting.tar.gz" -C /opt/ulrmm-reporting .
   tar_ok $? /opt/ulrmm-reporting
 fi
 for f in /opt/rustdesk/id_ed25519 /opt/rustdesk/id_ed25519.pub; do
@@ -306,7 +306,7 @@ for f in rmm frontend meshcentral; do
   fi
 done
 if [ -d /etc/conf.d ]; then
-  sudo tar -czvf "${STAGING}/confd/etc-confd.tar.gz" -C /etc/conf.d .
+  sudo tar -czf "${STAGING}/confd/etc-confd.tar.gz" -C /etc/conf.d .
   tar_ok $? /etc/conf.d
 fi
 for u in rmm celery celerybeat meshcentral nats daphne nats-api; do

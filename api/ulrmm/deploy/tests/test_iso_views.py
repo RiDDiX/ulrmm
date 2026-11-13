@@ -139,6 +139,26 @@ class TestLibrary(IsoTestCase):
         self.assertEqual(c.data["id"], a.data["id"])
         self.assertEqual((c.data["status"], c.data["error"]), ("downloading", ""))
 
+    def test_second_post_with_another_sha256(self):
+        url = "https://x.test/d.iso"
+
+        def post(sha):
+            return self.client.post("/deploy/iso/library/", {"url": url, "sha256": sha})
+
+        a = self.client.post("/deploy/iso/library/", {"url": url})
+        b = post("AB" * 32)
+        self.assertEqual((b.status_code, b.data["id"]), (200, a.data["id"]))
+        self.assertEqual(BaseIso.objects.get().expected_sha256, "ab" * 32)
+        self.assertEqual(post("ab" * 32).status_code, 200)
+        self.assertEqual(post("cd" * 32).status_code, 400)
+        BaseIso.objects.update(status="ready", expected_sha256="", sha256="ef" * 32)
+        self.assertEqual(post("cd" * 32).status_code, 400)
+        self.assertEqual(post("EF" * 32).status_code, 200)
+        BaseIso.objects.update(status="verifying", sha256="")
+        self.assertEqual(post("cd" * 32).status_code, 400)
+        self.assertEqual(BaseIso.objects.get().expected_sha256, "")
+        self.assertEqual(BaseIso.objects.count(), 1)
+
     def test_sha256_stored_lowercase_and_validated(self):
         url = "https://x.test/d.iso"
         bad = self.client.post("/deploy/iso/library/", {"url": url, "sha256": "zz"})

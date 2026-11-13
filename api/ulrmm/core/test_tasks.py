@@ -8,17 +8,22 @@ import time_machine
 from django.conf import settings
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone as djangotime
 from model_bakery import baker
 
 from autotasks.models import TaskResult
 from checks.models import CheckHistory
 from core.tasks import (
+    NO_INSTALL_RESULT,
     cache_db_fields_task,
     remove_orphaned_history_results,
     resolve_alerts_task,
+    resolve_pending_actions,
     scheduled_task_runner,
 )
-from ulrmm.constants import AgentPlat, AlertType, TaskRunStatus, TaskType
+from logs.models import PendingAction
+from ulrmm.constants import AgentPlat, AlertType, PAAction, PAStatus, TaskRunStatus
+from ulrmm.constants import TaskType
 from ulrmm.test import ULRMMTestCase
 
 MONDAY_1030 = dt.datetime(2026, 3, 2, 10, 30, tzinfo=dt.timezone.utc)
@@ -171,3 +176,46 @@ class TestCoreTasks(ULRMMTestCase):
         bulk.assert_awaited_once_with(items=expected)
         taken.refresh_from_db()
         self.assertIsNone(taken.run_status)
+
+    def test_cache_db_fields_reads_the_agents_once(self):
+        for site in baker.make("clients.Site", _quantity=3):
+            baker.make_recipe("agents.online_agent", site=site)
+        with CaptureQueriesContext(connection) as ctx:
+            cache_db_fields_task()
+        agent_reads = [q for q in ctx if 'FROM "agents_agent"' in q["sql"]]
+        self.assertEqual(len(agent_reads), 1)
+
+    def test_installs_without_a_result_fail_after_two_hours(self):
+        agent = baker.make_recipe("agents.agent")
+        old = djangotime.now() - dt.timedelta(hours=2, minutes=1)
+        rows = {}
+        for name, kind, age in (
+            ("winget", PAAction.WINGET_INSTALL, old),
+            ("choco", PAAction.CHOCO_INSTALL, old),
+            ("fresh", PAAction.WINGET_INSTALL, None),
+            ("other", PAAction.RUN_CMD, old),
+        ):
+            row = baker.make(
+                "logs.PendingAction",
+                agent=agent,
+                action_type=kind,
+                details={"name": name, "installed": False, "output": None},
+            )
+            if age:
+                PendingAction.objects.filter(pk=row.pk).update(entry_time=age)
+            rows[name] = row
+
+        resolve_pending_actions()
+
+        for name, expired in (
+            ("winget", True),
+            ("choco", True),
+            ("fresh", False),
+            ("other", False),
+        ):
+            row = PendingAction.objects.get(pk=rows[name].pk)
+            done = row.status == PAStatus.COMPLETED
+            self.assertEqual(done, expired, name)
+            if expired:
+                self.assertEqual(row.details["output"], NO_INSTALL_RESULT)
+                self.assertFalse(row.details["installed"])

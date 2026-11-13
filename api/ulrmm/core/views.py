@@ -514,7 +514,7 @@ class RunURLAction(APIView):
         from agents.models import Agent
         from clients.models import Client, Site
 
-        data = request.data
+        data = request.data if isinstance(request.data, dict) else {}
         if "agent_id" in data:
             instance = get_object_or_404(Agent, agent_id=data["agent_id"])
             if not _has_perm_on_agent(request.user, instance.agent_id):

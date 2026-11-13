@@ -136,8 +136,10 @@ jobs:
             exit 0
           fi
           api=https://git.riddix.de/api/v1/repos/RiDDiX/ulrmm/releases
+          body=$(jq -n --arg tag "$GITHUB_REF_NAME" --arg sha "$GITHUB_SHA" --arg notes "UniversalLocal RMM ${GITHUB_REF_NAME#v}" \
+            '{tag_name: $tag, name: $tag, target_commitish: $sha, body: $notes}')
           id=$(curl -fsS -X POST "$api" -H "Authorization: token $GITEA_TOKEN" -H 'Content-Type: application/json' \
-            -d "{\"tag_name\":\"$GITHUB_REF_NAME\",\"name\":\"$GITHUB_REF_NAME\",\"target_commitish\":\"$GITHUB_SHA\",\"body\":\"UniversalLocal RMM ${GITHUB_REF_NAME#v}\"}" | jq -r .id)
+            -d "$body" | jq -r .id)
           [ -n "$id" ] && [ "$id" != null ] || { echo "Gitea did not create the release"; exit 1; }
           for f in dist/ulrmm-*; do
             curl -fsS -X POST "${api}/${id}/assets?name=$(basename "$f")" \

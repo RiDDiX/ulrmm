@@ -187,13 +187,6 @@ class IsoLibrary(APIView):
                 host = None
             if not host:
                 return notify_error("The URL has no usable host")
-            St = BaseIso.Status
-            old = BaseIso.objects.filter(source_url=url).order_by("-id")
-            busy = old.filter(
-                status__in=(St.DOWNLOADING, St.VERIFYING, St.INSPECTING, St.READY)
-            ).first()
-            if busy:
-                return Response(_row(busy))
             sha = data.get("sha256")
             if sha in (None, ""):
                 sha = ""
@@ -204,6 +197,31 @@ class IsoLibrary(APIView):
                         return notify_error(str(e))
             elif not isinstance(sha, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", sha):
                 return notify_error("The sha256 must be 64 hex characters")
+            sha = sha.lower()
+            St = BaseIso.Status
+            old = BaseIso.objects.filter(source_url=url).order_by("-id")
+            busy = old.filter(
+                status__in=(St.DOWNLOADING, St.VERIFYING, St.INSPECTING, St.READY)
+            ).first()
+            if busy:
+                have = busy.expected_sha256 or (
+                    busy.sha256 if busy.status == St.READY else ""
+                )
+                if not sha or sha == have.lower():
+                    return Response(_row(busy))
+                if have:
+                    return notify_error(
+                        "This URL is already in the library with another SHA-256"
+                    )
+                # only a running download still compares the hash it is given
+                if BaseIso.objects.filter(
+                    pk=busy.pk, status=St.DOWNLOADING, expected_sha256=""
+                ).update(expected_sha256=sha):
+                    busy.expected_sha256 = sha
+                    return Response(_row(busy))
+                return notify_error(
+                    "The image is being checked, send the SHA-256 again when it is ready"
+                )
             target = data.get("target")
             target = target if isinstance(target, str) and len(target) <= 32 else ""
             tasks.iso_dir()
@@ -214,7 +232,7 @@ class IsoLibrary(APIView):
                 row = _claim(_url_filename(url), source_url=url, status=St.DOWNLOADING)
                 if row is None:
                     return notify_error("Another image took this file name, try again")
-            row.expected_sha256 = sha.lower()
+            row.expected_sha256 = sha
             if target:
                 row.target = target
             row.save()
@@ -322,7 +340,7 @@ class IsoVerify(APIView):
 
 def _drop(row: BaseIso) -> None:
     path = tasks.iso_path(row.filename)
-    for p in (path, path + ".part"):
+    for p in (path, path + ".part", path + ".part.validator"):
         if os.path.isfile(p):
             os.remove(p)
     row.delete()

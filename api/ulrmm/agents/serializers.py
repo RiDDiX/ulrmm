@@ -198,8 +198,10 @@ class AgentTableSerializer(serializers.ModelSerializer):
         return getattr(obj, "_pending_actions_count", 0) or 0
 
     def get_checks(self, obj) -> dict[str, Any]:
-        # core.tasks keeps this cache warm
-        summary = cache.get(f"{AGENT_CHECKS_CACHE_PREFIX}{obj.pk}")
+        # core.tasks keeps this cache warm; the list view reads it in one call
+        key = f"{AGENT_CHECKS_CACHE_PREFIX}{obj.pk}"
+        found = self.context.get("checks")
+        summary = found.get(key) if found is not None else cache.get(key)
         return summary if summary else dict(_NO_CHECKS)
 
     def get_logged_username(self, obj) -> str:

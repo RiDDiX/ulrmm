@@ -1,5 +1,19 @@
 # Server changelog
 
+## 1.13.11.2026 (2026-11-13)
+
+- agents update to 1.13.11.2026
+- winget and Chocolatey installs whose result never arrives are closed as failed after two hours ("no result received from the agent") instead of staying pending
+- command and terminal sockets check the session again on every command, terminal input at most every 10 seconds: after a logout, a disabled account, a removed permission or a 2FA reset the open socket is closed
+- Windows services: start, stop, restart and start type changes are written to the audit log before they are sent, so a failed or timed-out step still leaves an entry
+- agent history: `?newest=N` returns the latest rows; a second result for the same history row from an agent retry is refused, so no duplicate note is created; a task result, its history row and its status are written together
+- the device list reads the check summaries in one cache call; the periodic status job reads every agent once instead of three times
+- automatic update approval: one failing agent no longer stops the rest
+- nats-api: a check-in with an empty version or hostname keeps the stored value
+- ISO download: a resumed download sends If-Range with the stored ETag or Last-Modified and starts over when the file changed or the server answers with another range; a partial file without that validator is not resumed; adding a URL that is already in the library with another SHA-256 is refused
+- a JSON list as request body answers 400 on the URL action and device delete endpoints
+- backup.sh no longer writes every file name to the log; the release workflow builds the Gitea release body with jq
+
 ## 2.08.11.2026 (2026-11-08)
 
 - agents update to 4.08.11.2026

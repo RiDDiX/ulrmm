@@ -3,6 +3,7 @@
 
 import asyncio
 import re
+import time
 import uuid
 from contextlib import suppress
 from types import SimpleNamespace
@@ -15,7 +16,11 @@ from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
+from django.db.models import Q
 from django.http import Http404
+from django.utils import timezone as djangotime
+from knox.models import AuthToken
+from rest_framework.exceptions import AuthenticationFailed
 
 from accounts.utils import console_stepup_remaining
 from agents.models import Agent, AgentHistory, AgentPlat
@@ -23,6 +28,7 @@ from agents.utils import is_posix_abs_path, is_windows_path
 from deploy import envelope
 from logs.models import AuditLog
 from ulrmm.constants import DARWIN_TOKENS, FREEBSD_TOKENS, LINUX_TOKENS, WINDOWS_TOKENS
+from ulrmm.auth import DashboardTokenAuthentication, needs_mfa_enrolment
 from ulrmm.constants import AgentHistoryType, AuditActionType, AuditObjType
 from ulrmm.helpers import agent_ver, setup_nats_options
 from ulrmm.logger import logger
@@ -34,6 +40,8 @@ active_streams: dict[str, dict[str, tuple[asyncio.Event, asyncio.Future]]] = {}
 STREAM_MIN_VERSION = "2.10.0"
 MAX_STREAM_TIMEOUT = 3600
 MAX_STREAMS_PER_SOCKET = 5
+# terminal input re-checks the session at most this often
+RECHECK_SECONDS = 10
 # cmd_id ends up in a NATS subject and a channel-layer group name
 _CMD_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
@@ -90,6 +98,38 @@ def _rejected_user(user) -> Optional[tuple]:
     return None
 
 
+def _session_user(user):
+    """The socket's user read again, None once its session or account ended."""
+    digest = getattr(user, "auth_digest", "")
+    if not digest:
+        return None
+    token = (
+        AuthToken.objects.select_related("user__role")
+        .filter(digest=digest, user_id=user.pk)
+        .filter(Q(expiry=None) | Q(expiry__gt=djangotime.now()))
+        .first()
+    )
+    if token is None:
+        return None
+    # the checks connect runs (ulrmm.utils.get_user), sets auth_digest
+    try:
+        user, _ = DashboardTokenAuthentication().validate_user(token)
+    except AuthenticationFailed:
+        return None
+    if needs_mfa_enrolment(user) or _rejected_user(user) is not None:
+        return None
+    return user
+
+
+async def _still_allowed(consumer) -> bool:
+    # a socket outlives logout, a disabled account and a changed role
+    user = await sync_to_async(_session_user)(consumer.user)
+    if user is None or not await _check(consumer.has_perm, user, consumer.agent_id):
+        return False
+    consumer.user = user
+    return True
+
+
 class CommandStreamConsumer(AsyncJsonWebsocketConsumer):
     authorized = False
     cmd_id: Optional[str] = None
@@ -135,7 +175,8 @@ class CommandStreamConsumer(AsyncJsonWebsocketConsumer):
         self.authorized = True
 
     async def receive_json(self, content, **kwargs):
-        if not self.authorized:
+        if not self.authorized or not await _still_allowed(self):
+            self.authorized = False
             await self.close(code=4403)
             return
 
@@ -322,6 +363,7 @@ class TerminalStreamConsumer(AsyncJsonWebsocketConsumer):
     started = False
     killed = False
     message_id = 0
+    _checked_at = float("-inf")
     _expiry: Optional[asyncio.Task] = None
     _start_lock: Optional[asyncio.Lock] = None
     _publish_lock: Optional[asyncio.Lock] = None
@@ -374,8 +416,20 @@ class TerminalStreamConsumer(AsyncJsonWebsocketConsumer):
         await asyncio.sleep(seconds)
         await self.close(code=4403)
 
+    async def _recheck(self, force: bool) -> bool:
+        now = time.monotonic()
+        if not force and now - self._checked_at < RECHECK_SECONDS:
+            return True
+        if not await _still_allowed(self):
+            return False
+        self._checked_at = now
+        return True
+
     async def receive_json(self, content, **kwargs):
         kind = content.get("action")
+        if kind in ("start", "input") and not await self._recheck(kind == "start"):
+            await self.close(code=4403)
+            return
         if kind == "start":
             await self._start_terminal(content)
         elif kind == "input":
@@ -441,6 +495,7 @@ class TerminalStreamConsumer(AsyncJsonWebsocketConsumer):
             if self.started:
                 return
             self.started = True
+            self.killed = False
             try:
                 target = await self._terminal_target()
                 if target is None:

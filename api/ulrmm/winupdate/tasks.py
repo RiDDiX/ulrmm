@@ -93,8 +93,8 @@ def auto_approve_updates_task() -> None:
         "pk", "agent_id", "version", "last_seen", "overdue_time", "offline_time", "plat"
     )
     for agent in agents:
-        agent.delete_superseded_updates()
         try:
+            agent.delete_superseded_updates()
             agent.approve_updates()
         except Exception as e:
             # the agent is still scanned below

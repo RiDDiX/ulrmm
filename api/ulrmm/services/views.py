@@ -118,6 +118,8 @@ class GetEditActionService(APIView):
             payload = {"name": svcname, "action": step}
             return self._send(agent, {"func": "winsvcaction", "payload": payload}, 32)
 
+        # audited before sending: a failed or timed-out step may still have run
+        self._audit(request, agent, svcname, action)
         if action == "restart":
             reply = control("stop")
             error = _reply_error(reply)
@@ -127,13 +129,11 @@ class GetEditActionService(APIView):
             error = _reply_error(control("start"))
             if error is not None:
                 return error
-            self._audit(request, agent, svcname, action)
             return Response("The service was restarted successfully")
 
         error = _reply_error(control(action))
         if error is not None:
             return error
-        self._audit(request, agent, svcname, action)
         done = "started" if action == "start" else "stopped"
         return Response(f"The service was {done} successfully")
 
@@ -152,10 +152,10 @@ class GetEditActionService(APIView):
             "func": "editwinsvc",
             "payload": {"name": svcname, "startType": start_type},
         }
+        self._audit(request, agent, svcname, f"set start type {start_type}")
         error = _reply_error(self._send(agent, data, 10))
         if error is not None:
             return error
-        self._audit(request, agent, svcname, f"set start type {start_type}")
         return Response("The service start type was updated successfully")
 
 

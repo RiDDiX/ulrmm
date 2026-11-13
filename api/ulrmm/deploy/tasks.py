@@ -225,13 +225,13 @@ def _fetch(url: str, ip: str, headers: dict, timeout=30):
     )
 
 
-def _open(url: str, have: int):
+def _open(url: str, have: int, validator: str = ""):
     """GET url with https and public-host checks on every redirect hop."""
     for _ in range(6):
         if urlparse(url).scheme != "https":
             raise ValueError("a redirect left https")
         ip = _check_host(url_host(url))
-        headers = {"Range": f"bytes={have}-"} if have else {}
+        headers = {"Range": f"bytes={have}-", "If-Range": validator} if have else {}
         r = _fetch(url, ip, headers)
         if r.status_code in (301, 302, 303, 307, 308):
             url = requests.compat.urljoin(url, r.headers.get("Location", ""))
@@ -239,6 +239,18 @@ def _open(url: str, have: int):
             continue
         return r
     raise ValueError("too many redirects")
+
+
+def _drop_part(part: str) -> None:
+    for p in (part, part + ".validator"):
+        if os.path.isfile(p):
+            os.remove(p)
+
+
+def _range_start(r) -> int:
+    start = (r.headers.get("Content-Range") or "").removeprefix("bytes ")
+    start = start.partition("-")[0]
+    return int(start) if start.isdigit() else -1
 
 
 @app.task
@@ -259,15 +271,38 @@ def download_base_iso(pk: int) -> str:
         if urlparse(row.source_url).scheme != "https":
             raise ValueError("only https downloads are allowed")
         have = os.path.getsize(part) if os.path.exists(part) else 0
-        r = _open(row.source_url, have)
+        try:
+            with open(part + ".validator") as f:
+                validator = f.read().strip()
+        except OSError:
+            validator = ""
+        # without a validator the server cannot tell us the file changed
+        if have and not validator:
+            _drop_part(part)
+            have = 0
+        r = _open(row.source_url, have, validator)
+        if have and getattr(r, "status_code", 200) == 206 and _range_start(r) != have:
+            r.close()
+            _drop_part(part)
+            have = 0
+            r = _open(row.source_url, 0)
         with r:
             if getattr(r, "status_code", 200) == 416:
-                os.remove(part)
+                _drop_part(part)
                 raise ValueError("the partial file was stale, retry")
             r.raise_for_status()
             resumed = have > 0 and getattr(r, "status_code", 200) == 206
             if not resumed:
                 have = 0
+                # stale bytes must not outlive the old validator
+                _drop_part(part)
+                etag = r.headers.get("ETag") or ""
+                # If-Range needs a strong validator, a weak ETag never matches
+                if not etag or etag.startswith("W/"):
+                    etag = r.headers.get("Last-Modified") or ""
+                if etag:
+                    with open(part + ".validator", "w") as f:
+                        f.write(etag)
             length = int(r.headers.get("Content-Length") or 0)
             total = 0
             if resumed:
@@ -310,7 +345,7 @@ def download_base_iso(pk: int) -> str:
                     done += len(chunk)
                     if done > MAX_DOWNLOAD:
                         f.close()
-                        os.remove(part)
+                        _drop_part(part)
                         raise ValueError("the file is larger than the 14 GiB limit")
                     f.write(chunk)
                     now = time.monotonic()
@@ -325,6 +360,7 @@ def download_base_iso(pk: int) -> str:
         if total and done != total:
             raise ValueError("the download ended early")
         os.replace(part, dest)
+        _drop_part(part)
         row.status = BaseIso.Status.VERIFYING
         row.error = ""
         row.save(update_fields=["status", "error"])
@@ -338,6 +374,8 @@ def download_base_iso(pk: int) -> str:
                 dl_set(pk, verifiedBytes=n, totalBytes=size)
 
         sha = iso.sha256_of(dest, progress=verify_cb)
+        # a second request may have added the hash while this one downloaded
+        row.refresh_from_db(fields=["expected_sha256"])
         want = row.expected_sha256.strip().lower()
         if want and want != sha.lower():
             os.remove(dest)

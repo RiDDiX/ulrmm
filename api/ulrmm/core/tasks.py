@@ -143,10 +143,28 @@ def refresh_nats_config_task() -> bool:
     return reload_nats(only_if_changed=True)
 
 
+INSTALL_RESULT_WAIT = timedelta(hours=2)
+NO_INSTALL_RESULT = "no result received from the agent"
+
+
 @app.task
 def resolve_pending_actions():
     from agents.models import Agent
     from logs.models import PendingAction
+
+    # the agent gives up posting an install result after a few tries
+    stale = PendingAction.objects.filter(
+        action_type__in=(PAAction.CHOCO_INSTALL, PAAction.WINGET_INSTALL),
+        status=PAStatus.PENDING,
+        entry_time__lt=djangotime.now() - INSTALL_RESULT_WAIT,
+    )
+    for action in stale:
+        details = action.details if isinstance(action.details, dict) else {}
+        details.update(output=NO_INSTALL_RESULT, installed=False)
+        # a result that arrived meanwhile wins
+        PendingAction.objects.filter(pk=action.pk, status=PAStatus.PENDING).update(
+            details=details, status=PAStatus.COMPLETED
+        )
 
     # loading a scheduled reboot completes it once its time has passed
     # (logs.signals), so rows nobody opens do not stay pending
@@ -351,35 +369,26 @@ def _apply_win_task_reply(action, agent, task, reply):
         logger.error("win task delete failed on %s: %s", task.pk, reply)
 
 
-def _get_failing_data(agents) -> dict:
-    from agents.utils import calculate_agent_checks
+def _add_failing(data: dict, agent, checks: dict) -> None:
+    """Sets error/warning in data for what this one agent contributes."""
+    if agent.maintenance_mode:
+        return
+    if agent.status == AGENT_STATUS_OVERDUE:
+        data["error"] = True
+        return
 
-    data = {"error": False, "warning": False}
-    # an error does not end the loop, a later agent may still set the warning
-    for agent in agents:
-        if data["error"] and data["warning"]:
-            break
-        if agent.maintenance_mode:
-            # skip this agent, do not hide the agents after it
-            continue
-        if agent.status == AGENT_STATUS_OVERDUE:
+    if checks["has_failing_checks"]:
+        if checks["warning"]:
+            data["warning"] = True
+        if checks["failing"]:
             data["error"] = True
-            continue
-
-        checks = calculate_agent_checks(agent)
-        if checks["has_failing_checks"]:
-            if checks["warning"]:
-                data["warning"] = True
-            if checks["failing"]:
+        return
+    for result in agent.taskresults.all():
+        if result.status == TaskStatus.FAILING:
+            if result.task.alert_severity == AlertSeverity.ERROR:
                 data["error"] = True
-        else:
-            for result in agent.taskresults.all():
-                if result.status == TaskStatus.FAILING:
-                    if result.task.alert_severity == AlertSeverity.ERROR:
-                        data["error"] = True
-                    elif result.task.alert_severity == AlertSeverity.WARNING:
-                        data["warning"] = True
-    return data
+            elif result.task.alert_severity == AlertSeverity.WARNING:
+                data["warning"] = True
 
 
 @app.task(bind=True)
@@ -391,38 +400,30 @@ def cache_db_fields_task(self):
 
         from django.core.cache import cache
 
-        from agents.models import Agent
         from agents.utils import calculate_agent_checks
         from clients.models import Client, Site
 
-        # status reads the alert template of a long silent agent
-        failing_prefetch = (
-            Agent.objects.defer(*AGENT_DEFER)
-            .select_related("alert_template")
-            .prefetch_related(
-                "agentchecks__script",
-                "checkresults__assigned_check",
-                "taskresults__task",
-                "autotasks",
-            )
-        )
+        def clean() -> dict:
+            return {"error": False, "warning": False}
 
+        # every agent is read once; sites and clients are summed up from it
+        per_site: dict[int, dict] = {}
+        for agent in _get_agent_qs().iterator(chunk_size=100):
+            checks = calculate_agent_checks(agent)
+            cache.set(f"{AGENT_CHECKS_CACHE_PREFIX}{agent.pk}", checks, 86400)
+            _add_failing(per_site.setdefault(agent.site_id, clean()), agent, checks)
+
+        per_client: dict[int, dict] = {}
         for site in Site.objects.all():
-            site.failing_checks = _get_failing_data(failing_prefetch.filter(site=site))
+            site.failing_checks = per_site.get(site.pk, clean())
             site.save(update_fields=["failing_checks"])
+            total = per_client.setdefault(site.client_id, clean())
+            for key, value in site.failing_checks.items():
+                total[key] = total[key] or value
 
         for client in Client.objects.all():
-            client.failing_checks = _get_failing_data(
-                failing_prefetch.filter(site__client=client)
-            )
+            client.failing_checks = per_client.get(client.pk, clean())
             client.save(update_fields=["failing_checks"])
-
-        for agent in _get_agent_qs().iterator(chunk_size=100):
-            cache.set(
-                f"{AGENT_CHECKS_CACHE_PREFIX}{agent.pk}",
-                calculate_agent_checks(agent),
-                86400,
-            )
         return "ok"
 
 

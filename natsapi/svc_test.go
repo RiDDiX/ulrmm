@@ -86,3 +86,12 @@ func TestPowerUpdate(t *testing.T) {
 		t.Errorf("decoded %+v", p)
 	}
 }
+
+func TestEmptyCheckInFieldsKeepStoredValues(t *testing.T) {
+	if !strings.Contains(helloUpdate, "version=COALESCE(NULLIF($2, ''), version)") {
+		t.Errorf("hello overwrites the version: %q", helloUpdate)
+	}
+	if !strings.Contains(agentInfoUpdate, "hostname=COALESCE(NULLIF($1, ''), hostname)") {
+		t.Errorf("agentinfo overwrites the hostname: %q", agentInfoUpdate)
+	}
+}
