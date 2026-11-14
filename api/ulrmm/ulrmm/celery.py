@@ -164,6 +164,8 @@ BEAT_TABLE = (
         "deploy.tasks.promote_command_keys",
         crontab(minute="*/15"),
     ),
+    # removals of the old agent after an import, idle while none waits
+    ("import-agent-removal", "importers.tasks.remove_task", every_five_minutes),
 )
 app.conf.beat_schedule = {
     name: {"task": task, "schedule": when} for name, task, when in BEAT_TABLE

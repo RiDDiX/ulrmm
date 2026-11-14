@@ -14,4 +14,6 @@ urlpatterns = [
     path("sources/<int:pk>/devices/", views.Devices.as_view()),
     path("sources/<int:pk>/link/", views.Link.as_view()),
     path("sources/<int:pk>/migrate/", views.Migrate.as_view()),
+    path("sources/<int:pk>/remove/", views.Remove.as_view()),
+    path("sources/<int:pk>/withdraw/", views.Withdraw.as_view()),
 ]

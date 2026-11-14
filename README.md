@@ -254,7 +254,7 @@ also as PDF in [English](docs/UniversalLocal-RMM-Showcase-EN.pdf) and
 | Assets and licenses | Hardware assets per device and software licenses with what you own and have paid for; a stored Windows or volume-licensed Office key shows the devices that activated it and the free seats. ([screenshot](docs/showcase/settings-licenses.png)) |
 | Network monitoring and discovery | Agentless monitoring from the server (ping, TCP ports, SNMP v2c/v3, HTTP(S) with certificate expiry, DNS; up to 256 devices) and subnet sweeps matched to agents or monitored devices. ([monitoring](docs/showcase/network-monitoring.png), [discovery](docs/showcase/network-discovery.png)) |
 | Integrations | UniFi and OPNsense sync clients, VLANs, ARP tables, switch ports, access points and SSIDs. ([screenshot](docs/showcase/settings-network.png)) |
-| Import from another RMM | Clients, sites, devices, custom fields, scripts, snippets and key store from a compatible RMM server or NinjaOne, previewed before anything is written; the installer goes to the devices through the old RMM ([Importing from another RMM](#importing-from-another-rmm)). |
+| Import from another RMM | Clients, sites, devices, custom fields, scripts, snippets and key store from a compatible RMM server or NinjaOne, from a compatible RMM server also URL actions, alert templates, policies, roles, users and reports, previewed before anything is written; the installer goes to the devices through the old RMM ([Importing from another RMM](#importing-from-another-rmm)). |
 | Performance history and timeline | CPU, memory and disk samples from 1 hour to 30 days; the timeline merges history, audit log, debug log, alerts, pending actions, patches, schedules and package installs; every command and script run is kept with its output. ([performance](docs/showcase/device-performance.png), [timeline](docs/showcase/device-timeline.png), [history](docs/showcase/device-history.png)) |
 | Groups, tags and roles | Static and rule-based groups, tags and roles with fine-grained permissions; API keys and user sessions are managed too. ([groups](docs/showcase/device-groups.png), [roles](docs/showcase/roles.png)) |
 | Reporting | Report templates in Markdown or HTML with data queries, on demand or on a schedule, previewed in a sandboxed frame. ([screenshot](docs/showcase/reporting.png)) |
@@ -672,7 +672,11 @@ well; for older agents it is the only one.
 
 Global Settings -> **Import** takes clients, sites, devices, custom fields
 and, where the other RMM hands them out, scripts, script snippets and key store
-entries over. Superusers only.
+entries over. From a compatible RMM server it takes the rest of the
+installation as well (see [What a compatible RMM server
+hands over](#what-a-compatible-rmm-server-hands-over)). Superusers only; what
+an import adds is written to the audit log like any other change, and each
+run adds one entry with the parts, how many were added and how many left out.
 
 1. **Add source**: the kind, its address (https only) and its credentials.
    - **Compatible RMM server**: a server with the same REST API, read with the
@@ -684,15 +688,24 @@ entries over. Superusers only.
      from NinjaOne's public API documentation and has not been run against a
      NinjaOne account yet.
 2. **Read source** fetches everything and shows what the import would add.
-   Nothing is written yet.
-3. **Import** writes the chosen parts. Clients and sites are matched by name,
-   custom fields by kind and name, scripts by name and shell, snippets and key
-   store entries by name; what exists keeps its values, and only empty custom
-   field values are filled in. Running it again adds nothing.
+   Nothing is written yet. What it read, the other RMM's secrets included, is
+   kept encrypted like the key store values.
+3. **Import** writes the chosen parts, each part on its own: a part that
+   fails leaves the others in place. Clients and sites are matched by name,
+   custom fields by kind and name, scripts by name and shell, users by user
+   name, everything else by name; what exists keeps its values, and only empty
+   custom field values are filled in. A policy or alert template that exists
+   here under the same name is left as it is, without the other one's checks,
+   tasks or settings. Running it again adds nothing. An object that points at
+   something that is neither imported nor here (a script check whose script is
+   missing, a role limited to a client that is missing) is left out and listed
+   with the reason, in the preview and after the import.
 4. **Devices** lists the imported devices. A device links to an agent of the
    same host name in its site when that agent enrolls, or with **Link enrolled
    agents** for agents that were already there; linking copies the description,
-   the notes and the custom field values.
+   the notes and the custom field values, and from a compatible RMM server the
+   device-level data below. What the link could not take is listed with the
+   device.
 5. **Send installer** runs the ulrmm agent installer on the selected devices
    through the other RMM. Windows and Linux get a deployment link made for this
    run (valid for 3 days, as many enrollments as devices), macOS an install
@@ -700,7 +713,8 @@ entries over. Superusers only.
    The installer starts detached from the other RMM's command, so its timeout
    does not stop it; on Linux and macOS its output goes to `import.log` in a
    new private temp directory (`mktemp -d`, as root usually `/tmp/tmp.*`).
-   The old agent stays installed until you remove it.
+   The old agent stays installed unless you also ask for its removal (see
+   [Removing the old agent](#removing-the-old-agent)).
    - Compatible RMM server: Windows, Linux and macOS, through its command
      endpoint. The device has to be online there.
    - NinjaOne runs only scripts from its own library. Create the two scripts
@@ -711,6 +725,115 @@ entries over. Superusers only.
 
 The link or token passes through the other RMM and may end up in its job
 history, which is why both expire and are capped.
+
+### What a compatible RMM server hands over
+
+Besides clients, sites, custom fields, scripts, snippets, key store entries
+and devices:
+
+- **URL actions**: name, description, pattern and kind; REST calls with
+  method, body and headers. Bodies and headers often hold tokens; they are
+  stored encrypted like the key store values and never shown by the import.
+- **Alert templates** with all their settings and the script or URL action
+  they run. An action whose script or URL action is not in the lists the
+  other server hands out (a script of its built-in library) cannot be taken:
+  the template comes without it and the action is listed as left out; set
+  one here. A client or site gets the template it had over there only when it
+  has none here, and the default template is set only when this installation
+  has none. Excluded clients and sites come along by name; excluded devices
+  are applied when they link.
+- **Policies**: name, description, active and enforced, all their checks and
+  tasks (actions, schedules, alert settings), the patch policy and the alert
+  template. A client or site gets its server or workstation policy only where
+  that slot is empty here. The default server and workstation policies of the
+  other server are global settings and are not set.
+- **Roles** with every permission both sides know (the preview counts the
+  others, they are ignored) and the clients and sites they are limited to. A
+  role limited to a client or site that is not here is left out, so it never
+  sees more than before; superuser roles are left out as well.
+- **Users**: user name, e-mail, first and last name and role. Every imported
+  user is created inactive with no password, whatever their state over there:
+  passwords and second factors cannot be taken over. An administrator
+  activates each user and sets a password.
+  No API keys, no superuser rights. A user whose role was not taken over
+  comes without a role, which gives no rights here, and is listed with the
+  reason; assign a role before activating it.
+- **Reports**: report templates, their HTML templates and data queries.
+  Templates point at their HTML template through the imported one. Report
+  assets (files) are not taken. Move only the content you wrote yourself.
+- **Device-level data**, kept with the imported device and applied when it
+  links (also when it enrolls later): the checks and tasks set on the device
+  itself (not the ones a policy manages), its policy, its patch policy and
+  its settings (time zone, check interval, offline and overdue times, the
+  overdue alert switches, maintenance mode, blocked policy inheritance). Each
+  is applied only where the agent here still has the default or nothing; what
+  an operator set here stays. An alert template set on the device itself
+  over there is not applied; here the device gets the one of its policy, site
+  or client.
+
+Not imported: global settings (mail, SMS, Mesh), API keys, sessions, history
+and audit logs, alerts, pending actions, software inventories and
+deployments.
+
+### Moving a whole installation
+
+1. Add the old server as a **Compatible RMM server** source with a
+   superuser's API key and **Read source**.
+2. Check the preview: what each part adds, what exists already, and what is
+   left out and why. Fix what you can on either side and read again.
+3. **Import** all parts.
+4. Activate the imported users you still need and set their passwords.
+5. Select the devices and **Send installer**, with the removal of the old
+   agent switched on if you want it. Each device links when its new agent
+   enrolls and takes its own checks, tasks and settings along. For devices
+   whose new agent you installed another way, select them once they are
+   linked and use **Remove old agent**.
+6. Check the devices that end as "old agent not removed" and remove the old
+   agent there by hand.
+
+### Removing the old agent
+
+**Send installer** has a switch, off by default, to remove the old agent
+once the device runs the new one. For a device whose new agent was installed
+another way and linked by name, **Remove old agent** asks for the same
+removal for the selected devices without sending an installer. Both ask for
+a current code from your authenticator app, as deleting an agent does; without
+a valid code nothing is asked for and no installer is sent. The other
+server's removal sends the uninstall to the device without waiting and
+deletes the device there at once; a device that is offline there never gets it and keeps its old agent
+for good. So the removal is sent only when all of this holds:
+
+- the device is linked to an agent here, and that agent has checked in since
+  the installer was sent (for an agent installed by hand: since the removal
+  was asked for) and is online now;
+- the other server shows the device online at that moment;
+- both sides show the same machine: the same short host name and platform,
+  and either the same serial number that no other agent here and no other
+  device of the source has, or the same public IP address and the same set
+  of local IPv4 addresses. Placeholder serial numbers ("To be filled by
+  O.E.M.", "Default string", very short or one repeated character) count as
+  none.
+
+Until then the device waits, here or over there, with the reason, and is
+tried again every 5 minutes. After 7 days it ends as "old agent not
+removed" with the last reason; a device that stays offline over there keeps
+its old agent, remove it there by hand. A device the other server deletes
+before any removal was sent from here ends as "not removed" at once. Once
+the other server confirmed the removal the device shows it as removed, with
+the time. When the answer got lost, the next round finds the device gone
+over there and marks it removed as well. Once the other server confirmed the
+removal or no longer lists the device, the removal is not sent again; after
+an interrupted removal it is sent again while the other server still lists
+the device, since the first call did not take effect there. A
+removal that was not sent yet can be withdrawn for the selected devices;
+once it was sent nothing can be withdrawn. The request, each removal sent and
+each withdrawal are written to the audit log.
+
+Windows: the old uninstaller also deletes the remote-control agent in
+`C:\Program Files\Mesh Agent`, which by then belongs to this installation. A
+few minutes after a confirmed removal the server runs the remote-control
+recovery for the linked agent and shows its outcome with the device. Linux and
+macOS keep the two agents apart, nothing else happens there.
 
 ## Updating
 

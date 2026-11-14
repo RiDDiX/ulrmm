@@ -1,5 +1,19 @@
 # Server changelog
 
+## 3.14.11.2026 (2026-11-14)
+
+- import from a compatible RMM server (Global Settings > Import) now also takes URL actions, alert templates, automation policies with their checks, tasks and patch policy, roles, users and report templates with their HTML templates and data queries; the policies and alert templates of clients and sites and their excluded clients and sites come along where the slot is empty here
+- imported users are created inactive, without a password and without a second factor; an administrator activates each one and sets a password. No API keys and no superuser rights are taken; superuser roles are left out
+- each imported device keeps its own checks, tasks, policy, patch policy and settings, excluded devices included, and gets them when it links, also when it enrolls later; only what the agent here still has at the default or empty is filled in
+- the preview and the import result list per part what is left out and why (a script, URL action, client, site or HTML template that is missing, a superuser role); an alert template whose action runs a script the other server does not list (its built-in library) comes without that action, which is listed as left out
+- each import run writes one audit log entry with the parts, how many were added and how many were left out
+- Send installer can remove the old agent from the device (off by default). It is sent only when the device is linked and online here, online on the other server and both sides show the same machine; otherwise it is tried again every 5 minutes for up to 7 days, then the device shows "not removed" with the reason. Asking for it needs a current two-factor code, like deleting an agent
+- Remove old agent asks for the same removal without sending an installer, for devices whose new agent was installed another way and linked by name (`POST /importers/sources/<id>/remove/`, also with a current two-factor code)
+- a removal that was not sent yet can be withdrawn; it is not sent again once the other server confirmed it or no longer lists the device; the request, each removal sent and each withdrawal are in the audit log
+- Windows: the old uninstaller also deletes the remote-control agent, so a few minutes after a confirmed removal the server runs the remote-control recovery for the linked agent and shows the outcome with the device
+- what was read from the other server and the data kept per imported device are stored encrypted, like the key store values
+- not imported: global settings (mail, SMS, Mesh), API keys, sessions, history and audit logs, alerts, pending actions, software inventories and deployments
+
 ## 2.14.11.2026 (2026-11-14)
 
 - agents update to 2.14.11.2026

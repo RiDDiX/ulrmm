@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 """Import from another RMM. Superusers only: an import writes clients,
-sites, scripts and keystore entries for everyone."""
+sites, scripts, keystore entries, policies, roles and users for everyone."""
 
 import json
 
@@ -13,11 +13,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.utils import has_superuser_rights
+from accounts.utils import DELETE_NEEDS_TOTP, has_superuser_rights, verify_fresh_totp
 from accounts.views import _body
 from ulrmm.helpers import notify_error
 
-from . import engine, link
+from . import engine, link, removal
 from .models import ImportedDevice, ImportSource, MigrateState, SourceKind
 from .sources import source_class
 from .tasks import fetch_task, migrate_task
@@ -81,6 +81,8 @@ class SourceSerializer(serializers.ModelSerializer):
         ret["secrets_set"] = [k for k in cls.SECRETS if stored.get(k)]
         ret["secret_names"] = list(cls.SECRETS)
         ret["push_plats"] = list(cls.PUSH_PLATS)
+        ret["parts"] = list(cls.PARTS)
+        ret["removes_agent"] = cls.REMOVES
         return ret
 
     def validate_kind(self, value):
@@ -181,7 +183,7 @@ class Import(APIView):
             return notify_error(f"parts: a list of {', '.join(engine.PARTS)}")
         if not source.last_fetch:
             return notify_error("Read the source first.")
-        return Response(engine.run(source, parts))
+        return Response(engine.run(source, parts, request.user.username))
 
 
 class Devices(APIView):
@@ -206,6 +208,13 @@ class Devices(APIView):
                     "migrate_state": d.migrate_state,
                     "migrate_error": d.migrate_error,
                     "sent_at": d.sent_at,
+                    "remove_requested_at": d.remove_requested_at,
+                    "remove_state": d.remove_state,
+                    "remove_at": d.remove_at,
+                    "remove_reason": d.remove_reason,
+                    "recovery": d.recovery,
+                    # device-level objects the link step could not take
+                    "link_skipped": (d.data or {}).get("link_skipped", []),
                 }
                 for d in rows
             ]
@@ -220,34 +229,104 @@ class Link(APIView):
         return Response({"linked": link.link_source(source)})
 
 
+def _ids(request):
+    ids = _body(request).get("devices")
+    if (
+        not isinstance(ids, list)
+        or not ids
+        or len(ids) > MAX_DEVICES
+        or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)
+    ):
+        return None
+    return ids
+
+
+def _can_remove(source):
+    if not source_class(source.kind).REMOVES:
+        return notify_error(
+            f"{source.get_kind_display()} cannot remove its agent from a device."
+        )
+    return None
+
+
+def _source_ids(source, ids) -> list[int]:
+    return list(
+        ImportedDevice.objects.filter(source=source, pk__in=ids).values_list(
+            "pk", flat=True
+        )
+    )
+
+
 class Migrate(APIView):
-    """Sends the installer to the given devices in the background."""
+    """Sends the installer to the given devices in the background. With
+    remove_old the old agent is removed later, see removal.py."""
 
     permission_classes = [IsAuthenticated, ImportPerms]
 
     def post(self, request, pk):
         source = get_object_or_404(ImportSource, pk=pk)
-        ids = _body(request).get("devices")
-        if (
-            not isinstance(ids, list)
-            or not ids
-            or len(ids) > MAX_DEVICES
-            or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)
-        ):
+        ids = _ids(request)
+        if ids is None:
             return notify_error("devices: a list of device ids")
-        if not source_class(source.kind).PUSH_PLATS:
+        remove_old = _body(request).get("remove_old", False)
+        if not isinstance(remove_old, bool):
+            return notify_error("remove_old: true or false")
+        if remove_old and (refused := _can_remove(source)):
+            return refused
+        cls = source_class(source.kind)
+        if not cls.PUSH_PLATS:
             return notify_error(
                 f"{source.get_kind_display()} cannot run commands on its devices. "
                 "Install the agent with a deployment; it links on enrollment."
             )
-        ids = list(
-            ImportedDevice.objects.filter(source=source, pk__in=ids).values_list(
-                "pk", flat=True
-            )
-        )
+        # single use, so checked after every other refusal
+        if remove_old and not verify_fresh_totp(
+            request.user, _body(request).get("totp_code")
+        ):
+            return notify_error(DELETE_NEEDS_TOTP)
+        ids = _source_ids(source, ids)
         # queued: the state comes back once the device was handled
         ImportedDevice.objects.filter(pk__in=ids, agent=None).update(
             migrate_state=MigrateState.NONE, migrate_error=""
         )
+        requested = (
+            removal.request(source, ids, request.user.username) if remove_old else 0
+        )
         migrate_task.delay(source.pk, ids)
-        return Response({"queued": len(ids)}, status=202)
+        return Response({"queued": len(ids), "remove_requested": requested}, status=202)
+
+
+class Remove(APIView):
+    """Asks for the removal of the old agent without sending an installer,
+    for devices whose agent was installed another way."""
+
+    permission_classes = [IsAuthenticated, ImportPerms]
+
+    def post(self, request, pk):
+        source = get_object_or_404(ImportSource, pk=pk)
+        ids = _ids(request)
+        if ids is None:
+            return notify_error("devices: a list of device ids")
+        if refused := _can_remove(source):
+            return refused
+        if not verify_fresh_totp(request.user, _body(request).get("totp_code")):
+            return notify_error(DELETE_NEEDS_TOTP)
+        ids = _source_ids(source, ids)
+        return Response(
+            {"remove_requested": removal.request(source, ids, request.user.username)}
+        )
+
+
+class Withdraw(APIView):
+    """Withdraws the removal of the old agent where it was not sent yet."""
+
+    permission_classes = [IsAuthenticated, ImportPerms]
+
+    def post(self, request, pk):
+        source = get_object_or_404(ImportSource, pk=pk)
+        ids = _ids(request)
+        if ids is None:
+            return notify_error("devices: a list of device ids")
+        return Response(
+            {"withdrawn": removal.withdraw(source, ids, request.user.username)}
+        )

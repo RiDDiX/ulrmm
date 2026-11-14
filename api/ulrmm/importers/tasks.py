@@ -7,8 +7,8 @@ from logs.models import DebugLog
 from ulrmm.celery import app
 from ulrmm.utils import redis_lock
 
-from . import migrate
-from .models import ImportSource
+from . import migrate, removal
+from .models import ImportedDevice, ImportSource
 from .sources import SourceError, for_source, validate
 
 
@@ -57,3 +57,31 @@ def migrate_task(self, pk: int, device_ids: list[int]) -> dict | str:
         except migrate.MigrateError as e:
             ImportSource.objects.filter(pk=pk).update(last_error=str(e)[:500])
             return str(e)
+
+
+@app.task
+def remove_task() -> str:
+    """Runs every few minutes; does nothing while no removal waits."""
+    removal.end_stale_claims()
+    waiting = ImportedDevice.objects.filter(remove_state__in=removal.WAITING)
+    if not waiting.exists():
+        return "idle"
+    for source in ImportSource.objects.filter(pk__in=waiting.values("source_id")):
+        try:
+            client = for_source(source)
+        except SourceError as e:
+            ImportSource.objects.filter(pk=source.pk).update(last_error=str(e)[:500])
+            continue
+        for device in waiting.filter(source=source).select_related("source"):
+            removal.step(device, client)
+    return "ok"
+
+
+@app.task
+def recover_task(pk: int) -> str:
+    device = ImportedDevice.objects.filter(pk=pk).select_related("agent").first()
+    if device is None:
+        return "gone"
+    result = removal.recover(device)
+    ImportedDevice.objects.filter(pk=pk).update(recovery=result[:500])
+    return result

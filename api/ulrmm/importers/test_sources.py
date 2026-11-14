@@ -7,6 +7,7 @@ and examples built from the NinjaOne OpenAPI spec (test_data/)."""
 import json
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 import requests
 from django.test import SimpleTestCase
@@ -15,7 +16,7 @@ from ulrmm.utils import BodyTooLarge, capped_json
 
 from .sources import SourceError, validate
 from .sources import base
-from .sources.base import Source
+from .sources.base import NotFound, Source
 from .sources.ninjaone import NinjaOne
 from .sources.upstream import Upstream
 
@@ -31,8 +32,13 @@ class Recorded:
 
     def __call__(self, source, method, path, timeout=30, **kwargs):
         self.calls.append((method, path, kwargs))
+        if (
+            kwargs.get("params")
+            and (query := f"{path}?{urlencode(kwargs['params'])}") in self.answers
+        ):
+            return self.answers[query]
         if path not in self.answers:
-            raise SourceError(f"{path} answered 404")
+            raise NotFound(f"{path} answered 404")
         return self.answers[path]
 
 
@@ -80,9 +86,173 @@ class TestUpstream(SimpleTestCase):
         )
         self.assertIn(("GET", "/agents/", {"params": {"detail": "true"}}), rec.calls)
 
+    def test_fetch_more(self):
+        data = self.fetch(Recorded("upstream"))
+        hooks = {u["name"]: u for u in data["url_actions"]}
+        self.assertEqual(set(hooks), {"Notify chat hook", "Open ticket page"})
+        rest = hooks["Notify chat hook"]
+        self.assertEqual((rest["action_type"], rest["rest_method"]), ("rest", "post"))
+        self.assertIn("Bearer MASKED", rest["rest_headers"])
+
+        templates = {t["name"]: t for t in data["alert_templates"]}
+        self.assertEqual(
+            [n for n, t in templates.items() if t["default"]], ["Quiet nights"]
+        )
+        strict = templates["Strict paging"]
+        self.assertEqual(
+            strict["action"], {"name": "Disk Usage Report", "shell": "powershell"}
+        )
+        self.assertEqual(strict["excluded_sites"], [["Contoso GmbH", "Berlin HQ"]])
+        self.assertEqual(strict["fields"]["text_recipients"], ["+4915112345678"])
+        self.assertIs(strict["fields"]["agent_always_email"], True)
+        self.assertNotIn("agent_always_email", templates["Quiet nights"]["fields"])
+        self.assertNotIn("id", strict["fields"])
+        self.assertEqual(strict["lost"], [])
+        # a library script and a URL action id the lists do not hold
+        library = templates["Library paging"]
+        self.assertEqual(library["lost"], ["action", "resolved_action_rest"])
+        self.assertIsNone(library["action"])
+
+        policies = {p["name"]: p for p in data["policies"]}
+        servers = policies["Servers baseline"]
+        self.assertEqual(len(servers["checks"]), 5)
+        self.assertEqual(len(servers["tasks"]), 2)
+        self.assertEqual(servers["patch_policy"]["critical"], "approve")
+        self.assertEqual(servers["patch_policy"]["run_time_days"], [1, 3])
+        ws = policies["Workstations baseline"]
+        self.assertEqual(
+            (ws["enforced"], ws["alert_template"]), (True, "Strict paging")
+        )
+        script_check = next(c for c in ws["checks"] if c["script"])
+        self.assertEqual(script_check["script"]["name"], "Disk Usage Report")
+        weekly = next(t for t in servers["tasks"] if t["name"] == "Weekly cleanup")
+        self.assertEqual(
+            [a["type"] for a in weekly["actions"]], ["script", "cmd"], weekly
+        )
+        self.assertEqual(weekly["actions"][0]["script"]["shell"], "powershell")
+        # Monday, Wednesday and Friday
+        self.assertEqual(weekly["fields"]["run_time_bit_weekdays"], 42)
+
+        clients = {c["name"]: c for c in data["clients"]}
+        fab = clients["Fabrikam AG"]
+        self.assertEqual(
+            (fab["server_policy"], fab["workstation_policy"], fab["alert_template"]),
+            ("Servers baseline", "Workstations baseline", "Strict paging"),
+        )
+        hamburg = next(
+            s for s in clients["Contoso GmbH"]["sites"] if s["name"] == "Hamburg Branch"
+        )
+        self.assertEqual(hamburg["workstation_policy"], "Workstations baseline")
+
+        devices = {d["hostname"]: d for d in data["devices"]}
+        dc = devices["CONTOSO-DC01"]
+        self.assertEqual(
+            dc["settings"],
+            {
+                "time_zone": "Europe/Berlin",
+                "check_interval": 45,
+                "offline_time": 7,
+                "overdue_time": 60,
+                "overdue_email_alert": True,
+                "overdue_text_alert": True,
+                "overdue_dashboard_alert": False,
+                "maintenance_mode": True,
+                "block_policy_inheritance": True,
+            },
+        )
+        self.assertEqual(
+            [c["fields"]["check_type"] for c in dc["checks"]], ["diskspace"]
+        )
+        self.assertEqual([t["name"] for t in dc["tasks"]], ["Local nightly job"])
+        self.assertTrue(dc["patch_policy"])
+        self.assertEqual(devices["CONTOSO-WS014"]["policy"], "Workstations baseline")
+        self.assertEqual(
+            devices["contoso-web01"]["excluded_policies"], ["Servers baseline"]
+        )
+        # no detail recorded for this one: the exclusion still comes along
+        pi = devices["fab-pi-sensor"]
+        self.assertEqual(pi["excluded_templates"], ["Strict paging"])
+        self.assertEqual((pi["settings"], pi["policy"]), ({}, ""))
+
+        roles = {r["name"]: r for r in data["roles"]}
+        helpdesk = roles["Helpdesk"]
+        self.assertIs(helpdesk["perms"]["can_list_agents"], True)
+        self.assertEqual(helpdesk["unknown"], 1)
+        self.assertEqual(helpdesk["clients"], ["Contoso GmbH"])
+        self.assertEqual(
+            helpdesk["sites"],
+            [["Contoso GmbH", "Berlin HQ"], ["Contoso GmbH", "Hamburg Branch"]],
+        )
+        users = {u["username"]: u for u in data["users"]}
+        self.assertEqual(users["olaf.audit"]["role"], "Auditor")
+        self.assertEqual(users["admin"]["role"], "")
+        self.assertNotIn("password", json.dumps(data["users"]))
+
+        self.assertEqual(
+            data["report_templates"][0]["template_html"], "Corporate frame"
+        )
+        self.assertEqual(data["report_html"][0]["name"], "Corporate frame")
+        self.assertEqual(data["report_queries"][0]["json_query"]["model"], "agent")
+
+    def test_without_reporting(self):
+        rec = Recorded("upstream")
+        for path in [p for p in rec.answers if p.startswith("/reporting/")]:
+            del rec.answers[path]
+        data = self.fetch(rec)
+        self.assertEqual(data["report_templates"], [])
+        del rec.answers["/core/urlaction/"]
+        with self.assertRaisesRegex(SourceError, "urlaction"):
+            self.fetch(rec)
+
     def test_needs_key(self):
         with self.assertRaises(SourceError):
             Upstream("https://old", True, {}, {}).fetch()
+
+    def test_device_and_remove(self):
+        from agents.models import Agent
+
+        from .removal import _ipv4
+
+        dc = "DEMOAGENT00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-DC01"
+        rec = Recorded("upstream")
+        up = Upstream("https://old", True, {}, {"api_key": "K"})
+        with patch.object(Source, "call", lambda s, *a, **k: rec(s, *a, **k)):
+            detail = up.device(dc)
+            with self.assertRaises(NotFound):
+                up.device("GONE")
+            with self.assertRaisesRegex(SourceError, "characters"):
+                up.remove("../clients/1", "x")
+        # what the same-machine proof reads from the live detail
+        theirs = Agent(plat=detail["plat"], wmi_detail=detail["wmi_detail"])
+        self.assertEqual(theirs.serial_number, "CZC1234XYZ")
+        self.assertEqual(
+            {str(ip) for ip in _ipv4(detail["local_ips"])},
+            {"172.17.9.121", "172.17.9.6", "172.17.9.122"},
+        )
+        self.assertEqual(
+            {
+                str(ip)
+                for ip in _ipv4(
+                    Agent(plat="windows", wmi_detail=detail["wmi_detail"]).local_ips
+                )
+            },
+            {"172.17.9.121", "172.17.9.6", "172.17.9.122"},
+        )
+
+        path = f"/agents/{dc}/"
+        for answer, ok in (
+            ("CONTOSO-DC01 will now be uninstalled.", True),
+            ("CONTOSO-DC01 was offline, uninstall it manually", False),
+            ({"detail": "x"}, False),
+        ):
+            rec = Recorded("upstream", **{path: answer})
+            with patch.object(Source, "call", lambda s, *a, **k: rec(s, *a, **k)):
+                if ok:
+                    up.remove(dc, "CONTOSO-DC01")
+                else:
+                    with self.assertRaisesRegex(SourceError, "unexpected answer"):
+                        up.remove(dc, "CONTOSO-DC01")
+            self.assertEqual(rec.calls[0][:2], ("DELETE", path))
 
     def test_push(self):
         rec = Recorded(
