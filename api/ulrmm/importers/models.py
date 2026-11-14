@@ -64,6 +64,9 @@ class ImportSource(BaseAuditModel):
     last_fetch = models.DateTimeField(null=True, blank=True)
     last_import = models.DateTimeField(null=True, blank=True)
     last_error = models.CharField(max_length=500, blank=True, default="")
+    # pks of the roles and policies this source created, by part: only those
+    # are handed to imported users or completed later
+    created = models.JSONField(default=dict, blank=True)
 
     def __str__(self) -> str:
         return self.name
@@ -126,8 +129,11 @@ class ImportedDevice(models.Model):
     remove_reason = models.CharField(max_length=500, blank=True, default="")
     # set before the removal call goes out: its answer can get lost
     remove_tried_at = models.DateTimeField(null=True, blank=True)
-    # outcome of the remote-control recovery after a removal on Windows
+    # outcome of the remote-control recovery after a removal
     recovery = models.CharField(max_length=500, blank=True, default="")
+    # claim of the last recovery command; after a failed one it also spaces
+    # the retries, see removal.recover_due
+    recovery_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = (("source", "ref"),)

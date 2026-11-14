@@ -7,13 +7,16 @@ Nothing that exists is overwritten: clients and sites are matched by name,
 custom fields by model and name, scripts by name and shell, users by user
 name, everything else by name. Matched rows keep their values; only empty
 custom field values and empty policy and alert template slots of clients and
-sites are filled in. Running an import twice adds nothing.
+sites are filled in. A policy this source created gets the checks and tasks
+it still lacks (by description and name) once their scripts, custom fields
+or checks are here; apart from that, running an import twice adds nothing.
+Imported users only get a role this source created (ImportSource.created).
 
 Objects point at each other by name in the snapshot and are resolved through
 what this import created or matched. An object whose reference does not
 resolve, or that this installation refuses, is left out with the reason."""
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -62,6 +65,19 @@ USERS_NOTE = (
 )
 # a user whose role was not taken comes without one: no rights until assigned
 NO_ROLE = "the role was not taken over, assign one before activating the user"
+# a role of the same name here may grant more than the one over there
+FOREIGN_ROLE = (
+    "the role of that name here is not recorded as created by this source; "
+    "check its rights and assign it by hand before activating the user"
+)
+LIMIT_LOST = (
+    "it is limited to a client or site the source did not list, here it would "
+    "see more"
+)
+EXCLUSION_LOST = (
+    "it excludes a client or site the source did not list, so the import "
+    "assigns it nowhere; assign it here by hand"
+)
 
 
 def _key(*names) -> tuple:
@@ -127,6 +143,74 @@ def _skip(name: str, reason: str) -> dict:
     return {"name": name, "reason": reason}
 
 
+def _own(source, part: str) -> list[int]:
+    return (source.created or {}).get(part, [])
+
+
+def _remember(source, part: str, obj) -> None:
+    # written in the part's transaction: a rolled back part forgets it in the
+    # database; source.created keeps it, but the failed run ends right there
+    source.created = {**(source.created or {}), part: [*_own(source, part), obj.pk]}
+    type(source).objects.filter(pk=source.pk).update(created=source.created)
+
+
+def _own_by_name(source, model, part: str) -> dict:
+    return {o.name.lower(): o for o in model.objects.filter(pk__in=_own(source, part))}
+
+
+def _exclusion_lost(row) -> bool:
+    return any(k in row.get("lost", ()) for k in ("excluded_clients", "excluded_sites"))
+
+
+def _assignment(row) -> str:
+    return f"{row['name']}: clients and sites"
+
+
+def _blocked(snap) -> set:
+    # templates with a lost exclusion reach no client or site, not even
+    # through a policy
+    return {
+        t["name"].lower() for t in snap.get("alert_templates", []) if _exclusion_lost(t)
+    }
+
+
+def _policy_template(p) -> str:
+    return f"{p['name']}: alert template {p['alert_template']}"
+
+
+def _missing_children(policy, p) -> tuple[list, list, dict]:
+    """The checks and tasks of snapshot policy p that policy here lacks, and
+    {check ref: check} of those it has; matched by description and name."""
+    have = defaultdict(list)
+    for c in policy.policychecks.order_by("pk"):
+        # spaced like validate's names: the description here has double spaces
+        have[" ".join(c.readable_desc.split())[:255].lower()].append(c)
+    # twins (one description, e.g. a script with other arguments) are told
+    # apart by the fields the builder writes; a single one by description
+    twins = Counter(c["desc"].lower() for c in p["checks"])
+    missing, present = [], {}
+    for c in p["checks"]:
+        local = have.get(c["desc"].lower(), [])
+        if twins[c["desc"].lower()] > 1:
+            fields = build.check_fields(c).items()
+            same = (h for h in local if all(getattr(h, k) == v for k, v in fields))
+            found = next(same, None)
+        else:
+            found = local[0] if local else None
+        if found is None:
+            missing.append(c)
+            continue
+        local.remove(found)
+        if c["ref"]:
+            present[c["ref"]] = found
+    tasks = {t.name.lower() for t in policy.autotasks.all()}
+    return (
+        missing,
+        [t for t in p["tasks"] if t["name"].lower() not in tasks],
+        present,
+    )
+
+
 class _Have:
     """What the snapshot would resolve against: the names here plus the
     names the import would add."""
@@ -160,12 +244,15 @@ class _Have:
     def script(self, ref) -> bool:
         return bool(ref) and _key(ref["name"], ref["shell"]) in self.scripts
 
-    def owned(self, prefix: str, checks, tasks) -> list[dict]:
+    def owned(self, prefix: str, checks, tasks, present=()) -> list[dict]:
+        """present: refs of checks that are here already"""
         skipped = []
         for row in checks:
             if why := build.missing(row, "checks", self.script):
                 skipped.append(_skip(f"{prefix}{row['desc']}", why))
-        refs = {c["ref"] for c in checks if not build.missing(c, "checks", self.script)}
+        refs = {
+            c["ref"] for c in checks if not build.missing(c, "checks", self.script)
+        } | set(present)
         for row in tasks:
             why = build.missing(row, "tasks", self.script)
             if not why and row["assigned_check"] and row["assigned_check"] not in refs:
@@ -213,6 +300,8 @@ def _lost_actions(t) -> list[dict]:
 def _role_missing(r, have: _Have) -> str:
     if r["superuser"]:
         return "a superuser role, give these rights here by hand"
+    if r.get("lost"):
+        return LIMIT_LOST
     for name in r["clients"]:
         if _key(name) not in have.clients:
             return f"client {name} is not here"
@@ -239,7 +328,7 @@ def _report_rows(snap) -> list[tuple]:
     ]
 
 
-def _plan_more(snap) -> dict:
+def _plan_more(source, snap) -> dict:
     have = _Have(snap)
     actions = snap.get("url_actions", [])
     templates = snap.get("alert_templates", [])
@@ -249,9 +338,17 @@ def _plan_more(snap) -> dict:
     hooks_here, templates_here = _named(URLAction), _named(AlertTemplate)
     policies_here, roles_here = _named(Policy), _named(Role)
     users_here = _named(User, "username")
+    # the roles imported users would get: new ones and those it created before
     role_names = {
-        _key(r["name"]) for r in roles if not _role_missing(r, have)
-    } | roles_here
+        _key(r["name"])
+        for r in roles
+        if _key(r["name"]) not in roles_here and not _role_missing(r, have)
+    } | {_key(n) for n in _own_by_name(source, Role, "roles")}
+    templates_left_out = {
+        _key(t["name"])
+        for t in templates
+        if _key(t["name"]) not in templates_here and _template_missing(t, have)
+    }
 
     def new(rows, here, field="name", missing=lambda r: ""):
         return [r[field] for r in rows if _key(r[field]) not in here and not missing(r)]
@@ -268,17 +365,50 @@ def _plan_more(snap) -> dict:
         if _key(t["name"]) not in templates_here and not _template_missing(t, have)
         for lost in _lost_actions(t)
     ]
-    p_skip = []
+    t_skip += [
+        _skip(_assignment(t), EXCLUSION_LOST)
+        for t in templates
+        if _exclusion_lost(t) and _key(t["name"]) not in templates_left_out
+    ]
+    p_skip, to_complete = [], []
+    own_policies = _own_by_name(source, Policy, "policies")
+    blocked = {_key(n) for n in _blocked(snap)}
+    template_names = (
+        templates_here | ({_key(t["name"]) for t in templates} - templates_left_out)
+    ) - blocked
     for p in policies:
+        prefix = f"{p['name']}: "
+        slot_empty = True
         if _key(p["name"]) not in policies_here:
-            p_skip += have.owned(f"{p['name']}: ", p["checks"], p["tasks"])
+            p_skip += have.owned(prefix, p["checks"], p["tasks"])
+        elif policy := own_policies.get(p["name"].lower()):
+            checks, tasks, present = _missing_children(policy, p)
+            skipped = have.owned(prefix, checks, tasks, present)
+            slot_empty = policy.alert_template_id is None
+            template = (
+                p["alert_template"]
+                and slot_empty
+                and _key(p["alert_template"]) in template_names
+            )
+            if template or len(checks) + len(tasks) > len(skipped):
+                to_complete.append(p["name"])
+            p_skip += skipped
+        else:
+            slot_empty = False
+        if slot_empty and _key(p["alert_template"]) in blocked:
+            p_skip.append(_skip(_policy_template(p), EXCLUSION_LOST))
+        if _exclusion_lost(p):
+            p_skip.append(_skip(_assignment(p), EXCLUSION_LOST))
     r_skip = [
         _skip(r["name"], why)
         for r in roles
         if _key(r["name"]) not in roles_here and (why := _role_missing(r, have))
     ]
     u_skip = [
-        _skip(f"{u['username']}: role {u['role']}", NO_ROLE)
+        _skip(
+            f"{u['username']}: role {u['role']}",
+            FOREIGN_ROLE if _key(u["role"]) in roles_here else NO_ROLE,
+        )
         for u in users
         if _key(u["username"]) not in users_here
         and u["role"]
@@ -310,9 +440,14 @@ def _plan_more(snap) -> dict:
             t_skip,
             t_left_out,
         ),
-        "policies": _part(
-            [p["name"] for p in policies], new(policies, policies_here), p_skip
-        ),
+        "policies": {
+            **_part(
+                [p["name"] for p in policies], new(policies, policies_here), p_skip
+            ),
+            # created by this source earlier, now gets what it still lacked
+            "to_complete_count": len(to_complete),
+            "to_complete": to_complete[:SHOWN],
+        },
         "roles": {
             **_part(
                 [r["name"] for r in roles],
@@ -407,7 +542,7 @@ def plan(source) -> dict:
             # policy, patch policy, settings, checks or tasks of their own
             "with_device_data": sum(1 for d in devices if _device_data(d)),
         },
-        **_plan_more(snap),
+        **_plan_more(source, snap),
     }
 
 
@@ -578,7 +713,7 @@ def _fill_slots(snap, slots: tuple, rows: dict) -> None:
                 obj.save()
 
 
-def _import_templates(snap, done, skip):
+def _import_templates(source, snap, done, skip):
     templates, refs = _by_name(AlertTemplate), build.Refs()
     hooks = _by_name(URLAction)
     clients, sites = _by_name(Client), _sites_here()
@@ -611,6 +746,9 @@ def _import_templates(snap, done, skip):
         done["alert_templates"] += 1
         for lost in _lost_actions(t):
             skip(lost["name"], lost["reason"])
+    for t in snap.get("alert_templates", []):
+        if _exclusion_lost(t) and templates.pop(t["name"].lower(), None):
+            skip(_assignment(t), EXCLUSION_LOST)
     _fill_slots(snap, ("alert_template",), templates)
     default = next((t for t in snap.get("alert_templates", []) if t["default"]), None)
     core = CoreSettings.objects.first()
@@ -620,16 +758,26 @@ def _import_templates(snap, done, skip):
             core.save()
 
 
-def _import_policies(snap, done, skip):
+def _import_policies(source, snap, done, skip):
     policies, templates, refs = _by_name(Policy), _by_name(AlertTemplate), build.Refs()
     clients, sites = _by_name(Client), _sites_here()
+    own = _own_by_name(source, Policy, "policies")
+    blocked = _blocked(snap)
     for p in snap.get("policies", []):
-        if p["name"].lower() in policies:
-            continue
         prefix = f"{p['name']}: "
-        template = templates.get(p["alert_template"].lower())
-        if p["alert_template"] and template is None:
-            skip(f"{prefix}alert template {p['alert_template']}", "it is not here")
+        if p["name"].lower() in policies:
+            # never one this source did not create
+            if policy := own.get(p["name"].lower()):
+                completed = _complete(policy, p, templates, blocked, refs, skip)
+                done["completed"]["policies"] += int(completed)
+            continue
+        template = None
+        if p["alert_template"].lower() in blocked:
+            skip(_policy_template(p), EXCLUSION_LOST)
+        elif p["alert_template"]:
+            template = templates.get(p["alert_template"].lower())
+            if template is None:
+                skip(_policy_template(p), "it is not here")
         data = {
             "name": p["name"],
             "desc": p["desc"],
@@ -644,6 +792,7 @@ def _import_policies(snap, done, skip):
             skip(p["name"], why)
             continue
         policies[p["name"].lower()] = policy
+        _remember(source, "policies", policy)
         done["policies"] += 1
         owner = {"policy": policy.pk}
         made = build.checks(owner, p["checks"], refs, skip, prefix)
@@ -652,10 +801,33 @@ def _import_policies(snap, done, skip):
             build.patch_policy(
                 p["patch_policy"], skip, f"{prefix}patch policy", policy=policy
             )
+    for p in snap.get("policies", []):
+        if _exclusion_lost(p) and policies.pop(p["name"].lower(), None):
+            skip(_assignment(p), EXCLUSION_LOST)
     _fill_slots(snap, ("server_policy", "workstation_policy"), policies)
 
 
-def _import_roles(snap, done, skip):
+def _complete(policy, p, templates, blocked, refs, skip) -> bool:
+    """Adds what a policy this source created still lacks: its checks, its
+    tasks and an empty alert template slot. Returns whether it added any."""
+    prefix = f"{p['name']}: "
+    checks, tasks, present = _missing_children(policy, p)
+    owner = {"policy": policy.pk}
+    new = build.checks(owner, checks, refs, skip, prefix)
+    added = bool(new) | bool(
+        build.tasks(owner, tasks, refs, {**present, **new}, skip, prefix)
+    )
+    template = templates.get(p["alert_template"].lower())
+    if policy.alert_template_id is None and p["alert_template"].lower() in blocked:
+        skip(_policy_template(p), EXCLUSION_LOST)
+    elif template and policy.alert_template_id is None:
+        policy.alert_template = template
+        policy.save()
+        added = True
+    return added
+
+
+def _import_roles(source, snap, done, skip):
     from accounts.serializers import RoleSerializer
 
     have, clients, sites = _named(Role), _by_name(Client), _sites_here()
@@ -665,6 +837,8 @@ def _import_roles(snap, done, skip):
         why = (
             "a superuser role, give these rights here by hand" if r["superuser"] else ""
         )
+        if not why and r.get("lost"):
+            why = LIMIT_LOST
         # a restriction that does not resolve would let the role see more
         lost = [n for n in r["clients"] if n.lower() not in clients] + [
             f"{c} / {s}" for c, s in r["sites"] if _key(c, s) not in sites
@@ -685,11 +859,13 @@ def _import_roles(snap, done, skip):
             skip(r["name"], why)
             continue
         have.add(_key(r["name"]))
+        _remember(source, "roles", role)
         done["roles"] += 1
 
 
-def _import_users(snap, done, skip):
-    have, roles = _named(User, "username"), _by_name(Role)
+def _import_users(source, snap, done, skip):
+    have, roles = _named(User, "username"), _own_by_name(source, Role, "roles")
+    roles_here = _named(Role)
     for u in snap.get("users", []):
         if _key(u["username"]) in have:
             continue
@@ -712,7 +888,8 @@ def _import_users(snap, done, skip):
         with transaction.atomic():
             user.save()
         if u["role"] and role is None:
-            skip(f"{u['username']}: role {u['role']}", NO_ROLE)
+            why = FOREIGN_ROLE if _key(u["role"]) in roles_here else NO_ROLE
+            skip(f"{u['username']}: role {u['role']}", why)
         have.add(_key(u["username"]))
         done["users"] += 1
 
@@ -748,6 +925,8 @@ def run(source, parts, username: str = "importer") -> dict:
     Left out objects come back under "skipped" by part."""
     snap = source.snapshot or {}
     done = dict.fromkeys((*PARTS, "sites", "linked"), 0)
+    # own policies a re-run added checks, tasks or the template to
+    done["completed"] = {"policies": 0}
     skipped = defaultdict(list)
     steps = (
         # fields first: client, site and device values need them
@@ -757,37 +936,52 @@ def run(source, parts, username: str = "importer") -> dict:
         ("snippets", lambda skip: _import_snippets(snap, done)),
         ("keystore", lambda skip: _import_keystore(snap, done)),
         ("url_actions", lambda skip: _import_url_actions(snap, done, skip)),
-        ("alert_templates", lambda skip: _import_templates(snap, done, skip)),
-        ("policies", lambda skip: _import_policies(snap, done, skip)),
-        ("roles", lambda skip: _import_roles(snap, done, skip)),
-        ("users", lambda skip: _import_users(snap, done, skip)),
+        ("alert_templates", lambda skip: _import_templates(source, snap, done, skip)),
+        ("policies", lambda skip: _import_policies(source, snap, done, skip)),
+        ("roles", lambda skip: _import_roles(source, snap, done, skip)),
+        ("users", lambda skip: _import_users(source, snap, done, skip)),
         ("reports", lambda skip: _import_reports(snap, done, skip)),
         ("devices", lambda skip: _import_devices(source, snap, done, skip)),
     )
-    for part, step in steps:
-        if part not in parts:
-            continue
-        with transaction.atomic():
-            step(lambda name, why, part=part: skipped[part].append(_skip(name, why)))
-    source.last_import = djangotime.now()
-    type(source).objects.filter(pk=source.pk).update(last_import=source.last_import)
-    if "devices" in parts:
-        done["linked"] = link.link_source(source)
-    chosen = [p for p in PARTS if p in parts]
-    added = {p: done[p] for p in chosen}
-    if "clients" in parts:
-        added["sites"] = done["sites"]
-    AuditLog.objects.create(
-        username=username,
-        object_type=AuditObjType.BULK,
-        action=AuditActionType.ADD,
-        message=f"{username} imported from {source.name}: {', '.join(chosen)}"[:255],
-        after_value={
-            "source": source.name,
-            "parts": chosen,
-            "added": added,
-            "left_out": {p: len(skipped.get(p, ())) for p in chosen},
-        },
-    )
+    committed, running = [], None
+    try:
+        for part, step in steps:
+            if part not in parts:
+                continue
+            running = part
+            with transaction.atomic():
+                step(
+                    lambda name, why, part=part: skipped[part].append(_skip(name, why))
+                )
+            committed.append(part)
+        source.last_import = djangotime.now()
+        type(source).objects.filter(pk=source.pk).update(last_import=source.last_import)
+        if "devices" in parts:
+            # after the devices part committed: its own step in the audit
+            running = "linking"
+            done["linked"] = link.link_source(source)
+        running = None
+    finally:
+        # also after a failure: the parts before it are committed
+        chosen = [p for p in PARTS if p in committed]
+        message = f"{username} imported from {source.name}: {', '.join(chosen)}"
+        added = {p: done[p] for p in chosen}
+        if "clients" in committed:
+            added["sites"] = done["sites"]
+        AuditLog.objects.create(
+            username=username,
+            object_type=AuditObjType.BULK,
+            action=AuditActionType.ADD,
+            message=message[:255],
+            after_value={
+                "source": source.name,
+                "parts": chosen,
+                "added": added,
+                "left_out": {p: len(skipped.get(p, ())) for p in chosen},
+                "completed": done["completed"],
+                **({"failed": running} if running else {}),
+            },
+        )
     done["skipped"] = {k: v[:SHOWN] for k, v in skipped.items()}
+    done["skipped_total"] = {k: len(v) for k, v in skipped.items()}
     return done

@@ -84,7 +84,13 @@ class TestUpstream(SimpleTestCase):
                 f for f in data["custom_fields"] if f["name"] == "Asset Tag"
             ).items()
         )
-        self.assertIn(("GET", "/agents/", {"params": {"detail": "true"}}), rec.calls)
+        # one list per site, never the whole fleet in one answer
+        lists = [c[2] for c in rec.calls if c[:2] == ("GET", "/agents/")]
+        self.assertEqual(
+            lists,
+            [{"params": {"site": s}} for s in ("1", "2", "3")]
+            + [{"params": {"detail": "false"}}],
+        )
 
     def test_fetch_more(self):
         data = self.fetch(Recorded("upstream"))

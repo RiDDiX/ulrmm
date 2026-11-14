@@ -360,3 +360,30 @@ class TestMeshConsole(ULRMMTestCase):
         user.role.save()
         r = self.client.post(self.url)
         self.assertEqual(r.status_code, 200)
+
+
+class TestMeshRepair(ULRMMTestCase):
+    def setUp(self):
+        self.authenticate()
+        self.setup_coresettings()
+        self.agent = baker.make_recipe("agents.online_agent")
+        self.url = f"{base_url}/{self.agent.agent_id}/meshcentral/recover/"
+
+    def test_reply_text_is_shown(self):
+        from agents.views import NO_CONTACT
+
+        for reply, status, text in (
+            ("ok", 200, f"Repaired mesh agent on {self.agent.hostname}"),
+            ("timeout", 400, NO_CONTACT),
+            ("natsdown", 400, NO_CONTACT),
+            (
+                "mesh agent not installed: no service",
+                400,
+                "Unable to complete recovery: mesh agent not installed: no service",
+            ),
+        ):
+            with self.subTest(reply), patch.object(
+                Agent, "nats_cmd", return_value=reply
+            ):
+                r = self.client.post(self.url)
+                self.assertEqual((r.status_code, r.data), (status, text))

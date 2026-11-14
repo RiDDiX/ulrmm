@@ -91,6 +91,15 @@ def _no_script(ref) -> str:
     return f"script {ref['name']} is not here"
 
 
+def check_fields(row) -> dict:
+    """The model fields checks() writes for a snapshot check, besides the
+    owner and the script."""
+    data = dict(row["fields"])
+    if data["check_type"] == CheckType.EVENT_LOG and data.get("event_id_is_wildcard"):
+        data["event_id"] = 0
+    return data
+
+
 def checks(owner: dict, rows, refs: Refs, skip, prefix: str = "", plat: str = ""):
     """Creates the checks of a policy or agent; returns {ref: check}."""
     made = {}
@@ -105,9 +114,7 @@ def checks(owner: dict, rows, refs: Refs, skip, prefix: str = "", plat: str = ""
         if why:
             skip(name, why)
             continue
-        data = {**row["fields"], **owner, "script": refs.script(row["script"])}
-        if kind == CheckType.EVENT_LOG and data.get("event_id_is_wildcard"):
-            data["event_id"] = 0
+        data = {**check_fields(row), **owner, "script": refs.script(row["script"])}
         check, why = save(CheckSerializer(data=data, partial=True))
         if check is None:
             skip(name, why)

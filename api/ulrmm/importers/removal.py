@@ -12,34 +12,42 @@ server shows it online, and both sides show the same machine. Until then it
 waits and remove_task tries again, for REMOVE_DAYS at most. A row is claimed
 (state "sending") before the call, and the time of the call is kept. The
 documented answer marks it removed; so does the other side no longer
-listing a device a call was tried for, whose answer got lost."""
+listing a device a call was tried for, whose answer got lost.
 
+After a removal the remote-control agent is checked and repaired, on every
+platform: remove_task hands each due device to recover_task, RECOVERY_DELAY
+after the removal and again after each failure, for REMOVE_DAYS at most."""
+
+import asyncio
 import datetime as dt
 import ipaddress
 import re
 
 from django.db import transaction
-from django.db.models import TextField
+from django.db.models import Q, TextField
 from django.db.models.functions import Cast, Lower, Trim
 from django.utils import timezone as djangotime
 
 from agents.models import Agent
 from logs.models import AuditLog, DebugLog
-from ulrmm.constants import (
-    AGENT_STATUS_ONLINE,
-    AgentPlat,
-    AuditActionType,
-    AuditObjType,
-)
+from ulrmm.constants import AGENT_STATUS_ONLINE, AuditActionType, AuditObjType
 
 from .link import short
 from .models import ImportedDevice, RemoveState
 from .sources import SourceError
-from .sources.base import NotFound
+from .sources.base import NoAnswer, NotFound
 
 REMOVE_DAYS = 7
-# the old uninstaller takes the remote-control agent along on Windows
+# the old uninstaller can take the remote-control agent along
 RECOVERY_DELAY = 300
+# a Windows reinstall of the remote-control agent answers after up to ~10.5 min
+RECOVER_TIMEOUT = 700
+# a recovery claim this old is due again: a worker that stopped, or the wait
+# after an attempt that failed (each one can be a full reinstall)
+RECOVERY_RETRY = dt.timedelta(hours=1)
+# the agent's wording when no remote-control agent is installed: it cannot
+# install one on Linux, macOS or FreeBSD, so retrying never helps
+MESH_MISSING = "mesh agent not installed"
 # a claim this old belongs to a worker that stopped
 STALE_CLAIM = dt.timedelta(hours=1)
 WAITING = (RemoveState.WAITING_HERE, RemoveState.WAITING_THERE)
@@ -64,6 +72,11 @@ FILLER_SERIALS = {
     "empty",
     "0123456789",
     "123456789",
+    "1234567890",
+    "not defined",
+    "not provided",
+    "system product name",
+    "0000-0000-0000",
 }
 GONE = "the other server no longer lists the device"
 
@@ -107,8 +120,10 @@ def request(source, ids, username: str) -> int:
     return len(rows)
 
 
-def withdraw(source, ids, username: str) -> int:
-    """Withdraws the removal where it was not sent yet."""
+def withdraw(source, ids, username: str) -> dict:
+    """Withdraws the removal of the chosen devices that wait for it, here or
+    over there. One whose removal is being sent is left alone and counted in
+    in_flight; a removed one stays removed."""
     now = djangotime.now()
     with transaction.atomic():
         rows = list(
@@ -122,6 +137,9 @@ def withdraw(source, ids, username: str) -> int:
             remove_at=now,
             remove_reason=f"withdrawn by {username}"[:500],
         )
+        in_flight = ImportedDevice.objects.filter(
+            source=source, pk__in=ids, remove_state=RemoveState.SENDING
+        ).count()
         if rows:
             _audit(
                 username,
@@ -130,7 +148,7 @@ def withdraw(source, ids, username: str) -> int:
                 source=source.name,
                 devices=[h for _, h in rows],
             )
-    return len(rows)
+    return {"withdrawn": len(rows), "in_flight": in_flight}
 
 
 def _claim(device, now) -> bool:
@@ -210,15 +228,6 @@ def same_machine(detail: dict, agent, device) -> str:
         return "the host names differ on both sides"
     if detail.get("plat") != agent.plat:
         return "the platforms differ on both sides"
-    wmi = detail.get("wmi_detail")
-    theirs = Agent(plat=agent.plat, wmi_detail=wmi if isinstance(wmi, dict) else {})
-    serial = _serial(theirs)
-    if (
-        not _filler(serial)
-        and serial == _serial(agent)
-        and _serial_unique(serial, agent, device)
-    ):
-        return ""
     # bridge addresses repeat on many hosts behind one public address, so one
     # common address proves nothing; all of them have to match
     public = str(detail.get("public_ip") or "").strip()
@@ -228,6 +237,16 @@ def same_machine(detail: dict, agent, device) -> str:
         and public == str(agent.public_ip or "").strip()
         and local
         and local == _ipv4(detail.get("local_ips"))
+    ):
+        return ""
+    # checked second: the uniqueness test reads the whole agent table
+    wmi = detail.get("wmi_detail")
+    theirs = Agent(plat=agent.plat, wmi_detail=wmi if isinstance(wmi, dict) else {})
+    serial = _serial(theirs)
+    if (
+        not _filler(serial)
+        and serial == _serial(agent)
+        and _serial_unique(serial, agent, device)
     ):
         return ""
     return (
@@ -260,29 +279,14 @@ def step(device, client) -> str:
     except Exception as e:
         DebugLog.error(message=f"removal of the old agent on {device}: {e!r}"[:1000])
         why = f"unexpected error: {type(e).__name__}"
-        _release(device, RemoveState.WAITING_THERE, why, now)
-        return RemoveState.WAITING_THERE
+        # past the days a tried device stops here too, as in _send's wait()
+        state = RemoveState.NOT_REMOVED if expired else RemoveState.WAITING_THERE
+        _release(device, state, (device.remove_reason or why) if expired else why, now)
+        return state
 
 
-def _removed(device, agent, now, reason: str = "") -> str:
-    plat = agent.plat if agent else device.plat
-    windows = plat == AgentPlat.WINDOWS
-    _release(
-        device,
-        RemoveState.REMOVED,
-        reason,
-        now,
-        recovery="pending" if windows else "",
-    )
-    if windows:
-        from .tasks import recover_task
-
-        try:
-            recover_task.apply_async((device.pk,), countdown=RECOVERY_DELAY)
-        except Exception as e:
-            ImportedDevice.objects.filter(pk=device.pk).update(
-                recovery=f"failed: not scheduled ({type(e).__name__})"
-            )
+def _removed(device, now, reason: str = "") -> str:
+    _release(device, RemoveState.REMOVED, reason, now, recovery="pending")
     return RemoveState.REMOVED
 
 
@@ -310,7 +314,7 @@ def _send(device, client, now, expired: bool) -> str:
         detail = client.device(device.ref)
     except NotFound:
         if tried:
-            return _removed(device, agent, now, f"{GONE}, its answer was lost")
+            return _removed(device, now, f"{GONE}, its answer was lost")
         _release(device, RemoveState.NOT_REMOVED, GONE, now)
         return RemoveState.NOT_REMOVED
     except SourceError as e:
@@ -328,7 +332,12 @@ def _send(device, client, now, expired: bool) -> str:
     ImportedDevice.objects.filter(pk=device.pk).update(remove_tried_at=now)
     try:
         client.remove(device.ref, str(detail.get("hostname")))
+    except NoAnswer as e:
+        # the call may have taken effect: the mark stays, see _send above
+        error = str(e)
     except SourceError as e:
+        # an answer, if an error one: the call did not take effect
+        ImportedDevice.objects.filter(pk=device.pk).update(remove_tried_at=None)
         error = str(e)
     except Exception as e:
         error = f"unexpected error: {type(e).__name__}"
@@ -345,7 +354,7 @@ def _send(device, client, now, expired: bool) -> str:
     )
     if error:
         return wait(error)
-    return _removed(device, agent, now)
+    return _removed(device, now)
 
 
 def end_stale_claims() -> int:
@@ -361,12 +370,50 @@ def end_stale_claims() -> int:
     )
 
 
+OPEN_RECOVERY = Q(recovery="pending") | Q(recovery__startswith="failed")
+
+
+def recover_due() -> list[int]:
+    """Claims the removed devices whose recovery is still open and due, and
+    returns them. A claim (recovery_at) is held while the command is out and
+    kept after a failed attempt; it is due again after RECOVERY_RETRY. Past
+    REMOVE_DAYS after the removal the recovery is given up with the last
+    reason."""
+    now = djangotime.now()
+    rows = ImportedDevice.objects.filter(
+        OPEN_RECOVERY,
+        Q(recovery_at=None) | Q(recovery_at__lt=now - RECOVERY_RETRY),
+        remove_state=RemoveState.REMOVED,
+    )
+    old = now - dt.timedelta(days=REMOVE_DAYS)
+    for pk, last in rows.filter(remove_at__lt=old).values_list("pk", "recovery"):
+        last = "never answered" if last == "pending" else last.removeprefix("failed: ")
+        ImportedDevice.objects.filter(OPEN_RECOVERY, pk=pk).update(
+            recovery=f"given up: {last}"[:500], recovery_at=None
+        )
+    due = rows.filter(remove_at__lte=now - dt.timedelta(seconds=RECOVERY_DELAY))
+    return [
+        pk
+        for pk in due.values_list("pk", flat=True)
+        if rows.filter(pk=pk).update(recovery_at=now)
+    ]
+
+
 def recover(device) -> str:
-    """The existing remote-control recovery for the linked agent."""
+    """Has the linked agent check and repair its remote-control agent; any
+    answer but "ok" is the reason it failed, a missing one ends it at once.
+    "" when the agent is not online here: nothing was sent."""
     if device.agent is None:
         return "no agent is linked here"
+    if device.agent.status != AGENT_STATUS_ONLINE:
+        return ""
+    data = {"func": "recover", "payload": {"mode": "mesh"}}
     try:
-        message, failed = device.agent.recover("mesh", "")
+        reply = asyncio.run(device.agent.nats_cmd(data, timeout=RECOVER_TIMEOUT))
     except Exception as e:
         return f"failed: {type(e).__name__}"
-    return f"failed: {message}" if failed else "ok"
+    if reply == "ok":
+        return "ok"
+    if isinstance(reply, str) and reply.startswith(MESH_MISSING):
+        return f"given up: {reply}"
+    return f"failed: {reply}"

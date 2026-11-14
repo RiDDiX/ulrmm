@@ -30,8 +30,9 @@ from ulrmm.test import LOCMEM_CACHE, ULRMMTestCase
 from . import engine, link, migrate
 from .models import ImportedDevice, ImportSource, MigrateState
 from .sources import SourceError, validate
-from .sources.base import Source
-from .tasks import fetch
+from .sources.base import SNAPSHOT_VERSION, Source
+from .views import OLD_SNAPSHOT
+from .tasks import BUSY, fetch, fetch_task, lock_id, migrate_task
 
 BASE = "/importers/sources"
 
@@ -174,6 +175,7 @@ class TestEngine(ULRMMTestCase):
         self.assertIsNone(lost.site)
 
         again = engine.run(src, engine.PARTS)
+        self.assertEqual(again.pop("completed"), {"policies": 0})
         self.assertEqual(
             {k: v for k, v in again.items() if v}, {}, "a second run adds nothing"
         )
@@ -314,8 +316,10 @@ class TestMigrate(ULRMMTestCase):
         self.assertFalse(Deployment.objects.exists())
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TestViews(ULRMMTestCase):
     def setUp(self):
+        cache.clear()
         self.authenticate()
         self.setup_coresettings()
 
@@ -420,6 +424,115 @@ class TestViews(ULRMMTestCase):
         src.refresh_from_db()
         self.assertEqual(src.last_error, "/clients/ answered 500")
         self.assertIsNone(src.last_fetch)
+
+    def test_fetch_clears_the_old_error_and_has_a_deadline(self):
+        src = _source(last_error="old")
+        seen = []
+
+        class Watch(FakeSource):
+            def fetch(self):
+                seen.append(ImportSource.objects.get(pk=src.pk).last_error)
+                seen.append(self.deadline)
+                return SNAPSHOT
+
+        with patch(
+            "importers.tasks.for_source", return_value=Watch("https://x", True, {}, {})
+        ):
+            fetch(src)
+        self.assertEqual(seen[0], "", "cleared before the source is read")
+        self.assertGreater(seen[1], 0)
+
+    def test_old_snapshot_is_read_again(self):
+        src = _source()
+        ImportSource.objects.filter(pk=src.pk).update(snapshot={"clients": []})
+        base = f"{BASE}/{src.pk}"
+        r = self.client.get(f"{base}/plan/")
+        self.assertEqual((r.status_code, r.data), (400, OLD_SNAPSHOT))
+        r = self.client.post(f"{base}/import/", {"parts": ["roles"]}, format="json")
+        self.assertEqual((r.status_code, r.data), (400, OLD_SNAPSHOT))
+        self.assertEqual(validate({})["version"], SNAPSHOT_VERSION)
+
+    def test_tasks_tell_when_busy(self):
+        src = _source()
+        cache.add(lock_id(src.pk), "someone")
+        self.assertEqual(fetch_task(src.pk), "busy")
+        self.assertEqual(ImportSource.objects.get(pk=src.pk).last_error, BUSY)
+        ImportSource.objects.filter(pk=src.pk).update(last_error="")
+        self.assertEqual(migrate_task(src.pk, []), "busy")
+        self.assertEqual(ImportSource.objects.get(pk=src.pk).last_error, BUSY)
+
+    def test_edit_waits_and_a_new_address_forgets(self):
+        src = _source(secret=json.dumps({"api_key": "K"}), created={"roles": [1]})
+        url = f"{BASE}/{src.pk}/"
+        cache.add(lock_id(src.pk), "someone")
+        r = self.client.put(url, {"name": "renamed"}, format="json")
+        self.assertEqual((r.status_code, r.data), (409, BUSY))
+        cache.delete(lock_id(src.pk))
+        r = self.client.put(url, {"name": "renamed"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        src.refresh_from_db()
+        self.assertEqual(src.created, {"roles": [1]}, "same address keeps it")
+        self.assertTrue(src.snapshot)
+        body = {"url": "https://new.example.com", "secrets": {"api_key": "N"}}
+        r = self.client.put(url, body, format="json")
+        self.assertEqual(r.status_code, 200)
+        src.refresh_from_db()
+        self.assertEqual((src.created, src.snapshot, src.last_fetch), ({}, {}, None))
+
+    def test_busy_source_and_old_errors(self):
+        src = _source(last_error="old")
+        base = f"{BASE}/{src.pk}"
+        cache.add(lock_id(src.pk), "someone")
+        with patch("importers.views.fetch_task.delay") as delay:
+            r = self.client.post(f"{base}/fetch/")
+            self.assertEqual(r.status_code, 409)
+            r = self.client.post(
+                f"{base}/import/", {"parts": ["clients"]}, format="json"
+            )
+            self.assertEqual(r.status_code, 409)
+            self.assertFalse(Client.objects.exists())
+            delay.assert_not_called()
+            cache.delete(lock_id(src.pk))
+            r = self.client.post(f"{base}/fetch/")
+            self.assertEqual(r.status_code, 202)
+            delay.assert_called_once()
+        self.assertEqual(ImportSource.objects.get(pk=src.pk).last_error, "")
+        r = self.client.post(f"{base}/import/", {"parts": ["clients"]}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(cache.get(lock_id(src.pk)), "the lock is released")
+
+        engine.run(src, ["custom_fields", "clients", "devices"])
+        ImportSource.objects.filter(pk=src.pk).update(last_error="old")
+        ids = list(src.devices.values_list("pk", flat=True))
+        with patch("importers.views.migrate_task.delay"):
+            r = self.client.post(f"{base}/migrate/", {"devices": ids}, format="json")
+        self.assertEqual(r.status_code, 202)
+        self.assertEqual(ImportSource.objects.get(pk=src.pk).last_error, "")
+
+
+class TestFetchLimits(ULRMMTestCase):
+    def test_device_detail_is_trimmed(self):
+        from .sources.base import AGENT_SETTINGS
+        from .sources.upstream import Upstream
+        from .test_sources import Recorded
+
+        rec = Recorded("upstream")
+        with patch.object(Source, "call", lambda s, *a, **k: rec(s, *a, **k)):
+            raw = Upstream("https://old", True, {}, {"api_key": "K"}).fetch()
+        settings = [d["settings"] for d in raw["devices"] if "settings" in d]
+        self.assertTrue(any(settings))
+        for row in settings:
+            self.assertLessEqual(set(row), set(AGENT_SETTINGS))
+
+    def test_deadline_ends_the_fetch(self):
+        import time
+
+        src = Source("https://old", True, {}, {})
+        src.deadline = time.monotonic() - 1
+        with patch.object(src.session, "request") as request:
+            with self.assertRaisesMessage(SourceError, "longer than 90 minutes"):
+                src.call("GET", "/clients/")
+        request.assert_not_called()
 
 
 def _recorded() -> dict:
@@ -552,6 +665,7 @@ class TestMoreParts(ULRMMTestCase):
         self.assertEqual(report.template_html.name, "Corporate frame")
 
         again = engine.run(src, engine.PARTS)
+        self.assertEqual(again.pop("completed"), {"policies": 0})
         self.assertEqual({k: v for k, v in again.items() if v}, {})
         self.assertEqual(engine.plan(src)["policies"]["new_count"], 0)
         self.assertEqual(engine.plan(src)["alert_templates"]["skipped"], [])
@@ -665,6 +779,11 @@ class TestMoreParts(ULRMMTestCase):
             user = User.objects.get(username=name)
             self.assertEqual((user.role, user.is_active), (None, False), name)
         self.assertFalse(Role.objects.exists())
+        self.assertEqual(
+            done["skipped_total"],
+            {p: len(v) for p, v in done["skipped"].items()},
+        )
+        self.assertEqual(done["skipped_total"]["users"], 2)
 
     def test_plan_counts_left_out(self):
         snap = copy.deepcopy(self.snap)
@@ -689,8 +808,9 @@ class TestMoreParts(ULRMMTestCase):
         # the library template comes without its actions, listed twice
         self.assertEqual(counts("alert_templates"), (4, 3, 0, 3))
         self.assertEqual(counts("reports"), (3, 2, 0, 1))
-        # a user without its role and a policy without a check are still added
-        self.assertEqual(counts("users"), (3, 2, 1, 1))
+        # a user without its role and a policy without a check are still added;
+        # the Helpdesk role here did not come from the source, so it is not given
+        self.assertEqual(counts("users"), (3, 2, 1, 2))
         self.assertEqual(counts("policies")[:3], (3, 3, 0))
         self.assertGreater(counts("policies")[3], 0)
 
@@ -705,6 +825,239 @@ class TestMoreParts(ULRMMTestCase):
         self.assertEqual(done["users"], 2)
         self.assertEqual([s["name"] for s in done["skipped"]["users"]], ["bad name!"])
         self.assertTrue(done["skipped"]["url_actions"][0]["reason"])
+
+    def test_users_only_get_roles_of_this_source(self):
+        snap = copy.deepcopy(self.snap)
+        next(r for r in snap["roles"] if r["name"] == "Helpdesk")["name"] = "Admin"
+        next(u for u in snap["users"] if u["username"] == "helen.help")[
+            "role"
+        ] = "Admin"
+        baker.make(Role, name="Admin", is_superuser=True)
+        src = self.source(snap)
+        foreign = {"name": "helen.help: role Admin", "reason": engine.FOREIGN_ROLE}
+        self.assertEqual(engine.plan(src)["users"]["skipped"], [foreign])
+        engine.run(src, [p for p in engine.PARTS if p != "users"])
+        src.refresh_from_db()
+        auditor = Role.objects.get(name="Auditor")
+        self.assertEqual(src.created["roles"], [auditor.pk])
+        self.assertEqual(engine.plan(src)["users"]["skipped"], [foreign])
+        done = engine.run(src, ["users"])
+        self.assertEqual(done["skipped"]["users"], [foreign])
+        self.assertIsNone(User.objects.get(username="helen.help").role)
+        # a role this source created in an earlier run is given
+        self.assertEqual(User.objects.get(username="olaf.audit").role, auditor)
+
+    def test_lost_limits_and_exclusions(self):
+        snap = copy.deepcopy(self.snap)
+        next(r for r in snap["roles"] if r["name"] == "Helpdesk")["lost"] = ["sites"]
+        servers = next(p for p in snap["policies"] if p["name"] == "Servers baseline")
+        servers["lost"] = ["excluded_clients"]
+        strict = next(
+            t for t in snap["alert_templates"] if t["name"] == "Strict paging"
+        )
+        strict["lost"].append("excluded_sites")
+        src = self.source(snap)
+        plan = engine.plan(src)
+        self.assertIn(
+            {"name": "Helpdesk", "reason": engine.LIMIT_LOST}, plan["roles"]["skipped"]
+        )
+        for part, name in (
+            ("policies", "Servers baseline"),
+            ("alert_templates", "Strict paging"),
+        ):
+            row = {
+                "name": f"{name}: clients and sites",
+                "reason": engine.EXCLUSION_LOST,
+            }
+            self.assertIn(row, plan[part]["skipped"])
+        done = engine.run(src, engine.PARTS)
+        self.assertFalse(Role.objects.filter(name="Helpdesk").exists())
+        self.assertIn(
+            {"name": "Helpdesk", "reason": engine.LIMIT_LOST}, done["skipped"]["roles"]
+        )
+        self.assertIn(
+            "Servers baseline: clients and sites",
+            {s["name"] for s in done["skipped"]["policies"]},
+        )
+        self.assertTrue(Policy.objects.filter(name="Servers baseline").exists())
+        self.assertTrue(AlertTemplate.objects.filter(name="Strict paging").exists())
+        fab = Client.objects.get(name="Fabrikam AG")
+        self.assertIsNone(fab.server_policy)
+        self.assertIsNone(fab.alert_template)
+        self.assertEqual(fab.workstation_policy.name, "Workstations baseline")
+        # nor through a policy, new or completed later
+        given = {
+            "name": "Workstations baseline: alert template Strict paging",
+            "reason": engine.EXCLUSION_LOST,
+        }
+        self.assertIn(given, plan["policies"]["skipped"])
+        self.assertIn(given, done["skipped"]["policies"])
+        ws = Policy.objects.get(name="Workstations baseline")
+        self.assertIsNone(ws.alert_template)
+        self.assertIn(given, engine.plan(src)["policies"]["skipped"])
+        self.assertNotIn(
+            "Workstations baseline", engine.plan(src)["policies"]["to_complete"]
+        )
+        again = engine.run(src, ["policies"])
+        self.assertIn(given, again["skipped"]["policies"])
+        self.assertIsNone(Policy.objects.get(pk=ws.pk).alert_template)
+
+    def test_fetch_marks_ids_it_cannot_resolve(self):
+        from .sources.upstream import Upstream
+        from .test_sources import DATA, Recorded
+
+        answers = json.loads((DATA / "upstream.json").read_text())
+        roles, policies = answers["/accounts/roles/"], answers["/automation/policies/"]
+        limited = next(r for r in roles if r["can_view_sites"])
+        limited["can_view_sites"].append(999)
+        policies[0]["excluded_clients"] = [999]
+        rec = Recorded("upstream", **answers)
+        with patch.object(Source, "call", lambda s, *a, **k: rec(s, *a, **k)):
+            data = validate(Upstream("https://old", True, {}, {"api_key": "K"}).fetch())
+        role = next(r for r in data["roles"] if r["name"] == limited["name"])
+        self.assertEqual(role["lost"], ["sites"])
+        policy = next(p for p in data["policies"] if p["name"] == policies[0]["name"])
+        self.assertEqual(policy["lost"], ["excluded_clients"])
+        self.assertTrue(all(r["lost"] == [] for r in data["roles"] if r is not role))
+
+    def test_own_policies_are_completed(self):
+        src = self.source()
+        engine.run(src, ["custom_fields", "clients", "policies"])
+        expected = {p["name"]: p for p in self.snap["policies"]}
+
+        def counts():
+            return {
+                name: (
+                    Policy.objects.get(name=name).policychecks.count(),
+                    Policy.objects.get(name=name).autotasks.count(),
+                )
+                for name in expected
+            }
+
+        before = counts()
+        # the plan counts on the source's scripts, as for new policies
+        plan = engine.plan(src)
+        self.assertGreater(plan["policies"]["to_complete_count"], 0)
+        self.assertIn("Servers baseline", plan["policies"]["to_complete"])
+        named = next(p for p in self.snap["policies"] if p["alert_template"])
+        self.assertIsNone(Policy.objects.get(name=named["name"]).alert_template)
+        engine.run(src, ["scripts", "alert_templates"])
+        self.assertIn(named["name"], engine.plan(src)["policies"]["to_complete"])
+        with patch("alerts.tasks.cache_agents_alert_template.delay"):
+            done = engine.run(src, ["policies"])
+        full = {n: (len(p["checks"]), len(p["tasks"])) for n, p in expected.items()}
+        self.assertNotEqual(before, full)
+        self.assertEqual(counts(), full)
+        completed = {n for n, c in before.items() if c != full[n] or n == named["name"]}
+        self.assertEqual(done["completed"], {"policies": len(completed)})
+        entry = AuditLog.objects.filter(object_type="bulk").latest("pk")
+        self.assertEqual(entry.after_value["completed"], done["completed"])
+        policy = Policy.objects.get(name=named["name"])
+        self.assertEqual(policy.alert_template.name, named["alert_template"])
+        self.assertEqual(engine.plan(src)["policies"]["to_complete"], [])
+        # a template set here is never replaced
+        mine = baker.make(AlertTemplate, name="Mine")
+        Policy.objects.filter(pk=policy.pk).update(alert_template=mine)
+        done = engine.run(src, ["policies"])
+        self.assertEqual(counts(), full, "nothing twice")
+        self.assertEqual(done["completed"], {"policies": 0})
+        self.assertEqual(Policy.objects.get(pk=policy.pk).alert_template, mine)
+
+    def test_twin_checks_by_order(self):
+        snap = copy.deepcopy(self.snap)
+        ws = next(p for p in snap["policies"] if p["name"] == "Workstations baseline")
+        first = next(c for c in ws["checks"] if c["fields"]["check_type"] == "script")
+        first["fields"]["script_args"] = ["-A"]
+        twin = copy.deepcopy(first)
+        twin["ref"], twin["fields"]["script_args"] = "tw2", ["-B"]
+        ws["checks"].append(twin)
+        ws["tasks"].append(
+            {
+                "ref": "t9",
+                "name": "On twin",
+                "fields": {"name": "On twin", "task_type": "checkfailure"},
+                "actions": [
+                    {"type": "cmd", "command": "echo", "shell": "cmd", "timeout": 30}
+                ],
+                "assigned_check": "tw2",
+                "custom_field": "",
+            }
+        )
+        src = self.source(snap)
+        engine.run(src, engine.PARTS)
+        policy = Policy.objects.get(name="Workstations baseline")
+        scripts = policy.policychecks.filter(check_type="script")
+        self.assertEqual(sorted(c.script_args for c in scripts), [["-A"], ["-B"]])
+        # the second twin failed over here once
+        policy.autotasks.filter(name="On twin").delete()
+        scripts.get(script_args=["-B"]).delete()
+        engine.run(src, ["policies"])
+        self.assertEqual(sorted(c.script_args for c in scripts.all()), [["-A"], ["-B"]])
+        task = policy.autotasks.get(name="On twin")
+        self.assertEqual(task.assigned_check.script_args, ["-B"])
+        done = engine.run(src, ["policies"])
+        self.assertEqual(done["completed"], {"policies": 0})
+        self.assertEqual(scripts.count(), 2)
+        self.assertEqual(policy.autotasks.filter(name="On twin").count(), 1)
+
+    def test_twin_left_out_first_comes_later(self):
+        snap = copy.deepcopy(self.snap)
+        ws = next(p for p in snap["policies"] if p["name"] == "Workstations baseline")
+        b = next(c for c in ws["checks"] if c["fields"]["check_type"] == "script")
+        b["fields"]["script_args"] = ["-B"]
+        a = copy.deepcopy(b)
+        a["ref"], a["fields"]["script_args"] = "twA", ["-A"]
+        # the same script name in another shell, not here on the first run
+        a["script"] = {**a["script"], "shell": "python"}
+        ws["checks"].insert(ws["checks"].index(b), a)
+        src = self.source(snap)
+        engine.run(src, engine.PARTS)
+        scripts = Policy.objects.get(name="Workstations baseline").policychecks.filter(
+            check_type="script"
+        )
+        self.assertEqual([c.script_args for c in scripts], [["-B"]])
+        baker.make(Script, name=a["script"]["name"], shell="python")
+        engine.run(src, ["policies"])
+        self.assertEqual(sorted(c.script_args for c in scripts.all()), [["-A"], ["-B"]])
+        done = engine.run(src, ["policies"])
+        self.assertEqual(done["completed"], {"policies": 0})
+        self.assertEqual(scripts.all().count(), 2)
+
+    def test_twin_with_spaces_is_matched(self):
+        snap = copy.deepcopy(self.snap)
+        ws = next(p for p in snap["policies"] if p["name"] == "Workstations baseline")
+        b = next(c for c in ws["checks"] if c["fields"]["check_type"] == "script")
+        a = copy.deepcopy(b)
+        a["ref"], a["fields"]["script_args"] = "twA", ["-A"]
+        # stored trimmed by the check serializer
+        b["fields"].update(script_args=["-B "], event_message="x\n")
+        ws["checks"].append(a)
+        snap["policies"] = validate({"policies": snap["policies"]})["policies"]
+        src = self.source(snap)
+        engine.run(src, engine.PARTS)
+        policy = Policy.objects.get(name="Workstations baseline")
+        for _ in range(2):
+            done = engine.run(src, ["policies"])
+            self.assertEqual(done["completed"], {"policies": 0})
+            scripts = policy.policychecks.filter(check_type="script")
+            self.assertEqual(sorted(c.script_args for c in scripts), [["-A"], ["-B"]])
+
+    def test_audit_written_when_a_part_fails(self):
+        src = self.source()
+        with patch.object(engine, "_import_roles", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                engine.run(src, ["clients", "roles"], "john")
+        self.assertTrue(Client.objects.exists())
+        entry = AuditLog.objects.filter(object_type="bulk").latest("pk")
+        self.assertEqual(entry.after_value["parts"], ["clients"])
+        self.assertEqual(entry.after_value["failed"], "roles")
+        self.assertEqual(entry.after_value["added"]["clients"], 2)
+        with patch("importers.link.link_source", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                engine.run(src, ["custom_fields", "clients", "devices"], "john")
+        entry = AuditLog.objects.filter(object_type="bulk").latest("pk")
+        self.assertIn("devices", entry.after_value["parts"])
+        self.assertEqual(entry.after_value["failed"], "linking")
 
 
 @patch("autotasks.tasks.create_win_task_schedule.delay")
@@ -826,8 +1179,10 @@ class TestLinkDeviceData(ULRMMTestCase):
         self.assertTrue(device.data["link_skipped"])
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 class TestMoreViews(ULRMMTestCase):
     def setUp(self):
+        cache.clear()
         self.authenticate()
         self.setup_coresettings()
 
@@ -876,6 +1231,7 @@ class TestMoreViews(ULRMMTestCase):
                 "parts": ["clients", "url_actions", "roles"],
                 "added": {"clients": 2, "url_actions": 0, "roles": 2, "sites": 3},
                 "left_out": {"clients": 0, "url_actions": 0, "roles": 0},
+                "completed": {"policies": 0},
             },
         )
 
@@ -943,6 +1299,7 @@ class TestEncryptedData(ULRMMTestCase):
         self.assertNotIn(
             "s3cret-env", self.raw("importers_importeddevice", "data", device.pk)
         )
+        migrate("0005_source_created")
         src.refresh_from_db()
         self.assertEqual(src.snapshot["keystore"][0]["value"], "abc-123")
 
@@ -974,7 +1331,7 @@ class FakeRemote:
             raise self.answer_error
 
 
-@patch("importers.tasks.recover_task.apply_async")
+@patch("importers.tasks.recover_task.delay")
 class TestRemoval(ULRMMTestCase):
     def setUp(self):
         from . import removal
@@ -1023,13 +1380,14 @@ class TestRemoval(ULRMMTestCase):
         d = ImportedDevice.objects.get(pk=self.device.pk)
         return d.remove_state, d.remove_reason
 
-    def test_removed_once_with_recovery_on_windows(self, later):
+    def test_removed_once_with_recovery_pending(self, later):
         self.assertEqual(self.step()[0], "removed")
         self.assertEqual(self.remote.removed, [("AGENT1", "WS01")])
         d = ImportedDevice.objects.get(pk=self.device.pk)
         self.assertEqual((d.remove_state, d.recovery), ("removed", "pending"))
         self.assertTrue(d.remove_at)
-        later.assert_called_once_with((d.pk,), countdown=300)
+        # the sweep sends it once RECOVERY_DELAY has passed
+        later.assert_not_called()
         self.assertTrue(
             AuditLog.objects.filter(message__contains="asked to remove").exists()
         )
@@ -1156,7 +1514,18 @@ class TestRemoval(ULRMMTestCase):
         self.assertEqual(self.state(), ("not_removed", reason))
         self.assertEqual(self.remote.removed, [])
 
-    def test_linux_gets_no_recovery(self, later):
+    def removed_ago(self, **delta):
+        ImportedDevice.objects.filter(pk=self.device.pk).update(
+            remove_at=djangotime.now() - djangotime.timedelta(**delta)
+        )
+
+    def recovery(self):
+        d = ImportedDevice.objects.get(pk=self.device.pk)
+        return d.recovery, d.recovery_at
+
+    def test_linux_gets_recovery_too(self, later):
+        from .tasks import remove_task
+
         type(self.agent).objects.filter(pk=self.agent.pk).update(
             plat="linux", wmi_detail={"serialnumber": "VMW-1", "local_ips": []}
         )
@@ -1166,8 +1535,101 @@ class TestRemoval(ULRMMTestCase):
             "wmi_detail": {"serialnumber": "VMW-1"},
         }
         self.assertEqual(self.step()[0], "removed")
-        self.assertEqual(ImportedDevice.objects.get(pk=self.device.pk).recovery, "")
+        self.assertEqual(self.recovery(), ("pending", None))
+        self.assertEqual(remove_task(), "idle")
         later.assert_not_called()
+        self.removed_ago(seconds=301)
+        remove_task()
+        later.assert_called_once_with(self.device.pk)
+
+    def test_recovery_claimed_once_retried_then_done(self, later):
+        from .tasks import recover_task, remove_task
+
+        self.step()
+        self.removed_ago(seconds=301)
+        remove_task()
+        self.assertTrue(self.recovery()[1], "claimed")
+        # never a second command while the first is out
+        remove_task()
+        later.assert_called_once_with(self.device.pk)
+        nats = "agents.models.Agent.nats_cmd"
+        with patch(nats, return_value="timeout") as cmd:
+            self.assertEqual(recover_task(self.device.pk), "failed: timeout")
+        self.assertEqual(cmd.call_args.kwargs["timeout"], 700)
+        self.assertEqual(self.recovery()[0], "failed: timeout")
+        # a failed attempt waits an hour, each one can be a full reinstall
+        remove_task()
+        later.assert_called_once()
+        self.claimed_ago(minutes=61)
+        remove_task()
+        self.assertEqual(later.call_count, 2, "a failure is retried")
+        with patch(nats, return_value="repair failed: exit status 1"):
+            recover_task(self.device.pk)
+        self.assertEqual(self.recovery()[0], "failed: repair failed: exit status 1")
+        self.claimed_ago(minutes=61)
+        remove_task()
+        with patch(nats, return_value="ok"):
+            self.assertEqual(recover_task(self.device.pk), "ok")
+        remove_task()
+        self.assertEqual(later.call_count, 3, "done after ok")
+        self.assertEqual(self.recovery(), ("ok", None))
+
+    def claimed_ago(self, **delta):
+        ImportedDevice.objects.filter(pk=self.device.pk).update(
+            recovery_at=djangotime.now() - djangotime.timedelta(**delta)
+        )
+
+    def test_missing_mesh_agent_ends_the_recovery(self, later):
+        from .tasks import recover_task, remove_task
+
+        self.step()
+        self.removed_ago(seconds=301)
+        remove_task()
+        reply = "mesh agent not installed: no meshagent.service"
+        with patch("agents.models.Agent.nats_cmd", return_value=reply):
+            recover_task(self.device.pk)
+        self.assertEqual(self.recovery(), (f"given up: {reply}", None))
+        self.claimed_ago(hours=2)
+        remove_task()
+        later.assert_called_once()
+
+    def test_recovery_waits_for_the_agent_online_here(self, later):
+        from .tasks import recover_task, remove_task
+
+        self.step()
+        self.removed_ago(seconds=301)
+        remove_task()
+        type(self.agent).objects.filter(pk=self.agent.pk).update(
+            last_seen=djangotime.now() - djangotime.timedelta(hours=2)
+        )
+        with patch("agents.models.Agent.nats_cmd") as cmd:
+            self.assertEqual(recover_task(self.device.pk), "offline")
+        cmd.assert_not_called()
+        self.assertEqual(self.recovery(), ("pending", None), "claim released")
+        remove_task()
+        self.assertEqual(later.call_count, 2, "looked at again on the next sweep")
+
+    def test_recovery_stale_claim_and_given_up(self, later):
+        from .tasks import remove_task
+
+        self.step()
+        self.removed_ago(seconds=301)
+        ImportedDevice.objects.filter(pk=self.device.pk).update(
+            recovery="failed: timeout",
+            recovery_at=djangotime.now() - djangotime.timedelta(hours=2),
+        )
+        remove_task()
+        later.assert_called_once()
+        later.side_effect = RuntimeError("broker down")
+        ImportedDevice.objects.filter(pk=self.device.pk).update(recovery_at=None)
+        remove_task()
+        self.assertEqual(self.recovery(), ("failed: timeout", None), "released")
+        self.removed_ago(days=8)
+        remove_task()
+        self.assertEqual(self.recovery(), ("given up: timeout", None))
+        later.side_effect = None
+        remove_task()
+        self.assertEqual(later.call_count, 2)
 
     def test_two_workers_send_once(self, later):
         # the second worker read the row while it was still waiting
@@ -1180,7 +1642,10 @@ class TestRemoval(ULRMMTestCase):
 
     def test_withdraw_and_stale_claim(self, later):
         removal = self.removal
-        self.assertEqual(removal.withdraw(self.src, [self.device.pk], "alice"), 1)
+        self.assertEqual(
+            removal.withdraw(self.src, [self.device.pk], "alice"),
+            {"withdrawn": 1, "in_flight": 0},
+        )
         d = ImportedDevice.objects.get(pk=self.device.pk)
         self.assertEqual((d.remove_state, d.remove_requested_at), ("", None))
         self.assertEqual(self.step()[0], "")
@@ -1190,7 +1655,11 @@ class TestRemoval(ULRMMTestCase):
             remove_state="sending",
             remove_at=djangotime.now() - djangotime.timedelta(hours=2),
         )
-        self.assertEqual(removal.withdraw(self.src, [d.pk], "alice"), 0)
+        # too late: the removal is being sent
+        self.assertEqual(
+            removal.withdraw(self.src, [d.pk], "alice"),
+            {"withdrawn": 0, "in_flight": 1},
+        )
         self.assertEqual(removal.end_stale_claims(), 1)
         self.assertEqual(self.state(), ("waiting_there", "the removal was interrupted"))
         # still listed over there: the first call never took effect
@@ -1210,12 +1679,16 @@ class TestRemoval(ULRMMTestCase):
         self.assertEqual(self.step()[0], "removed")
         self.assertIn("its answer was lost", self.state()[1])
         self.assertEqual(self.remote.removed, [])
-        later.assert_called_once()
+        self.assertEqual(
+            ImportedDevice.objects.get(pk=self.device.pk).recovery, "pending"
+        )
 
     def test_lost_answer(self, later):
         from .sources.base import NotFound
 
-        self.remote.answer_error = SourceError("/agents/AGENT1/: ReadTimeout")
+        from .sources.base import NoAnswer
+
+        self.remote.answer_error = NoAnswer("/agents/AGENT1/: ReadTimeout")
         self.assertEqual(self.step()[0], "waiting_there")
         self.assertTrue(ImportedDevice.objects.get(pk=self.device.pk).remove_tried_at)
         self.remote.detail_error = NotFound("404")
@@ -1223,7 +1696,6 @@ class TestRemoval(ULRMMTestCase):
         self.assertEqual(
             self.state(), ("removed", f"{self.removal.GONE}, its answer was lost")
         )
-        later.assert_called_once()
         self.assertEqual(
             ImportedDevice.objects.get(pk=self.device.pk).recovery, "pending"
         )
@@ -1250,8 +1722,9 @@ class TestRemoval(ULRMMTestCase):
         )
         self.remote.detail_error = NotFound("404")
         self.assertEqual(self.step()[0], "removed")
-        self.assertEqual(ImportedDevice.objects.get(pk=self.device.pk).recovery, "")
-        later.assert_not_called()
+        self.assertEqual(
+            ImportedDevice.objects.get(pk=self.device.pk).recovery, "pending"
+        )
         self.assertEqual(len(self.remote.removed), 1)
 
     def test_filler_serials_prove_nothing(self, later):
@@ -1263,6 +1736,11 @@ class TestRemoval(ULRMMTestCase):
             "To Be Filled By O.E.M.",
             " Default string ",
             "0123456789",
+            "Not Defined",
+            "Not Provided",
+            "System Product Name",
+            "1234567890",
+            "0000-0000-0000",
         ):
             with self.subTest(serial):
                 Agent.objects.filter(pk=self.agent.pk).update(
@@ -1295,10 +1773,17 @@ class TestRemoval(ULRMMTestCase):
     def test_recovery_outcome(self, later):
         from .tasks import recover_task
 
-        with patch("agents.models.Agent.recover", return_value=("ok", False)) as rec:
+        with patch("agents.models.Agent.nats_cmd", return_value="ok") as cmd:
+            # a task queued by an older release holds no claim: nothing is sent
+            self.assertEqual(recover_task(self.device.pk), "unclaimed")
+            cmd.assert_not_called()
+            self.claimed_ago(seconds=1)
             self.assertEqual(recover_task(self.device.pk), "ok")
-        rec.assert_called_once_with("mesh", "")
-        with patch("agents.models.Agent.recover", return_value=("timeout", True)):
+        self.assertEqual(
+            cmd.call_args.args[0], {"func": "recover", "payload": {"mode": "mesh"}}
+        )
+        self.claimed_ago(seconds=1)
+        with patch("agents.models.Agent.nats_cmd", return_value="timeout"):
             recover_task(self.device.pk)
         self.assertEqual(
             ImportedDevice.objects.get(pk=self.device.pk).recovery, "failed: timeout"
@@ -1319,6 +1804,66 @@ class TestRemoval(ULRMMTestCase):
         self.src.save()
         engine.run(self.src, ["devices"])
         self.assertEqual(self.state()[0], "removed")
+
+    def test_error_after_the_days_ends_a_tried_device(self, later):
+        now = djangotime.now()
+        ImportedDevice.objects.filter(pk=self.device.pk).update(
+            remove_state="waiting_there",
+            remove_requested_at=now - djangotime.timedelta(days=8),
+            remove_tried_at=now - djangotime.timedelta(days=1),
+        )
+        self.remote.detail_error = ValueError("odd")
+        self.assertEqual(self.step()[0], "not_removed")
+        self.assertEqual(self.state()[1], "unexpected error: ValueError")
+
+    def test_an_error_answer_is_no_try(self, later):
+        from .sources.base import NotFound
+
+        self.remote.answer_error = SourceError("/agents/AGENT1/ answered 500")
+        self.assertEqual(self.step()[0], "waiting_there")
+        self.assertIsNone(ImportedDevice.objects.get(pk=self.device.pk).remove_tried_at)
+        self.removal.withdraw(self.src, [self.device.pk], "alice")
+        # deleted over there by hand, then asked again
+        self.remote.detail_error = NotFound("404")
+        self.removal.request(self.src, [self.device.pk], "john")
+        self.assertEqual(self.step()[0], "not_removed")
+        self.assertEqual(self.state()[1], self.removal.GONE)
+
+    def test_a_lost_answer_survives_withdraw_and_request(self, later):
+        from .sources.base import NoAnswer, NotFound
+
+        self.remote.answer_error = NoAnswer("/agents/AGENT1/: ReadTimeout")
+        self.assertEqual(self.step()[0], "waiting_there")
+        self.removal.withdraw(self.src, [self.device.pk], "alice")
+        self.removal.request(self.src, [self.device.pk], "john")
+        self.remote.detail_error = NotFound("404")
+        self.assertEqual(self.step()[0], "removed")
+        self.assertEqual(self.recovery()[0], "pending")
+
+    def test_addresses_spare_the_serial_scan(self, later):
+        device = ImportedDevice.objects.get(pk=self.device.pk)
+        with patch.object(self.removal, "_serial_unique") as unique:
+            self.assertEqual(
+                self.removal.same_machine(self.remote.detail, self.agent, device), ""
+            )
+        unique.assert_not_called()
+
+    def test_one_failing_device_keeps_the_round(self, later):
+        from .tasks import remove_task
+
+        ImportedDevice.objects.create(
+            source=self.src,
+            ref="AGENT2",
+            hostname="ws02",
+            remove_state="waiting_here",
+            remove_requested_at=djangotime.now(),
+        )
+        with patch("importers.tasks.for_source", return_value=self.remote):
+            with patch.object(
+                self.removal, "step", side_effect=[RuntimeError("x"), "removed"]
+            ) as step:
+                self.assertEqual(remove_task(), "ok")
+        self.assertEqual(step.call_count, 2)
 
 
 @override_settings(CACHES=LOCMEM_CACHE)
@@ -1386,9 +1931,24 @@ class TestRemovalViews(ULRMMTestCase):
         r = self.client.post(
             f"{url}/withdraw/", {"devices": self.ids[:1]}, format="json"
         )
-        self.assertEqual(r.data, {"withdrawn": 1})
+        self.assertEqual(r.data, {"withdrawn": 1, "in_flight": 0})
         r = self.client.post(f"{url}/withdraw/", {"devices": "x"}, format="json")
         self.assertEqual(r.status_code, 400)
+
+    @patch("importers.views.migrate_task.delay")
+    def test_busy_source_refuses_before_the_code(self, delay):
+        url = f"{BASE}/{self.src.pk}/migrate/"
+        code = self.totp.now()
+        body = {"devices": self.ids, "remove_old": True, "totp_code": code}
+        cache.add(lock_id(self.src.pk), "someone")
+        r = self.client.post(url, body, format="json")
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(self.requested(), 0)
+        delay.assert_not_called()
+        cache.delete(lock_id(self.src.pk))
+        r = self.client.post(url, body, format="json")
+        self.assertEqual(r.status_code, 202, "the code was not used up")
+        self.assertEqual(self.requested(), 4)
 
     @patch("importers.views.migrate_task.delay")
     def test_remove_without_installer(self, delay):

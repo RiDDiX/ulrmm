@@ -4,8 +4,9 @@
 """The upstream server this project started from, through its REST API
 with an API key (header X-API-KEY, a superuser's key reads everything).
 
-Lists are bare JSON arrays without paging. The agent list names client and
-site instead of giving their ids, so devices are placed by those names.
+Lists are bare JSON arrays without paging. The agent list is read per site
+(GET /agents/?site=<id>, the same rows as ?detail=true), so no single answer
+holds the whole fleet and each device's site is known by id.
 Script bodies need one request per script (GET /scripts/<id>/), a device's
 policy, patch policy and settings one per device (GET /agents/<agent_id>/).
 Checks and tasks come in one list each for policies and devices; other
@@ -19,7 +20,7 @@ the device, and the row is gone at once."""
 import re
 from collections import defaultdict
 
-from .base import TASK_FIELDS, NotFound, Source, SourceError
+from .base import AGENT_SETTINGS, TASK_FIELDS, NotFound, Source, SourceError
 
 SHELLS = {"windows": "powershell", "linux": "/bin/bash", "darwin": "/bin/bash"}
 # what the agent waits for the command; it only starts the detached installer
@@ -39,6 +40,22 @@ def _values(rows, names: dict) -> dict:
 
 def _ids(value) -> list:
     return value if isinstance(value, list) else []
+
+
+def _lost(row, refs, slots) -> list[str]:
+    # slots: (snapshot key, field over there, refs kind); an id the key cannot
+    # see would be dropped and the limit or exclusion would widen
+    return [
+        key
+        for key, field, kind in slots
+        if any(i not in refs[kind] for i in _ids(row.get(field)))
+    ]
+
+
+EXCLUDED = (
+    ("excluded_clients", "excluded_clients", "clients"),
+    ("excluded_sites", "excluded_sites", "sites"),
+)
 
 
 class Upstream(Source):
@@ -75,13 +92,12 @@ class Upstream(Source):
         fields = self._get("/core/customfields/")
         names = {f.get("id"): f.get("name") for f in fields}
 
-        clients, site_ids, found = [], {}, self._get("/clients/")
+        clients, found = [], self._get("/clients/")
         for c in found:
             sites = []
             for s in c.get("sites") or []:
                 if not isinstance(s, dict):
                     continue
-                site_ids[(c.get("name"), s.get("name"))] = str(s.get("id"))
                 sites.append(
                     {
                         "ref": str(s.get("id")),
@@ -105,9 +121,7 @@ class Upstream(Source):
         devices = [
             {
                 "ref": a.get("agent_id"),
-                "site_ref": site_ids.get(
-                    (a.get("client_name"), a.get("site_name")), ""
-                ),
+                "site_ref": site["ref"],
                 "hostname": a.get("hostname"),
                 "serial": a.get("serial_number"),
                 "plat": a.get("plat"),
@@ -118,7 +132,9 @@ class Upstream(Source):
                 "notes": notes.get(a.get("agent_id"), []),
                 "custom_fields": _values(a.get("custom_fields"), names),
             }
-            for a in self._get("/agents/", detail="true")
+            for c in clients
+            for site in c["sites"]
+            for a in self._get("/agents/", site=site["ref"])
         ]
 
         scripts = []
@@ -257,6 +273,7 @@ class Upstream(Source):
                     "excluded_sites": self._sites(t.get("excluded_sites"), refs),
                 }
             )
+            templates[-1]["lost"] += _lost(t, refs, EXCLUDED)
 
         policies, policy_names = [], {}
         for p in self._get("/automation/policies/"):
@@ -278,6 +295,7 @@ class Upstream(Source):
                         refs["clients"].get(i) for i in _ids(p.get("excluded_clients"))
                     ],
                     "excluded_sites": self._sites(p.get("excluded_sites"), refs),
+                    "lost": _lost(p, refs, EXCLUDED),
                 }
             )
 
@@ -289,6 +307,14 @@ class Upstream(Source):
                     refs["clients"].get(i) for i in _ids(r.get("can_view_clients"))
                 ],
                 "sites": self._sites(r.get("can_view_sites"), refs),
+                "lost": _lost(
+                    r,
+                    refs,
+                    (
+                        ("clients", "can_view_clients", "clients"),
+                        ("sites", "can_view_sites", "sites"),
+                    ),
+                ),
             }
             for r in self._get("/accounts/roles/")
         ]
@@ -361,10 +387,11 @@ class Upstream(Source):
             patch = [
                 w for w in _ids(detail.get("winupdatepolicy")) if isinstance(w, dict)
             ]
+            # the detail is large (inventory); only what validate reads stays
             d.update(
                 policy=by["policies"].get(detail.get("policy")),
                 patch_policy=patch[0] if patch else None,
-                settings=detail,
+                settings={k: detail[k] for k in AGENT_SETTINGS if k in detail},
             )
 
     def _agent(self, ref: str) -> str:

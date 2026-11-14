@@ -25,11 +25,15 @@ Sources that read more also deliver (others leave them out):
                         action_rest, resolved_action_rest, lost,
                         excluded_clients, excluded_sites}]; lost names the
                         action slots set over there whose script or URL
-                        action is not in the source's lists
+                        action is not in the source's lists, and the
+                        exclusions that name a client or site the source
+                        did not list
     policies:         [{name, desc, active, enforced, alert_template,
                         patch_policy, checks, tasks, excluded_clients,
-                        excluded_sites}]
-    roles:            [{name, superuser, perms, unknown, clients, sites}]
+                        excluded_sites, lost}]; lost as for templates
+    roles:            [{name, superuser, perms, unknown, clients, sites,
+                        lost}]; lost names clients or sites when the role is
+                        limited to one the source did not list
     users:            [{username, email, first_name, last_name, role}]
     report_html, report_queries, report_templates: the reporting module's rows
 
@@ -45,6 +49,7 @@ every value is type checked and cut to the column sizes before it is stored."""
 
 import json
 import math
+import time
 
 import requests
 from django.contrib.postgres.fields import ArrayField
@@ -72,6 +77,10 @@ from ulrmm.utils import BodyTooLarge, capped_json
 from winupdate.models import WinUpdatePolicy
 
 TIMEOUT = 30
+# raised when the snapshot format changes; an older snapshot is read again
+SNAPSHOT_VERSION = 3
+# a whole fetch ends well before the source's lock (2 h) runs out
+FETCH_SECONDS = 90 * 60
 # more than any fleet this importer is meant for; a bigger answer is refused
 MAX_ITEMS = 20000
 MAX_BODY = 1_000_000
@@ -127,6 +136,10 @@ class NotFound(SourceError):
     pass
 
 
+class NoAnswer(SourceError):
+    """The request got no answer: whether it took effect is unknown."""
+
+
 class Source:
     """One other RMM. Subclasses set KIND and SECRETS and implement fetch;
     push is only there when the source can run a command on a device."""
@@ -147,6 +160,9 @@ class Source:
         "keystore",
         "devices",
     )
+
+    # time.monotonic() after which call() refuses, set for a fetch
+    deadline = None
 
     def __init__(self, url: str, verify_tls: bool, options: dict, secrets: dict):
         self.base = url.rstrip("/")
@@ -175,6 +191,11 @@ class Source:
     def call(self, method: str, path: str, timeout: int = TIMEOUT, **kwargs):
         """JSON of one request on the https base. Redirects are refused, so a
         key never goes to another host."""
+        if self.deadline is not None and time.monotonic() > self.deadline:
+            raise SourceError(
+                f"reading the source took longer than {FETCH_SECONDS // 60} "
+                "minutes and was stopped"
+            )
         url = path if path.startswith("https://") else self.base + path
         try:
             r = self.session.request(
@@ -187,7 +208,7 @@ class Source:
                 **kwargs,
             )
         except requests.RequestException as e:
-            raise SourceError(f"{path}: {type(e).__name__}")
+            raise NoAnswer(f"{path}: {type(e).__name__}")
         if r.status_code >= 300:
             # refused below, the body is never read
             r.close()
@@ -207,7 +228,7 @@ class Source:
         except BodyTooLarge:
             raise SourceError(f"{path} answered with too much data")
         except requests.RequestException as e:
-            raise SourceError(f"{path}: {type(e).__name__}")
+            raise NoAnswer(f"{path}: {type(e).__name__}")
         except ValueError:
             raise SourceError(f"{path} did not answer with JSON")
 
@@ -316,6 +337,7 @@ def _clean(model, names, row) -> dict:
 
 
 ACTION_SLOTS = ("action", "resolved_action", "action_rest", "resolved_action_rest")
+EXCLUSIONS = ("excluded_clients", "excluded_sites")
 
 
 def _script(value):
@@ -365,10 +387,23 @@ def _action(a) -> dict | None:
     return None
 
 
+def _trimmed(model, fields: dict) -> dict:
+    """Strings trimmed as the model's serializer stores them (char and text
+    fields, the items of array fields), so a stored row equals its source."""
+    ret = {}
+    for name, value in fields.items():
+        if isinstance(value, str):
+            value = value.strip()
+        elif isinstance(model._meta.get_field(name), ArrayField):
+            value = [v.strip() if isinstance(v, str) else v for v in value]
+        ret[name] = value
+    return ret
+
+
 def _checks(value) -> list[dict]:
     ret = []
     for c in _list(value, "checks"):
-        fields = _clean(Check, CHECK_FIELDS, c.get("fields"))
+        fields = _trimmed(Check, _clean(Check, CHECK_FIELDS, c.get("fields")))
         if fields.get("check_type"):
             ret.append(
                 {
@@ -450,7 +485,11 @@ def _more(data) -> dict:
                 "resolved_action": _script(t.get("resolved_action")),
                 "action_rest": _name(t.get("action_rest"), 255),
                 "resolved_action_rest": _name(t.get("resolved_action_rest"), 255),
-                "lost": [s for s in _strings(t.get("lost"), 40) if s in ACTION_SLOTS],
+                "lost": [
+                    s
+                    for s in _strings(t.get("lost"), 40)
+                    if s in ACTION_SLOTS + EXCLUSIONS
+                ],
                 "excluded_clients": _names(t.get("excluded_clients")),
                 "excluded_sites": _pairs(t.get("excluded_sites")),
             }
@@ -472,6 +511,7 @@ def _more(data) -> dict:
                 "tasks": _tasks(p.get("tasks")),
                 "excluded_clients": _names(p.get("excluded_clients")),
                 "excluded_sites": _pairs(p.get("excluded_sites")),
+                "lost": [s for s in _strings(p.get("lost"), 40) if s in EXCLUSIONS],
             }
             for p in _list(data.get("policies"), "policies")
         ),
@@ -492,6 +532,9 @@ def _more(data) -> dict:
                 "unknown": len(theirs - set(ROLE_PERMS)),
                 "clients": _names(r.get("clients")),
                 "sites": _pairs(r.get("sites")),
+                "lost": [
+                    s for s in _strings(r.get("lost"), 40) if s in ("clients", "sites")
+                ],
             }
         )
 
@@ -687,6 +730,7 @@ def validate(data) -> dict:
         )
 
     return {
+        "version": SNAPSHOT_VERSION,
         "clients": clients,
         "custom_fields": fields,
         "scripts": scripts,

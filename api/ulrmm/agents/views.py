@@ -1155,8 +1155,12 @@ class AgentMeshCentral(APIView):
             request.user.username, agent, "recover mesh", debug_info=_ip(request)
         )
         data = {"func": "recover", "payload": {"mode": "mesh"}}
-        if _ask(agent, data, 90) != "ok":
+        reply = _ask(agent, data, 90)
+        if not isinstance(reply, str) or reply in UNREACHABLE:
             return notify_error(NO_CONTACT)
+        # the agent answers with the reason when the repair failed
+        if reply != "ok":
+            return notify_error(f"Unable to complete recovery: {reply}")
         return Response(f"Repaired mesh agent on {agent.hostname}")
 
 

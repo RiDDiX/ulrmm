@@ -1,5 +1,21 @@
 # Server changelog
 
+## 4.14.11.2026 (2026-11-14)
+
+- agents update to 3.14.11.2026
+- import: an imported user only gets a role that this import created; a role here with the same name is never handed out
+- import: a role whose limits or exclusions point at a client or site the other server did not list is left out instead of losing those entries; a policy or alert template with such an exclusion is imported but assigned nowhere
+- import: a new run completes policies an earlier run imported: missing checks, tasks and the alert template are added
+- import: reading the other server goes site by site, stops after 90 minutes and keeps less in memory
+- import: read, import, Send installer and editing a source answer busy while one of them runs for the same source, instead of running in parallel
+- import: the audit log entry is written also when a part of the import fails
+- import: each source has to be read again once after this update before it imports
+- old agent removal: the remote-control repair after a confirmed removal runs on every platform, is tried again every hour for up to 7 days and is shown per device with its reason
+- withdrawing a removal reports the removals that are already under way and can no longer be stopped
+- the same-machine check before a removal knows more placeholder serial numbers
+- roles and policies imported with 3.14.11.2026 are not recorded as created by the import: users imported later get no role from them, and those policies are not completed by a new run
+- Take Control > Recover connection shows the agent's reason when the Mesh agent repair failed (agents from 3.14.11.2026 on)
+
 ## 3.14.11.2026 (2026-11-14)
 
 - import from a compatible RMM server (Global Settings > Import) now also takes URL actions, alert templates, automation policies with their checks, tasks and patch policy, roles, users and report templates with their HTML templates and data queries; the policies and alert templates of clients and sites and their excluded clients and sites come along where the slot is empty here

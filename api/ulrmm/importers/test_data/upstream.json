@@ -210,53 +210,7 @@
    "username": "olaf.audit"
   }
  ],
- "/agents/": [
-  {
-   "agent_id": "DEMOAGENT04xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxFAB-PI-SENSO",
-   "alert_template": null,
-   "block_policy_inheritance": false,
-   "boot_time": 1793357045.081213,
-   "checks": {
-    "failing": 0,
-    "has_failing_checks": false,
-    "info": 0,
-    "passing": 0,
-    "total": 0,
-    "warning": 0
-   },
-   "client_name": "Fabrikam AG",
-   "cpu_model": [
-    "ARMv7 Processor rev 5 (v7l)"
-   ],
-   "custom_fields": [],
-   "description": "server at Main Office",
-   "goarch": "arm64",
-   "graphics": "No graphics cards",
-   "has_patches_pending": false,
-   "hostname": "fab-pi-sensor",
-   "italic": false,
-   "last_seen": "2026-11-02T10:04:05.081213Z",
-   "local_ips": "192.168.33.10/24, fe10::3332:4hgr:9634:1097/64",
-   "logged_username": "pi",
-   "maintenance_mode": false,
-   "make_model": "Raspberry Pi 2 Model B Rev 1.1",
-   "monitoring_type": "server",
-   "needs_reboot": false,
-   "operating_system": "Debian GNU/Linux 12 (bookworm), 64 bit v6.6.20+rpt-rpi-v8 (kernel)",
-   "overdue_dashboard_alert": false,
-   "overdue_email_alert": false,
-   "overdue_text_alert": false,
-   "pending_actions_count": 0,
-   "physical_disks": [
-    "MMC SSD mmcblk0 119.4 GB"
-   ],
-   "plat": "linux",
-   "public_ip": "203.0.113.14",
-   "serial_number": "10000000a1b2c3d4",
-   "site_name": "Main Office",
-   "status": "overdue",
-   "version": "2.11.0"
-  },
+ "/agents/?site=1": [
   {
    "agent_id": "DEMOAGENT00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-DC01",
    "alert_template": null,
@@ -388,55 +342,9 @@
    "site_name": "Berlin HQ",
    "status": "offline",
    "version": "2.11.0"
-  },
-  {
-   "agent_id": "DEMOAGENT02xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxFAB-WS-ACCT0",
-   "alert_template": null,
-   "block_policy_inheritance": false,
-   "boot_time": 1793357045.081213,
-   "checks": {
-    "failing": 0,
-    "has_failing_checks": false,
-    "info": 0,
-    "passing": 0,
-    "total": 0,
-    "warning": 0
-   },
-   "client_name": "Fabrikam AG",
-   "cpu_model": [
-    "AMD Ryzen 9 3900X 12-Core Processor            "
-   ],
-   "custom_fields": [],
-   "description": "workstation at Main Office",
-   "goarch": "amd64",
-   "graphics": "NVIDIA Quadro P520, Intel(R) UHD Graphics 620",
-   "has_patches_pending": false,
-   "hostname": "FAB-WS-ACCT02",
-   "italic": false,
-   "last_seen": "2026-11-02T10:24:05.081213Z",
-   "local_ips": "192.168.10.149, 192.168.10.114",
-   "logged_username": "FABRIKAM\\j.schmidt",
-   "maintenance_mode": false,
-   "make_model": "Gigabyte Technology Co., Ltd. X570 AORUS ULTRA",
-   "monitoring_type": "workstation",
-   "needs_reboot": false,
-   "operating_system": "Windows 10 Pro, 64 bit v22H2 (build 19045.4291)",
-   "overdue_dashboard_alert": false,
-   "overdue_email_alert": false,
-   "overdue_text_alert": false,
-   "pending_actions_count": 0,
-   "physical_disks": [
-    "Microsoft Storage Space Device 1,900GB SCSI",
-    "WDC WD60EFRX-68MYMN1 5,589GB IDE",
-    "Samsung SSD 860 EVO 500GB 466GB IDE"
-   ],
-   "plat": "windows",
-   "public_ip": "203.0.113.12",
-   "serial_number": "5CG9876QRS",
-   "site_name": "Main Office",
-   "status": "offline",
-   "version": "2.11.0"
-  },
+  }
+ ],
+ "/agents/?site=2": [
   {
    "agent_id": "DEMOAGENT03xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCONTOSO-WEB0",
    "alert_template": null,
@@ -548,6 +456,102 @@
    "serial_number": "C02XYZ123ABC",
    "site_name": "Hamburg Branch",
    "status": "overdue",
+   "version": "2.11.0"
+  }
+ ],
+ "/agents/?site=3": [
+  {
+   "agent_id": "DEMOAGENT04xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxFAB-PI-SENSO",
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "boot_time": 1793357045.081213,
+   "checks": {
+    "failing": 0,
+    "has_failing_checks": false,
+    "info": 0,
+    "passing": 0,
+    "total": 0,
+    "warning": 0
+   },
+   "client_name": "Fabrikam AG",
+   "cpu_model": [
+    "ARMv7 Processor rev 5 (v7l)"
+   ],
+   "custom_fields": [],
+   "description": "server at Main Office",
+   "goarch": "arm64",
+   "graphics": "No graphics cards",
+   "has_patches_pending": false,
+   "hostname": "fab-pi-sensor",
+   "italic": false,
+   "last_seen": "2026-11-02T10:04:05.081213Z",
+   "local_ips": "192.168.33.10/24, fe10::3332:4hgr:9634:1097/64",
+   "logged_username": "pi",
+   "maintenance_mode": false,
+   "make_model": "Raspberry Pi 2 Model B Rev 1.1",
+   "monitoring_type": "server",
+   "needs_reboot": false,
+   "operating_system": "Debian GNU/Linux 12 (bookworm), 64 bit v6.6.20+rpt-rpi-v8 (kernel)",
+   "overdue_dashboard_alert": false,
+   "overdue_email_alert": false,
+   "overdue_text_alert": false,
+   "pending_actions_count": 0,
+   "physical_disks": [
+    "MMC SSD mmcblk0 119.4 GB"
+   ],
+   "plat": "linux",
+   "public_ip": "203.0.113.14",
+   "serial_number": "10000000a1b2c3d4",
+   "site_name": "Main Office",
+   "status": "overdue",
+   "version": "2.11.0"
+  },
+  {
+   "agent_id": "DEMOAGENT02xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxFAB-WS-ACCT0",
+   "alert_template": null,
+   "block_policy_inheritance": false,
+   "boot_time": 1793357045.081213,
+   "checks": {
+    "failing": 0,
+    "has_failing_checks": false,
+    "info": 0,
+    "passing": 0,
+    "total": 0,
+    "warning": 0
+   },
+   "client_name": "Fabrikam AG",
+   "cpu_model": [
+    "AMD Ryzen 9 3900X 12-Core Processor            "
+   ],
+   "custom_fields": [],
+   "description": "workstation at Main Office",
+   "goarch": "amd64",
+   "graphics": "NVIDIA Quadro P520, Intel(R) UHD Graphics 620",
+   "has_patches_pending": false,
+   "hostname": "FAB-WS-ACCT02",
+   "italic": false,
+   "last_seen": "2026-11-02T10:24:05.081213Z",
+   "local_ips": "192.168.10.149, 192.168.10.114",
+   "logged_username": "FABRIKAM\\j.schmidt",
+   "maintenance_mode": false,
+   "make_model": "Gigabyte Technology Co., Ltd. X570 AORUS ULTRA",
+   "monitoring_type": "workstation",
+   "needs_reboot": false,
+   "operating_system": "Windows 10 Pro, 64 bit v22H2 (build 19045.4291)",
+   "overdue_dashboard_alert": false,
+   "overdue_email_alert": false,
+   "overdue_text_alert": false,
+   "pending_actions_count": 0,
+   "physical_disks": [
+    "Microsoft Storage Space Device 1,900GB SCSI",
+    "WDC WD60EFRX-68MYMN1 5,589GB IDE",
+    "Samsung SSD 860 EVO 500GB 466GB IDE"
+   ],
+   "plat": "windows",
+   "public_ip": "203.0.113.12",
+   "serial_number": "5CG9876QRS",
+   "site_name": "Main Office",
+   "status": "offline",
    "version": "2.11.0"
   }
  ],

@@ -6,6 +6,7 @@ sites, scripts, keystore entries, policies, roles and users for everyone."""
 
 import json
 
+from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, serializers
 from rest_framework.exceptions import ValidationError
@@ -16,14 +17,17 @@ from rest_framework.views import APIView
 from accounts.utils import DELETE_NEEDS_TOTP, has_superuser_rights, verify_fresh_totp
 from accounts.views import _body
 from ulrmm.helpers import notify_error
+from ulrmm.utils import redis_lock
 
 from . import engine, link, removal
 from .models import ImportedDevice, ImportSource, MigrateState, SourceKind
 from .sources import source_class
-from .tasks import fetch_task, migrate_task
+from .sources.base import SNAPSHOT_VERSION
+from .tasks import BUSY, fetch_task, lock_id, migrate_task
 
 URL_RE = r"^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$"
 MAX_DEVICES = 20000
+OLD_SNAPSHOT = "Read the source again; it was read by an older version."
 
 
 class ImportPerms(permissions.BasePermission):
@@ -108,6 +112,8 @@ class SourceSerializer(serializers.ModelSerializer):
                 raise ValidationError(
                     {"secrets": f"The address changed, enter {', '.join(kept)} again."}
                 )
+            # what was read from or created by the old host is not this one's
+            attrs.update(snapshot={}, last_fetch=None, created={})
         for k, v in given.items():
             if v is None:
                 stored.pop(k, None)
@@ -139,6 +145,9 @@ class SourceDetail(APIView):
 
     def put(self, request, pk):
         source = get_object_or_404(ImportSource, pk=pk)
+        # a save during a fetch or import would write stale rows back
+        if cache.get(lock_id(source.pk)):
+            return Response(BUSY, status=409)
         s = SourceSerializer(source, data=request.data, partial=True)
         s.is_valid(raise_exception=True)
         return Response(SourceSerializer(s.save()).data)
@@ -155,6 +164,10 @@ class Fetch(APIView):
 
     def post(self, request, pk):
         source = get_object_or_404(ImportSource, pk=pk)
+        if cache.get(lock_id(source.pk)):
+            return Response(BUSY, status=409)
+        # the page polls right away: an old error is not this run's
+        ImportSource.objects.filter(pk=source.pk).update(last_error="")
         fetch_task.delay(source.pk)
         return Response({"queued": True}, status=202)
 
@@ -164,8 +177,8 @@ class Plan(APIView):
 
     def get(self, request, pk):
         source = get_object_or_404(ImportSource, pk=pk)
-        if not source.last_fetch:
-            return notify_error("Read the source first.")
+        if refused := _unread(source):
+            return refused
         return Response(engine.plan(source))
 
 
@@ -181,9 +194,14 @@ class Import(APIView):
             or any(p not in engine.PARTS for p in parts)
         ):
             return notify_error(f"parts: a list of {', '.join(engine.PARTS)}")
-        if not source.last_fetch:
-            return notify_error("Read the source first.")
-        return Response(engine.run(source, parts, request.user.username))
+        if refused := _unread(source):
+            return refused
+        # shortcut: the import runs in the request, so a very large installation
+        # can outlast the request time; move it into a celery task when it does
+        with redis_lock(lock_id(source.pk), "import") as acquired:
+            if not acquired:
+                return Response(BUSY, status=409)
+            return Response(engine.run(source, parts, request.user.username))
 
 
 class Devices(APIView):
@@ -227,6 +245,15 @@ class Link(APIView):
     def post(self, request, pk):
         source = get_object_or_404(ImportSource, pk=pk)
         return Response({"linked": link.link_source(source)})
+
+
+def _unread(source):
+    if not source.last_fetch:
+        return notify_error("Read the source first.")
+    # an older snapshot lacks marks the import relies on (lost references)
+    if (source.snapshot or {}).get("version", 0) < SNAPSHOT_VERSION:
+        return notify_error(OLD_SNAPSHOT)
+    return None
 
 
 def _ids(request):
@@ -279,6 +306,9 @@ class Migrate(APIView):
                 f"{source.get_kind_display()} cannot run commands on its devices. "
                 "Install the agent with a deployment; it links on enrollment."
             )
+        # before the code: a refusal here must not use it up
+        if cache.get(lock_id(source.pk)):
+            return Response(BUSY, status=409)
         # single use, so checked after every other refusal
         if remove_old and not verify_fresh_totp(
             request.user, _body(request).get("totp_code")
@@ -292,6 +322,7 @@ class Migrate(APIView):
         requested = (
             removal.request(source, ids, request.user.username) if remove_old else 0
         )
+        ImportSource.objects.filter(pk=source.pk).update(last_error="")
         migrate_task.delay(source.pk, ids)
         return Response({"queued": len(ids), "remove_requested": requested}, status=202)
 
@@ -318,7 +349,8 @@ class Remove(APIView):
 
 
 class Withdraw(APIView):
-    """Withdraws the removal of the old agent where it was not sent yet."""
+    """Withdraws the removal of the old agent where it was not sent yet;
+    in_flight counts the devices it came too late for."""
 
     permission_classes = [IsAuthenticated, ImportPerms]
 
@@ -327,6 +359,4 @@ class Withdraw(APIView):
         ids = _ids(request)
         if ids is None:
             return notify_error("devices: a list of device ids")
-        return Response(
-            {"withdrawn": removal.withdraw(source, ids, request.user.username)}
-        )
+        return Response(removal.withdraw(source, ids, request.user.username))
