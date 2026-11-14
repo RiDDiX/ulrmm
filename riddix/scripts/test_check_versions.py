@@ -46,6 +46,9 @@ def tree(root, version="1.23.09.2026", settings=SETTINGS):
     (agent / "build").mkdir(parents=True)
     (agent / "main.go").write_text('var (\n\tversion = "1.22.09.2026"\n)\n')
     (agent / "build" / "setup.iss").write_text('#define MyAppVersion "1.22.09.2026"\n')
+    (agent / "build" / "setup.nsi").write_text(
+        '!ifndef MyAppVersion\n  !define MyAppVersion "1.22.09.2026"\n!endif\n'
+    )
     return web, agent
 
 
@@ -90,6 +93,27 @@ class TestCheckVersions(unittest.TestCase):
         (agent / "build" / "setup.iss").write_text('#define MyAppVersion "2.12.0"\n')
         rows = self.run_check(web=web, agent=agent)
         self.assertEqual([r[0] for r in rows], ["setup.iss MyAppVersion"])
+
+    def test_nsis_installer_out_of_step(self):
+        web, agent = tree(self.root)
+        (agent / "build" / "setup.nsi").write_text('  !define MyAppVersion "2.12.0"\n')
+        rows = self.run_check(web=web, agent=agent)
+        self.assertEqual([r[0] for r in rows], ["setup.nsi MyAppVersion"])
+
+    def test_nsis_installer_is_required(self):
+        web, agent = tree(self.root)
+        (agent / "build" / "setup.nsi").unlink()
+        rows = self.run_check(web=web, agent=agent)
+        self.assertEqual(
+            [r[:2] for r in rows],
+            [("setup.nsi", "unreadable (No such file or directory)")],
+        )
+
+    def test_fallback_script_may_be_gone(self):
+        # setup.iss stays for one release only
+        web, agent = tree(self.root)
+        (agent / "build" / "setup.iss").unlink()
+        self.assertEqual(self.run_check(web=web, agent=agent), [])
 
     def test_second_assignment_wins_and_is_reported(self):
         # the last module level assignment is what the import actually ends up with

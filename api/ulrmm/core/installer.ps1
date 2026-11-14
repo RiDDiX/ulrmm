@@ -72,7 +72,6 @@ If (Get-Service $serviceName -ErrorAction SilentlyContinue) {
             Add-MpPreference -ExclusionPath 'identWinProgPath\*'
             Add-MpPreference -ExclusionPath 'C:\Program Files\Mesh Agent\*'
             Add-MpPreference -ExclusionPath 'identWinProgData\*'
-            Add-MpPreference -ExclusionProcess 'C:\Windows\Temp\is-*.tmp\identArtifact*'
         }
     }
     Catch {

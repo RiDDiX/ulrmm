@@ -16,9 +16,11 @@ RUN python -m venv /rmm/api/env && \
 FROM python:3.12-slim-bookworm AS api
 LABEL org.opencontainers.image.licenses="FSL-1.1-ALv2" \
       org.opencontainers.image.source="https://github.com/RiDDiX/ulrmm"
+# nsis: the agents service builds the Windows setups; osslsigncode signs them
+# when Windows signing is configured
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git openssl curl ca-certificates postgresql-client jq \
-      libpango-1.0-0 libpangoft2-1.0-0 && \
+      libpango-1.0-0 libpangoft2-1.0-0 nsis osslsigncode && \
     rm -rf /var/lib/apt/lists/* && \
     useradd -u 1000 -m -s /bin/bash ulrmm
 COPY --from=api-builder /rmm/api/env /rmm/api/env

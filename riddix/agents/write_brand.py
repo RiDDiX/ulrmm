@@ -9,10 +9,10 @@
 
 Produces:
     <src>/agent/brand.go    Go vars: display texts, endpoints, identity
-    <src>/build/brand.env   shell-sourceable, the ISCC /D defines
+    <src>/build/brand.env   shell-sourceable, the installer defines
     <src>/build/brand.ico   only when favicon/logo is a PNG <= 256x256
 
-Identity (service, paths, registry, Inno AppId) comes from the AGENT_* settings.
+Identity (service, paths, registry, installer AppId) comes from the AGENT_* settings.
 Different values are a different product: existing agents do not update into
 them, they have to be migrated once.
 """
@@ -84,7 +84,8 @@ def ident_go(ident: dict, task_prefix: str) -> dict:
 
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 # Inno doubles the leading brace: "{{GUID}". With a single brace Inno reads
-# "{GUID}" as a constant and only fails during the ISCC run.
+# "{GUID}" as a constant and only fails during the ISCC run. setup.nsi takes
+# the same form and derives the uninstall key "{GUID}_is1" from it.
 _APPID = re.compile(r"^\{\{[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\}$")
 
 
@@ -105,10 +106,12 @@ def go_str(value: str) -> str:
     return json.dumps(clean(value), ensure_ascii=False)
 
 
-def iss_str(value: str) -> str:
-    """For Inno. Quotes break /D and Pascal, curly braces are Inno
-    constants, percent is an escape in [Run] messages
-    ("Acme 100% IT" is enough).
+def ident_str(value: str) -> str:
+    """For the identity defines. Quotes break /D and Pascal in setup.iss,
+    curly braces are Inno constants, percent is an escape in Inno [Run]
+    messages ("Acme 100% IT" is enough). Nothing else is removed: brand.go
+    keeps the value, and the setup must carry the same identity.
+    build_agents.sh skips the NSIS setups for what setup_str would change.
     """
     out = clean(value)
     for ch in ('"', "'", "{", "}", "%"):
@@ -116,13 +119,70 @@ def iss_str(value: str) -> str:
     return out
 
 
-def iss_appid(value: str) -> str:
-    """Not through iss_str: that would delete the braces, and without them
-    Inno installs next to the old copy instead of updating it. Check only.
+def setup_str(value: str) -> str:
+    """For the display defines: ident_str, and backticks, which delimit
+    strings in setup.nsi. build_agents.sh doubles "$" for makensis, the
+    version resource gets the value as it is. makensis reads "$$\\r" as "$"
+    plus a carriage return, so no backslash may follow a "$".
+    """
+    return re.sub(r"(?<=\$)\\+", "", ident_str(value).replace("`", ""))
+
+
+def setup_appid(value: str) -> str:
+    """Not through setup_str: that would delete the braces, and without them
+    the setup installs next to the old copy instead of updating it. Check only.
+    Empty -> the default, with a warning.
     """
     out = clean(value)
+    if not out:
+        warn_default("AGENT_INNO_APPID", value, IDENT_DEFAULTS["AppId"])
+        return IDENT_DEFAULTS["AppId"]
     if not _APPID.match(out):
-        raise ValueError(f"'{out}' is not an Inno AppId")
+        raise ValueError(f"'{out}' is not an installer AppId ({{{{GUID}})")
+    return out
+
+
+# The settings.py defaults of the AGENT_* identity
+IDENT_DEFAULTS = {
+    "IdentWinSvcName": "ulrmm-agent",
+    "IdentWinExe": "ulrmm-agent.exe",
+    "IdentWinProgDir": "ULRMM Agent",
+    "IdentWinRegKey": "UniversalLocalRMM",
+    "AppId": "{{61D095D9-C6CE-4D60-B192-4C6699822C40}",
+}
+_SETTING = {
+    "IdentWinSvcName": "AGENT_SVC_NAME",
+    "IdentWinExe": "AGENT_WIN_EXE",
+    "IdentWinProgDir": "AGENT_WIN_PROG_DIR",
+    "IdentWinRegKey": "AGENT_WIN_REG_KEY",
+}
+# Windows drops trailing dots and spaces from a file name: "." or ". ." as the
+# program directory would be Program Files itself
+_PATH_KEYS = ("IdentWinExe", "IdentWinProgDir")
+
+
+def warn_default(name: str, value: str, default: str) -> None:
+    print(
+        f"  WARNING: {name} '{value}' cannot be used by the Windows setup,"
+        f" the agents are built with '{default}'",
+        file=sys.stderr,
+    )
+
+
+def setup_ident(ident: dict) -> dict:
+    """A Windows identity value that leaves nothing for the setup gets the
+    default in brand.go and brand.env alike. Every other value stays as
+    configured: an installed agent must keep its identity through an update.
+    build_agents.sh skips the NSIS setups for a value the script refuses."""
+    out = dict(ident)
+    for key, setting in _SETTING.items():
+        if key not in ident:
+            continue
+        value = ident_str(ident[key])
+        value = value.rstrip(". ") if key in _PATH_KEYS else value.strip()
+        if not value:
+            warn_default(setting, ident[key], IDENT_DEFAULTS[key])
+            out[key] = IDENT_DEFAULTS[key]
     return out
 
 
@@ -165,7 +225,7 @@ def brand_values(product_name: str, company_name: str) -> dict:
     return {
         "BrandProductName": product,
         "BrandAgentName": agent,
-        # must match setup.iss: sc config ... "{#MyAppName} Service"
+        # must match the setup: sc config ... "<MyAppName> Service"
         "BrandServiceDisplay": f"{agent} Service",
         "BrandPublisher": clean(company_name, DEFAULTS["BrandPublisher"]),
     }
@@ -204,7 +264,8 @@ def write(
     enroll_key: str = "",
 ) -> None:
     vals = brand_values(product_name, company_name)
-    app_id = iss_appid(app_id)
+    app_id = setup_appid(app_id)
+    ident = setup_ident(ident)
 
     endpoints = {
         "BrandPubIPURL": clean(pubip_url),
@@ -228,19 +289,19 @@ def write(
         f" / {ident['IdentArtifact']} / {app_id}"
     )
 
-    url = iss_str(support_url)
+    url = setup_str(support_url)
     env_path = os.path.join(src, "build", "brand.env")
     with open(env_path, "w", encoding="utf-8") as fh:
         fh.write(
-            "# Generated by write_brand.py - source this, then pass as ISCC /D flags.\n"
-            f"ISCC_APP_NAME='{iss_str(vals['BrandAgentName'])}'\n"
-            f"ISCC_PUBLISHER='{iss_str(vals['BrandPublisher'])}'\n"
+            "# Generated by write_brand.py - source this, then pass as installer defines.\n"
+            f"ISCC_APP_NAME='{setup_str(vals['BrandAgentName'])}'\n"
+            f"ISCC_PUBLISHER='{setup_str(vals['BrandPublisher'])}'\n"
             f"ISCC_URL='{url}'\n"
             f"ISCC_APP_ID='{app_id}'\n"
-            f"ISCC_EXE_NAME='{iss_str(ident['IdentWinExe'])}'\n"
-            f"ISCC_SVC_NAME='{iss_str(ident['IdentWinSvcName'])}'\n"
-            f"ISCC_PROG_DIR='{iss_str(ident['IdentWinProgDir'])}'\n"
-            f"ISCC_REG_KEY='{iss_str(ident['IdentWinRegKey'])}'\n"
+            f"ISCC_EXE_NAME='{ident_str(ident['IdentWinExe'])}'\n"
+            f"ISCC_SVC_NAME='{ident_str(ident['IdentWinSvcName'])}'\n"
+            f"ISCC_PROG_DIR='{ident_str(ident['IdentWinProgDir'])}'\n"
+            f"ISCC_REG_KEY='{ident_str(ident['IdentWinRegKey'])}'\n"
         )
     print(f"  {env_path}")
 
@@ -291,6 +352,17 @@ def main(src: str) -> int:
     return 0
 
 
+def quiet(fn, *args):
+    """fn(*args) and the number of warnings it printed."""
+    import contextlib
+    import io
+
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+        out = fn(*args)
+    return out, err.getvalue().count("WARNING")
+
+
 def demo() -> None:
     # 1x1 PNG
     png = base64.b64decode(
@@ -333,25 +405,32 @@ def demo() -> None:
     assert go_str("") == '""'
     assert "\n" not in go_str("x\x00\x1by")
 
-    # Inno: no quotes, no braces, no percent
-    assert iss_str('A"B\'C{D}') == "ABCD"
-    assert iss_str("Acme 100% IT") == "Acme 100 IT"
+    # installer defines: no quotes, backticks, braces or percent; "$" and
+    # non-ASCII stay (build_agents.sh doubles "$" for makensis)
+    assert setup_str('A"B\'C{D}') == "ABCD"
+    assert setup_str("Acme 100% IT") == "Acme 100 IT"
+    assert setup_str("Ac`me` $HOME ${X} $0 Grüße") == "Acme $HOME $X $0 Grüße"
+    assert setup_str("a $\\r $$\\\\n b\\c") == "a $r $$n b\\c"
+    # identity defines: only quotes, braces and percent
+    assert ident_str('A"B\'C{D}%') == "ABCD"
+    assert ident_str("Ac`me $\\r $$\\\\n b\\c") == "Ac`me $\\r $$\\\\n b\\c"
 
-    # AppId: check only. iss_str would delete exactly those braces
+    # AppId: check only. setup_str would delete exactly those braces
     app_id = "{{61D095D9-C6CE-4D60-B192-4C6699822C40}"
-    assert iss_appid(app_id) == app_id
-    assert iss_appid(" {{61d095d9-c6ce-4d60-b192-4c6699822c40} ").startswith("{{6")
+    assert setup_appid(app_id) == app_id
+    assert setup_appid(" {{61d095d9-c6ce-4d60-b192-4c6699822c40} ").startswith("{{6")
+    assert quiet(setup_appid, "") == (app_id, 1)
+    assert quiet(setup_appid, " \t") == (app_id, 1)
     for bad in (
-        "",
         "61D095D9-C6CE-4D60-B192-4C6699822C40",
-        iss_str(app_id),
-        # one brace: a constant for Inno, not an AppId
+        setup_str(app_id),
+        # one brace: a constant for Inno and not the setup.nsi form
         "{61D095D9-C6CE-4D60-B192-4C6699822C40}",
         "{{61D095D9-C6CE-4D60-B192-4C6699822C4}",
         "{{not-a-guid}",
     ):
         try:
-            iss_appid(bad)
+            setup_appid(bad)
             raise AssertionError(f"AppId '{bad}' should have been rejected")
         except ValueError:
             pass
@@ -377,6 +456,29 @@ def demo() -> None:
     assert set(ident) == set(re.findall(r"\{(Ident\w+)\}", BRAND_GO)), ident
     assert ident["IdentWinSvcName"] == "ulrmm-agent"
     assert ident["IdentTaskPrefix"] == "ULRMM_"
+
+    # Windows identity: only a value that leaves nothing for the setup gets
+    # the default, with one warning; everything else stays as configured
+    assert quiet(setup_ident, ident) == (ident, 0)
+    win_keys = ("IdentWinSvcName", "IdentWinExe", "IdentWinProgDir", "IdentWinRegKey")
+    for key in win_keys:
+        for bad in ("", " ", '""', "{}", "%", '" "', "{ }", "% %", "' '"):
+            out, warned = quiet(setup_ident, {**ident, key: bad})
+            assert (out[key], warned) == (IDENT_DEFAULTS[key], 1), (key, bad)
+            assert {k: v for k, v in out.items() if k != key} == {
+                k: v for k, v in ident.items() if k != key
+            }
+        for odd in (
+            "Acme Inc.", "Acme..Inc", " Acme", "Acme\\Agent", ".a", "a.",
+            "{} Acme", "a$b", "a*b", "a\\b", "a/b", "a:b", "` `", "Ac`me", "a$\\b",
+        ):
+            assert quiet(setup_ident, {**ident, key: odd}) == ({**ident, key: odd}, 0)
+    # Windows drops trailing dots and spaces: "." would be Program Files itself
+    for key in win_keys:
+        for dots in (".", ". .", "..", " . "):
+            out, warned = quiet(setup_ident, {**ident, key: dots})
+            want = IDENT_DEFAULTS[key] if key in _PATH_KEYS else dots
+            assert (out[key], warned) == (want, int(key in _PATH_KEYS)), (key, dots)
 
     # Fallbacks
     assert brand_values("", "") == DEFAULTS
@@ -417,6 +519,57 @@ def demo() -> None:
     assert 'IdentNixSvc        = "ulrmm-agent.service"' in src, src
     assert 'IdentTaskPrefix    = "ULRMM_"' in src, src
     assert "{" not in src.split("var (", 1)[1], "placeholder left over"
+
+    # write(): an empty identity value reaches neither brand.go nor brand.env
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tree:
+        for d in ("agent", "build"):
+            os.mkdir(os.path.join(tree, d))
+        bare = {**ident, "IdentWinProgDir": "", "IdentWinRegKey": "{}"}
+        _, warned = quiet(write, tree, "", "", "", b"", bare, "")
+        assert warned == 3, warned
+        with open(os.path.join(tree, "build", "brand.env"), encoding="utf-8") as fh:
+            env = fh.read()
+        with open(os.path.join(tree, "agent", "brand.go"), encoding="utf-8") as fh:
+            go = fh.read()
+        assert "ISCC_PROG_DIR='ULRMM Agent'\n" in env, env
+        assert "ISCC_REG_KEY='UniversalLocalRMM'\n" in env, env
+        assert f"ISCC_APP_ID='{app_id}'\n" in env, env
+        for name in ("APP_ID", "EXE_NAME", "SVC_NAME", "PROG_DIR", "REG_KEY"):
+            assert f"ISCC_{name}=''" not in env, env
+        assert 'IdentWinProgDir    = "ULRMM Agent"' in go, go
+        assert 'IdentWinRegKey     = "UniversalLocalRMM"' in go, go
+
+        # a non-empty value reaches brand.go through clean() and brand.env
+        # through ident_str(), as before the NSIS setup
+        odd = {
+            **ident,
+            "IdentWinExe": "Acme..Inc%.exe",
+            "IdentWinSvcName": "{} Acme",
+            "IdentWinProgDir": "Ac`me 'Inc.'",
+            "IdentWinRegKey": 'Cash$\\"Agent"',
+        }
+        _, warned = quiet(write, tree, "", "", "", b"", odd, app_id)
+        assert warned == 0, warned
+        with open(os.path.join(tree, "build", "brand.env"), encoding="utf-8") as fh:
+            env = dict(
+                line.split("=", 1) for line in fh.read().splitlines() if "=" in line
+            )
+        with open(os.path.join(tree, "agent", "brand.go"), encoding="utf-8") as fh:
+            go = dict(re.findall(r"^\t(Ident\w+)\s+= (.*)$", fh.read(), re.M))
+        for name, var in {
+            "EXE_NAME": "IdentWinExe",
+            "SVC_NAME": "IdentWinSvcName",
+            "PROG_DIR": "IdentWinProgDir",
+            "REG_KEY": "IdentWinRegKey",
+        }.items():
+            assert go[var] == go_str(odd[var]), (name, go)
+            assert env[f"ISCC_{name}"] == f"'{ident_str(odd[var])}'", (name, env)
+        assert env["ISCC_EXE_NAME"] == "'Acme..Inc.exe'", env
+        assert env["ISCC_SVC_NAME"] == "' Acme'", env
+        assert env["ISCC_PROG_DIR"] == "'Ac`me Inc.'", env
+        assert env["ISCC_REG_KEY"] == "'Cash$\\Agent'", env
     print("selftest ok")
 
 

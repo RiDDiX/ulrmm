@@ -31,11 +31,16 @@ LICENSE.md, NOTICE.md and this file under `/usr/share/doc/ulrmm/`.
 - Go 1.27.3 toolchain (BSD-3-Clause), from go.dev with a pinned SHA-256
 - RustDesk server hbbs/hbbr 1.1.16 (AGPL-3.0, https://github.com/rustdesk/rustdesk-server),
   optional, from its GitHub release
+- NSIS (zlib/libpng license; its LZMA compression module CPL-1.0,
+  https://nsis.sourceforge.io/), from the distribution packages and in the
+  `ulrmm-api` image, to build the Windows agent installers
 - Inno Setup 6.4.3 (Inno Setup License, https://jrsoftware.org/) under Wine
-  (LGPL-2.1-or-later), Xvfb and xauth (MIT/X11), to build the Windows agent
-  installers
-- rcodesign 0.29.0 (MPL-2.0) and osslsigncode (GPL-3.0), optional, to sign
-  agents; goversioninfo 1.4.1 (MIT) for the Windows version resource
+  (LGPL-2.1-or-later), Xvfb and xauth (MIT/X11), optional, as the fallback
+  packer for the Windows agent installers
+- osslsigncode (GPL-3.0), installed together with NSIS and in the
+  `ulrmm-api` image, and rcodesign 0.29.0 (MPL-2.0), downloaded when macOS
+  signing is set up; signing agents is optional. goversioninfo 1.4.1 (MIT)
+  for the Windows version resource
 - age (BSD-3-Clause) for encrypted backups, certbot (Apache-2.0) for Let's
   Encrypt certificates, and distribution tools such as git, curl, jq and
   openssl under their own licenses
@@ -51,7 +56,8 @@ These are served by the RMM server or fetched by the agents. The server
 operator passes them on and is bound by their licenses:
 
 - the agent itself, see THIRD_PARTY_NOTICES.md of the agent repository; its
-  Windows installer contains the Inno Setup runtime
+  Windows installer contains the NSIS runtime (the Inno Setup runtime when it
+  was built with the fallback packer)
 - MeshCentral agent (Apache-2.0), served by MeshCentral
 - RustDesk client 1.4.9 (AGPL-3.0, source at https://github.com/rustdesk/rustdesk),
   mirrored unmodified under `/agentdist/rustdesk/`, next to a SOURCE.txt that

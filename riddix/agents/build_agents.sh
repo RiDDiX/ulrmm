@@ -81,9 +81,18 @@ AGENT_NUMVER="${BASH_REMATCH[4]}.$((10#${BASH_REMATCH[3]})).$((10#${BASH_REMATCH
 
 POSIX_TARGETS="linux/amd64 linux/386 linux/arm64 linux/arm darwin/amd64 darwin/arm64 freebsd/amd64 freebsd/arm64"
 WIN_ARCHS="amd64 386"
+# Windows setup: makensis with build/setup.nsi, or iscc with build/setup.iss
+# (Inno Setup under Wine, kept as the way back)
+WIN_PACKER=${ULRMM_WIN_PACKER:-$(py_setting ULRMM_WIN_PACKER)}
+WIN_PACKER=${WIN_PACKER:-nsis}
+case $WIN_PACKER in
+nsis) WIN_PACKER_BIN=makensis ;;
+inno) WIN_PACKER_BIN=iscc ;;
+*) die "ULRMM_WIN_PACKER '$WIN_PACKER' is neither nsis nor inno" ;;
+esac
 
 echo "=== Configuration ==="
-printf '  %-18s %s\n' AGENT_VER "$AGENT_VER ($AGENT_NUMVER)" ARTIFACT "$ARTIFACT" AGENT_SRC "$AGENT_GIT_URL@$AGENT_GIT_REF" SRC "$SRC" DIST "$DIST" GO "$ROOT/go" PYTHON "$PY"
+printf '  %-18s %s\n' AGENT_VER "$AGENT_VER ($AGENT_NUMVER)" ARTIFACT "$ARTIFACT" AGENT_SRC "$AGENT_GIT_URL@$AGENT_GIT_REF" SRC "$SRC" DIST "$DIST" GO "$ROOT/go" PYTHON "$PY" WIN_PACKER "$WIN_PACKER"
 
 # shellcheck source=riddix/agents/sign.sh
 . "$SELF_DIR/sign.sh"
@@ -282,19 +291,61 @@ if [ "$(uname -s)" = Linux ] && [ -x "$selfcheck" ]; then
 fi
 
 # Windows
-# The installer is built with ISCC, Inno Setup under Wine
-# (install-innosetup.sh, x86_64 only). Without ISCC there is only Linux/macOS.
+# The installer is built with makensis (package nsis, any architecture), or
+# with iscc for ULRMM_WIN_PACKER=inno (install-innosetup.sh, x86_64 only).
+# Without the packer there is only Linux/macOS/FreeBSD.
 echo "=== Windows ==="
-if ! command -v iscc >/dev/null 2>&1; then
+if ! command -v "$WIN_PACKER_BIN" >/dev/null 2>&1; then
   WIN_ARCHS=''
+  hint="apt-get install nsis"
+  [ "$WIN_PACKER" = nsis ] || hint="riddix/agents/install-innosetup.sh, x86_64 only"
   warn "================================================================"
-  warn "no ISCC found - Windows agents are NOT built. Windows endpoints"
-  warn "get no update from this server until a build with ISCC"
-  warn "succeeds (riddix/agents/install-innosetup.sh, x86_64 only)."
+  warn "no $WIN_PACKER_BIN found - Windows agents are NOT built. Windows"
+  warn "endpoints get no update from this server until a build with"
+  warn "$WIN_PACKER_BIN succeeds ($hint)."
   warn "================================================================"
+elif [ "$WIN_PACKER" = nsis ]; then
+  # Setup stubs before NSIS 3.09 lack the fix for CVE-2023-37378 (the
+  # uninstaller's temporary directory); Debian 12 carries it in
+  # 3.08-3+deb12u1. Older runtimes (Ubuntu 22.04: 3.08-2) still build,
+  # and no newer package exists for them, so the warning only states it.
+  nsis_ver=$(makensis -VERSION 2>/dev/null) || nsis_ver=''
+  nsis_ver=${nsis_ver#v}
+  if ! printf '%s\n' 3.09 "$nsis_ver" | sort -VC; then
+    nsis_pkg=$(dpkg-query -W -f='${Version}' nsis-common 2>/dev/null) || nsis_pkg=''
+    if [ -z "$nsis_pkg" ] || ! dpkg --compare-versions "$nsis_pkg" ge 3.08-3+deb12u1; then
+      warn "NSIS ${nsis_ver:-?} (package ${nsis_pkg:-none}) lacks the fix for CVE-2023-37378 (the uninstaller's temporary directory) that NSIS 3.09 and Debian's 3.08-3+deb12u1 carry; the Windows setups built here have that flaw"
+    fi
+  fi
 fi
 # shellcheck disable=SC1091
 . "$SRC/build/brand.env"
+# setup.nsi builds one path element below Program Files from the first two
+# and refuses \ / :, makensis stops on * ? < > | in the file name. A backtick
+# ends a string in setup.nsi, and makensis reads "$$\r" as "$" plus a carriage
+# return. The value is kept: another one would give installed agents another
+# identity.
+if [ -n "$WIN_ARCHS" ] && [ "$WIN_PACKER" = nsis ]; then
+  for s in "AGENT_WIN_PROG_DIR=$ISCC_PROG_DIR" "AGENT_WIN_EXE=$ISCC_EXE_NAME" \
+    "AGENT_SVC_NAME=$ISCC_SVC_NAME" "AGENT_WIN_REG_KEY=$ISCC_REG_KEY"; do
+    case $s in
+    *\`* | *\$\\*) why='holds a ` or a \ after a $' ;;
+    AGENT_WIN_PROG_DIR=*[\\/:*?\<\>\|]* | AGENT_WIN_EXE=*[\\/:*?\<\>\|]*)
+      why='holds one of \ / : * ? < > |' ;;
+    *) continue ;;
+    esac
+    WIN_ARCHS=''
+    warn "================================================================"
+    warn "${s%%=*} '${s#*=}' $why - Windows agents"
+    warn "are NOT built with makensis. Windows endpoints get no update from"
+    warn "this server until a build with ULRMM_WIN_PACKER=inno succeeds; that"
+    warn "keeps the identity of installed agents. Changing the setting gives"
+    warn "new installs another identity and is only for servers without"
+    warn "Windows agents under that name."
+    warn "================================================================"
+    break
+  done
+fi
 # The .syso holds version strings and the manifest with requireAdministrator
 # (versioninfo.json -> build/rmm.exe.manifest). Without the manifest the agent
 # does not request elevation. Do not ship the installer then.
@@ -302,6 +353,13 @@ if [ -n "$WIN_ARCHS" ] &&
   ! "$GO" install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.1 >/dev/null 2>&1; then
   die "goversioninfo cannot be installed - no Windows agent is built without the manifest"
 fi
+# makensis reads "$" in a define as a variable, "$$" is a literal one
+nsis_defs=()
+for d in "MyAppName=$ISCC_APP_NAME" "MyAppPublisher=$ISCC_PUBLISHER" "MyAppURL=$ISCC_URL" \
+  "MyAppVersion=$AGENT_VER" "MyAppNumVersion=$AGENT_NUMVER" "MyAppId=$ISCC_APP_ID" "MyAppExeName=$ISCC_EXE_NAME" \
+  "MyAppSvcName=$ISCC_SVC_NAME" "MyAppProgDir=$ISCC_PROG_DIR" "MyAppRegKey=$ISCC_REG_KEY"; do
+  nsis_defs+=("-D${d//\$/\$\$}")
+done
 for a in $WIN_ARCHS; do
   f="$ARTIFACT-v$AGENT_VER-windows-$a.exe"
   rm -f "$SRC/resource_windows.syso"
@@ -337,11 +395,19 @@ PYVI
   # themselves against it (deploy/integrity.py); published with the installer
   sha256sum "$SRC/agent.exe" | cut -d' ' -f1 >"$TMP/$f.agent.sha256"
 
-  ( cd "$SRC" && iscc build/setup.iss "/Fwin-$a" \
-    "/DMyAppName=$ISCC_APP_NAME" "/DMyAppPublisher=$ISCC_PUBLISHER" "/DMyAppURL=$ISCC_URL" \
-    "/DMyAppVersion=$AGENT_VER" "/DMyAppNumVersion=$AGENT_NUMVER" "/DMyAppId=$ISCC_APP_ID" "/DMyAppExeName=$ISCC_EXE_NAME" \
-    "/DMyAppSvcName=$ISCC_SVC_NAME" "/DMyAppProgDir=$ISCC_PROG_DIR" "/DMyAppRegKey=$ISCC_REG_KEY" >/dev/null ) || die "ISCC ($a) failed"
-  mv "$SRC/build/Output/win-$a.exe" "$TMP/$f"
+  if [ "$WIN_PACKER" = nsis ]; then
+    # -WX: a warning (an unknown "$" variable, a missing file) fails the build;
+    # the UTF-8 locale lets makensis read non-ASCII brand values from argv
+    out="$TMP/$f"
+    ( cd "$SRC" && LC_ALL=C.UTF-8 makensis -V2 -WX -INPUTCHARSET UTF8 "-DOutFile=${out//\$/\$\$}" \
+      "${nsis_defs[@]}" build/setup.nsi ) || die "makensis ($a) failed"
+  else
+    ( cd "$SRC" && iscc build/setup.iss "/Fwin-$a" \
+      "/DMyAppName=$ISCC_APP_NAME" "/DMyAppPublisher=$ISCC_PUBLISHER" "/DMyAppURL=$ISCC_URL" \
+      "/DMyAppVersion=$AGENT_VER" "/DMyAppNumVersion=$AGENT_NUMVER" "/DMyAppId=$ISCC_APP_ID" "/DMyAppExeName=$ISCC_EXE_NAME" \
+      "/DMyAppSvcName=$ISCC_SVC_NAME" "/DMyAppProgDir=$ISCC_PROG_DIR" "/DMyAppRegKey=$ISCC_REG_KEY" >/dev/null ) || die "ISCC ($a) failed"
+    mv "$SRC/build/Output/win-$a.exe" "$TMP/$f"
+  fi
   printf '  %-46s %s (self-built)\n' "$f" "$(du -h "$TMP/$f" | cut -f1)"
 done
 rm -f "$SRC/agent.exe" "$SRC/resource_windows.syso"
@@ -377,7 +443,8 @@ done
 # installed agents a manifest entry they do not match (integrity_mismatch);
 # only a branding or key change (brand.go, brand.env) may replace it, or
 # ULRMM_AGENT_REPLACE=1. The Windows setups themselves are not compared,
-# Inno Setup stamps them; their agent exes are, through the .agent.sha256.
+# their bytes depend on the packer and its version (Inno Setup also stamps
+# the build time); their agent exes are, through the .agent.sha256.
 inputs=$(cat "$SRC/agent/brand.go" "$SRC/build/brand.env" | sha256sum | cut -d' ' -f1)
 stamp="$DIST/.inputs-v$AGENT_VER"
 if [ "${ULRMM_AGENT_REPLACE:-}" != 1 ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$inputs" ]; then

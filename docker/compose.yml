@@ -218,8 +218,8 @@ services:
       - conf:/conf:ro
     depends_on: *api-depends
 
-  # docker compose run --rm agents: POSIX agents into the agents-dist volume.
-  # Windows installers need Inno Setup and are not built in the container.
+  # docker compose run --rm agents: Linux, macOS, FreeBSD and Windows agents
+  # into the agents-dist volume (the Windows setups are built with makensis).
   agents:
     <<: *api-image
     profiles: ["agents"]

@@ -2,8 +2,10 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
-# Install Inno Setup 6 under Wine: build_agents.sh builds the Windows
-# installer with ISCC, without it there are no Windows agents.
+# Install Inno Setup 6 under Wine, the fallback packer: with
+# ULRMM_WIN_PACKER=inno build_agents.sh builds the Windows installer with ISCC
+# from build/setup.iss instead of makensis. Nothing runs this script
+# automatically.
 # Debian 12 on x86_64 (wine32). Needs sudo (only for apt), the Wine prefix
 # belongs to the caller.
 # Idempotent - a second run installs nothing more.
@@ -96,4 +98,4 @@ echo "=== Test ==="
 # ISCC /? exits with 1, so do not chain it into the pipeline directly
 usage=$(iscc /? 2>&1 || true)
 printf '%s\n' "$usage" | grep -im1 "Inno Setup" || die "iscc does not run"
-echo "  ok - build_agents.sh now finds iscc on the PATH"
+echo "  ok - with ULRMM_WIN_PACKER=inno build_agents.sh finds iscc on the PATH"

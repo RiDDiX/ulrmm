@@ -421,12 +421,11 @@ token peppers and the field encryption keys), `agent-ca`, `mesh-data`,
 `docker run --rm -v ulrmm_settings:/v:ro -v "$PWD":/b alpine tar czf /b/settings.tgz -C /v .`
 (the volume prefix is the compose project name, `docker volume ls` shows it).
 
-Agents: `docker compose run --rm agents` builds the Linux, macOS and FreeBSD
-agents into the `agents-dist` volume, which nginx serves under `/agentdist/`.
-It needs the agent repository reachable (see above); the Go toolchain is
-downloaded into that volume once and reused. Windows installers need Inno Setup and are not built in the container; build
-them on a native install or with `riddix/agents/build_agents.sh` on a host
-with `iscc`, and copy the files into the volume.
+Agents: `docker compose run --rm agents` builds the Linux, macOS, FreeBSD and
+Windows agents into the `agents-dist` volume, which nginx serves under
+`/agentdist/`. The image carries `makensis` (NSIS) and `osslsigncode` for the
+Windows installers. It needs the agent repository reachable (see above); the
+Go toolchain is downloaded into that volume once and reused.
 
 Differences from the native install: the Update Center's server update and the
 server status panel do not work in containers (there is no `update.sh` run
@@ -474,7 +473,7 @@ or named: in the dashboard (`v1.01.10.2026`), in artifact names
 | | Version | Where it lives |
 |---|---|---|
 | Server and dashboard | one shared version | `VERSION` in this repository (the only source), `version` in `ulrmm-web/package.json` and the root of its `package-lock.json` |
-| Agent | its own version, bumped only when the agent changes | `LATEST_AGENT_VER` in `api/ulrmm/ulrmm/settings.py`, `version` in the agent's `main.go`, `MyAppVersion` in its `build/setup.iss` |
+| Agent | its own version, bumped only when the agent changes | `LATEST_AGENT_VER` in `api/ulrmm/ulrmm/settings.py`, `version` in the agent's `main.go`, `MyAppVersion` in its `build/setup.nsi` (and in `build/setup.iss` while it exists) |
 
 `python3 riddix/scripts/check_versions.py --next` prints the next server
 version, `--next agent` the next agent version. The gates below fail when the
@@ -487,8 +486,8 @@ copies disagree. Release procedure: [docs/VERSIONING_AND_RELEASES.md](docs/VERSI
 - A virtual machine or a physical host. LXC containers are refused.
 - **Debian 12, Debian 13, Ubuntu 22.04 or Ubuntu 24.04.** Nothing else
   (Debian 11 is no longer accepted). No Turnkey images and no Webmin.
-- x86_64 or aarch64. Windows agents are only built on x86_64 (Inno Setup runs
-  under Wine there).
+- x86_64 or aarch64. Windows agents are built on both (NSIS from the
+  distribution packages).
 - At least 4 GB of RAM.
 - A normal user with sudo rights. The scripts refuse to run as root, and the
   user that installs is the one that has to run every update later.
@@ -1102,10 +1101,17 @@ bash /rmm/riddix/agents/build_agents.sh     # as the install user, no sudo
 
 - Branding and the agent identity are written into the build from the server
   settings, so the dashboard's Branding tab also changes the agents.
-- The Windows installer is built with Inno Setup under Wine. On x86_64 the
-  scripts install it (`riddix/agents/install-innosetup.sh`) when `iscc` is
-  missing. Without it, only the Linux and macOS agents are built and Windows
-  endpoints get no update from this server.
+- The Windows installer is built with NSIS (`makensis`). The scripts install
+  the `nsis` package when `makensis` is missing, and `osslsigncode` for
+  signing along with it, or on its own when Windows signing is set up
+  (`ULRMM_SIGN_WIN_PFX`). Without `makensis`, only the Linux, macOS and
+  FreeBSD agents are built and Windows endpoints get no update from this
+  server. When the server already serves Windows
+  agents, the agent build step stops with an error instead and builds no
+  agents; the update or install itself still finishes. On Ubuntu 22.04 the
+  packaged NSIS 3.08 builds them with a warning: its uninstaller lacks the fix
+  for CVE-2023-37378. Inno Setup under Wine (`ULRMM_WIN_PACKER=inno`, see
+  `riddix/agents/README.md`) remains as the fallback for one release.
 - Own code signing for Windows (Authenticode) and macOS (Developer ID) is
   optional.
 - Agents -> **Push Current Build to All Agents** rolls out a rebuild under the
@@ -1213,7 +1219,7 @@ hosts for the following purposes:
 |---|---|---|
 | Release checks and signed releases | GitHub; `git.riddix.de`, the developer's own Gitea server, only when `ULRMM_RELEASE_GITEA_TOKEN` is set | Update Center and `update.sh`. Requests to `git.riddix.de` reach the developer's server with your server's IP address and your token. |
 | Repositories | the git URL you install from (default GitHub) | `install.sh`, `update.sh`, the script library sync, and the dashboard's update check (`git ls-remote`, cached 30 minutes) |
-| Installer and build downloads | GitHub releases (NATS, Inno Setup, rcodesign), go.dev and the Go module proxy (proxy.golang.org, sum.golang.org), python.org, the npm registry, PyPI, the distribution mirrors, nginx.org, apt.postgresql.org, NodeSource, the Chocolatey install script from community.chocolatey.org | install, restore, update, agent builds |
+| Installer and build downloads | GitHub releases (NATS, rcodesign, Inno Setup for the fallback packer), go.dev and the Go module proxy (proxy.golang.org, sum.golang.org), python.org, the npm registry, PyPI, the distribution mirrors, nginx.org, apt.postgresql.org, NodeSource, the Chocolatey install script from community.chocolatey.org | install, restore, update, agent builds |
 | Container images | Docker Hub, gcr.io and ghcr.io | Docker Compose installs |
 | Code signing | the RFC 3161 timestamp service you set in `ULRMM_SIGN_TIMESTAMP_URL` | optional, when agents are signed |
 | Certificates | Let's Encrypt | when the installer requests the wildcard certificate |
@@ -1248,7 +1254,8 @@ customers.
 | Node.js | MIT | NodeSource packages, `ulrmm-mesh` image |
 | Python, Django and the other Python packages | PSF-2.0, BSD, MIT, Apache-2.0 and others | python.org and PyPI |
 | Go and the Go modules | BSD-3-Clause, MIT, Apache-2.0 and others | toolchain downloaded by the installer, compiled into nats-api and the agents |
-| Inno Setup, run under Wine | Inno Setup License; Wine LGPL-2.1 | builds the Windows agent installers; the Inno Setup runtime is part of every installer |
+| NSIS | zlib/libpng; the LZMA module CPL-1.0 | builds the Windows agent installers; the NSIS runtime is part of every installer |
+| Inno Setup, run under Wine | Inno Setup License; Wine LGPL-2.1 | optional fallback packer (`ULRMM_WIN_PACKER=inno`); its runtime is then part of the installer |
 | Python embeddable packages | PSF-2.0, plus the licenses of the libraries inside (see LICENSE.txt in each package) | served to the Windows agents |
 | Snappy Driver Installer Origin driver packs | the drivers' vendors' terms | the agents download them from the SDIO web seed; no SDIO program code is used |
 

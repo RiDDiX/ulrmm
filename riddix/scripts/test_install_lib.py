@@ -194,6 +194,162 @@ class TestPgCreateDb(Base):
         self.assertIn("ALTER USER role1 WITH PASSWORD 'pw1';", sql)
 
 
+class TestBuildAgentsStep(Base):
+    # only builtins and these functions: a makensis on this host must not count
+    STUBS = (
+        'PATH="$NOPATH"\n'
+        'lib_info() { echo "$*" >&2; }\n'
+        'lib_warn() { echo "$*" >&2; }\n'
+        'sudo() { "$@"; }\n'
+        "mkdir() { :; }\n"
+        "chown() { :; }\n"
+        'uname() { echo "$UNAME_M"; }\n'
+        'ls_get() { case $1 in ULRMM_WIN_PACKER) printf %s "$LS_PACKER" ;;\n'
+        '  ULRMM_SIGN_WIN_PFX) printf %s "$LS_PFX" ;; esac; return 0; }\n'
+        'env() { echo "ENV $1"; shift; "$@"; }\n'
+        'apt-get() { echo "APT $*"; case " $* " in\n'
+        '  *" update "*) [ "$UPDATE_OK" = 1 ]; return ;;\n'
+        '  *" nsis "*) [ "$APT_OK" = 1 ] || return 1; makensis() { :; } ;;\n'
+        '  *" osslsigncode "*) [ "$OSSL_OK" = 1 ] || return 1; osslsigncode() { :; } ;;\n'
+        "esac; }\n"
+        'bash() { echo "BUILD $*"; }\n'
+    )
+    APT = "APT -o DPkg::Lock::Timeout=300"
+
+    def step(
+        self,
+        windows_in_dist=False,
+        apt_ok=False,
+        update_ok=None,
+        ossl_ok=True,
+        have="",
+        uname="x86_64",
+        **env,
+    ):
+        root = self.root / "agents"
+        (root / "dist").mkdir(parents=True, exist_ok=True)
+        (root / "dist" / "ulrmm-agent-v1.13.11.2026-linux-amd64").write_text("x")
+        if windows_in_dist:
+            (root / "dist" / "ulrmm-agent-v1.13.11.2026-windows-amd64.exe").write_text(
+                "x"
+            )
+        (self.root / "nopath").mkdir(exist_ok=True)
+        # tools already on the host
+        present = "".join(f"{t}() {{ :; }}\n" for t in have.split())
+        return self.bash(
+            self.STUBS
+            + present
+            + function(LIB, "build_agents_step")
+            + "build_agents_step",
+            AGENT_ROOT=str(root),
+            NOPATH=str(self.root / "nopath"),
+            APT_OK="1" if apt_ok else "0",
+            UPDATE_OK="1" if (apt_ok if update_ok is None else update_ok) else "0",
+            OSSL_OK="1" if ossl_ok else "0",
+            UNAME_M=uname,
+            USER="u",
+            LS_PACKER=env.pop("LS_PACKER", ""),
+            LS_PFX=env.pop("LS_PFX", ""),
+            ULRMM_SIGN_WIN_PFX=env.pop("ULRMM_SIGN_WIN_PFX", ""),
+            **env,
+        )
+
+    def test_nsis_is_installed_on_every_architecture(self):
+        for arch in ("x86_64", "aarch64"):
+            with self.subTest(arch=arch):
+                r = self.step(apt_ok=True, uname=arch)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn(f"{self.APT} update -qq", r.stdout)
+                self.assertIn(f"{self.APT} install -y -qq nsis\n", r.stdout)
+                self.assertIn(f"{self.APT} install -y -qq osslsigncode", r.stdout)
+                # every apt-get call runs without questions
+                self.assertEqual(
+                    r.stdout.count("ENV DEBIAN_FRONTEND=noninteractive"),
+                    r.stdout.count("APT "),
+                )
+                self.assertIn("BUILD /rmm/riddix/agents/build_agents.sh", r.stdout)
+                self.assertEqual(r.stderr.count("WARNING"), 0, r.stderr)
+
+    def test_failed_update_still_installs_nsis(self):
+        r = self.step(windows_in_dist=True, apt_ok=True, update_ok=False)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("WARNING: apt-get update failed", r.stderr)
+        self.assertIn(f"{self.APT} install -y -qq nsis\n", r.stdout)
+        self.assertNotIn("makensis is missing", r.stderr)
+        self.assertIn("BUILD /rmm/riddix/agents/build_agents.sh", r.stdout)
+
+    def test_osslsigncode_is_optional(self):
+        r = self.step(windows_in_dist=True, apt_ok=True, ossl_ok=False)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stderr.count("WARNING"), 1, r.stderr)
+        self.assertIn("WARNING: osslsigncode could not be installed", r.stderr)
+        self.assertIn("BUILD /rmm/riddix/agents/build_agents.sh", r.stdout)
+
+    def test_only_the_missing_tool_is_installed(self):
+        # without signing a missing osslsigncode alone runs no apt
+        r = self.step(have="makensis")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("APT", r.stdout)
+        self.assertEqual(r.stderr, "Building agents (this can take a few minutes)...\n")
+        self.assertIn("BUILD", r.stdout)
+        for env in ({"ULRMM_SIGN_WIN_PFX": "/k.pfx"}, {"LS_PFX": "/k.pfx"}):
+            with self.subTest(**env):
+                r = self.step(have="makensis", **env)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertNotIn("install -y -qq nsis", r.stdout)
+                self.assertIn(f"{self.APT} install -y -qq osslsigncode", r.stdout)
+                r = self.step(have="makensis osslsigncode", **env)
+                self.assertNotIn("APT", r.stdout)
+        r = self.step(windows_in_dist=True, have="osslsigncode", apt_ok=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"{self.APT} install -y -qq nsis\n", r.stdout)
+        self.assertNotIn("install -y -qq osslsigncode", r.stdout)
+        r = self.step(have="makensis osslsigncode")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("APT", r.stdout)
+        self.assertIn("BUILD", r.stdout)
+
+    def test_info_line_names_what_is_installed(self):
+        info = "Installing {} for the Windows installer..."
+        for have, env, tools in (
+            ("", {}, "nsis and osslsigncode"),
+            ("osslsigncode", {}, "nsis"),
+            ("makensis", {"ULRMM_SIGN_WIN_PFX": "/k.pfx"}, "osslsigncode"),
+        ):
+            with self.subTest(have=have):
+                r = self.step(apt_ok=True, have=have, **env)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn(info.format(tools) + "\n", r.stderr)
+                self.assertEqual(r.stderr.count("Installing"), 1, r.stderr)
+
+    def test_missing_makensis_fails_where_windows_agents_were_published(self):
+        r = self.step(windows_in_dist=True)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("WARNING: nsis could not be installed.", r.stderr)
+        self.assertIn("ERROR: makensis is missing", r.stderr)
+        self.assertNotIn("ULRMM_WIN_PACKER", r.stderr)
+        self.assertNotIn("BUILD", r.stdout)
+        # the fallback packer is named where it is already installed
+        r = self.step(windows_in_dist=True, have="iscc")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn('ULRMM_WIN_PACKER = "inno" in local_settings.py', r.stderr)
+        self.assertNotIn("BUILD", r.stdout)
+
+    def test_missing_makensis_warns_on_a_host_without_windows_agents(self):
+        r = self.step()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("WARNING: makensis is missing", r.stderr)
+        self.assertIn("BUILD", r.stdout)
+
+    def test_inno_fallback_installs_nothing(self):
+        for env in ({"ULRMM_WIN_PACKER": "inno"}, {"LS_PACKER": "inno"}):
+            with self.subTest(**env):
+                r = self.step(windows_in_dist=True, **env)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertNotIn("APT", r.stdout)
+                self.assertIn("BUILD", r.stdout)
+
+
 @unittest.skipUnless(shutil.which("git"), "needs git")
 class TestCloneOrFetch(Base):
     def git(self, *args):

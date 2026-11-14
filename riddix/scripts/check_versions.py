@@ -172,12 +172,19 @@ def check(repo, web, agent):
         if found is not None and found != agent_ver:
             rows.append(("agent main.go", found, agent_ver, agent / "main.go"))
 
-        iss = agent / "build" / "setup.iss"
-        found = first_match(
-            iss, r'^\s*#define\s+MyAppVersion\s+"([^"]+)"', rows, "setup.iss"
-        )
-        if found is not None and found != agent_ver:
-            rows.append(("setup.iss MyAppVersion", found, agent_ver, iss))
+        # setup.nsi builds the installer; setup.iss is the fallback packer and
+        # is checked for as long as the agent repo still ships it
+        build = agent / "build"
+        for name, pattern in (
+            ("setup.nsi", r'^\s*!define\s+MyAppVersion\s+"([^"]+)"'),
+            ("setup.iss", r'^\s*#define\s+MyAppVersion\s+"([^"]+)"'),
+        ):
+            path = build / name
+            if name == "setup.iss" and not path.exists():
+                continue
+            found = first_match(path, pattern, rows, name)
+            if found is not None and found != agent_ver:
+                rows.append((f"{name} MyAppVersion", found, agent_ver, path))
 
     return rows, version
 

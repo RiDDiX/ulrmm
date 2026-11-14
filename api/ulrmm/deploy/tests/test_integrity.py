@@ -115,7 +115,8 @@ class TestIntegrityManifest(ULRMMTestCase):
         write = 'sha256sum "$SRC/agent.exe" | cut -d\' \' -f1 >"$TMP/$f.agent.sha256"'
         self.assertEqual(integrity.WINDOWS_SUM_SUFFIX, ".agent.sha256")
         self.assertLess(build.index('sign_win "$SRC/agent.exe"'), build.index(write))
-        self.assertLess(build.index(write), build.index("iscc build/setup.iss"))
+        for packer in ("build/setup.nsi )", "iscc build/setup.iss"):
+            self.assertLess(build.index(write), build.index(packer))
         self.assertIn(' windows/$a.exe windows/$a.exe.agent.sha256"', build)
 
     def test_view_serves_signed_manifest(self):

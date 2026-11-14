@@ -4,7 +4,7 @@ The server builds its own agents from the agent repo and publishes them
 under `/agentdist/`. Installed agents fetch binaries, Windows installers,
 Python zips and the Chocolatey install script from this directory, not from
 third-party hosts. The build itself downloads pinned, sha256-checked tools
-at build time (Go, rcodesign, Inno Setup, the Chocolatey script) and mirrors
+at build time (Go, rcodesign, the Chocolatey script) and mirrors
 the Python zips from `ULRMM_PY_ZIP_URL`. The entry point is
 `build_agents.sh`; it sources `sign.sh` and runs `write_brand.py`.
 
@@ -55,7 +55,8 @@ Settings: environment first, then `local_settings.py`, then `settings.py`:
 | Variable | Default |
 |---|---|
 | `AGENT_VER` | `LATEST_AGENT_VER` from the settings |
-| `ULRMM_AGENT_ROOT` | `/opt/ulrmm-agents` (holds `src`, `dist`, `go`, `wine`, `tools`) |
+| `ULRMM_AGENT_ROOT` | `/opt/ulrmm-agents` (holds `src`, `dist`, `go`, `tools`, and `wine` for the fallback packer) |
+| `ULRMM_WIN_PACKER` | `nsis` (`makensis`); `inno` builds with `iscc` instead |
 | `ULRMM_API_DIR` | `/rmm/api/ulrmm` |
 | `ULRMM_AGENT_GIT_URL` | `ULRMM_GIT_URL` with `ulrmm-agent.git` as the last path part |
 | `ULRMM_AGENT_GIT_REF` | `main` (branch or tag) |
@@ -77,28 +78,65 @@ The script stops rather than publishing a partial build:
   `AGENT_ARTIFACT_NAME`.
 - Targets: `linux/amd64 linux/386 linux/arm64 linux/arm darwin/amd64
   darwin/arm64 freebsd/amd64 freebsd/arm64`, plus `windows/amd64` and
-  `windows/386` when `iscc` is available.
+  `windows/386` when `makensis` (or `iscc` for `ULRMM_WIN_PACKER=inno`) is
+  available.
 - Every artifact of this run must exist before anything is copied to
   `$DIST`. Each file goes through a unique staging name and `mv`, so a
   download never sees a half-written file.
 
 ## Windows installers
 
-The installer is built from `build/setup.iss` of the agent repo with `iscc`
-on the PATH. The program inside is built as `agent.exe`, signed if signing
-is set up, then packed; the installer itself is signed afterwards.
-`goversioninfo` v1.4.1 writes the version resource and the
-`requireAdministrator` manifest; if it cannot be installed the build stops.
+The installer is built from `build/setup.nsi` of the agent repo with
+`makensis` (package `nsis`, x86_64 and aarch64) on the PATH:
+`LC_ALL=C.UTF-8 makensis -V2 -WX -INPUTCHARSET UTF8 -DOutFile=... -DMyAppName=...
+build/setup.nsi`. `-WX` turns every warning into an error. The defines are
+the values of `build/brand.env` with `$` written as `$$`; `write_brand.py`
+removes quotes, braces and percent signs from them, and from the product
+name, publisher and URL also backticks and a `\` right after a `$`. An
+identity value (program directory, exe name, service name, registry key,
+AppId) that is empty after that is replaced by the default with a warning, in
+`brand.go` as well; so is a program directory or exe name that is empty once
+trailing dots and spaces are removed (Windows drops them, `.` would be
+`Program Files` itself). Every other value stays as configured, so installed
+agents keep their identity. An identity value with a backtick or a `\` right
+after a `$`, and a program directory or exe name with one of
+`\ / : * ? < > |`, is not replaced either: a backtick ends a string in
+`setup.nsi`, makensis reads `$$\r` as `$` plus a carriage return, `setup.nsi`
+refuses `\ / :` and makensis stops on `* ? < > |`. `build_agents.sh` builds no
+Windows installers in that run, warns with the setting and its value, and
+builds the other targets. To keep the identity of installed agents, build
+this installation's Windows installers with `ULRMM_WIN_PACKER=inno`, which
+does not check these values. Changing the setting gives new installs another
+identity; that is only for servers without Windows agents under that name. The
+program inside is built as `agent.exe`, signed if signing is set up, then
+packed; the installer itself is signed afterwards. `goversioninfo` v1.4.1 writes the
+version resource and the `requireAdministrator` manifest; if it cannot be
+installed the build stops.
 
-`install-innosetup.sh` runs on Debian x86_64 only (wine32), as the build
-user, with sudo for apt. It installs Wine (i386), `xvfb` and `xauth`,
-creates a win32 prefix under `$ULRMM_AGENT_ROOT/wine`, installs Inno Setup
-`INNO_VER` (6.4.3, sha256 pinned, from the jrsoftware GitHub releases) and
-writes `/usr/local/bin/iscc`, a wrapper that runs under `xvfb-run`.
-`build_agents_step` calls it when `iscc` is missing and the host is x86_64.
-Without `iscc`, `build_agents.sh` prints a warning and builds only Linux,
+`build_agents_step` installs `nsis` with apt when `makensis` is missing, and
+`osslsigncode` along with it when that is missing too; with
+`ULRMM_SIGN_WIN_PFX` set it also installs a missing `osslsigncode` on its own.
+apt waits up to 300 seconds for a held dpkg lock. Without `osslsigncode` the
+step prints a warning and goes on, only Windows signing needs it. If `makensis` is still missing and
+`$ULRMM_AGENT_ROOT/dist` already holds Windows installers, the step stops with
+an error and builds nothing; when `iscc` is installed the error names
+`ULRMM_WIN_PACKER = "inno"` as the way to build them meanwhile. Otherwise `build_agents.sh` prints a warning and builds only Linux,
 macOS and FreeBSD, exit code 0; Windows endpoints get no update from this
-server until a run with `iscc` succeeds.
+server until a run with `makensis` succeeds. An NSIS older than 3.09 that is
+not Debian's patched 3.08-3+deb12u1 (Ubuntu 22.04 ships 3.08-2) builds with a
+warning: its uninstaller lacks the fix for CVE-2023-37378.
+
+`ULRMM_WIN_PACKER=inno` builds `build/setup.iss` with `iscc` as before, for
+as long as the agent repo ships it. Agents do not downgrade, so going back to
+Inno Setup means a newer agent version built this way.
+`install-innosetup.sh` sets `iscc` up; nothing calls it automatically. It
+runs on Debian x86_64 only (wine32), as the build user, with sudo for apt.
+It installs Wine (i386), `xvfb` and `xauth`, creates a win32 prefix under
+`$ULRMM_AGENT_ROOT/wine`, installs Inno Setup `INNO_VER` (6.4.3, sha256
+pinned, from the jrsoftware GitHub releases) and writes
+`/usr/local/bin/iscc`, a wrapper that runs under `xvfb-run`. Then set
+`ULRMM_WIN_PACKER = "inno"` in `local_settings.py` (or the environment) and
+run `bash /rmm/riddix/agents/build_agents.sh`.
 
 ## Python for Windows agents
 
@@ -132,7 +170,8 @@ paths, registry key, task prefix, `AGENT_ARTIFACT_NAME`, `AGENT_INNO_APPID`)
 are the agent identity. `write_brand.py` bakes them into `brand.go` and
 `brand.env`. Do not change them on a server with installed agents: an agent
 that reports another identity gets no artifacts (`agent_ident_for`), and a
-different Inno `AppId` installs a second copy next to the old one. Only
+different `AppId` (Inno form `{{GUID}`, also read by `setup.nsi`) installs
+a second copy next to the old one. Only
 display texts come from the branding (`product_name`, `company_name`,
 `support_url`, `favicon` or `logo` as icon).
 

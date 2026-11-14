@@ -98,7 +98,7 @@ Same rule about line numbers as above.
 | Agent inventory (agent table, summary tab, fleet overview) | `Agent.version` | agent line | `ulrmm-web/src/components/AgentTable.vue` |
 | Agent `--version` | agent version plus Go build info | agent line | `ulrmm-agent/agent/utils.go` |
 | Agent logs | agent version on startup | agent line | `ulrmm-agent/agent/utils.go` |
-| Windows installer and file metadata | numeric `YYYY.M.D.X` (`VersionInfoVersion`, file version), `v<agent version>` as text and as `AppVersion` | agent line | `ulrmm-agent/build/setup.iss`, `versioninfo.json`, `riddix/agents/build_agents.sh` |
+| Windows installer and file metadata | numeric `YYYY.M.D.X` (setup file version), `v<agent version>` as text and as the "Apps & features" version | agent line | `ulrmm-agent/build/setup.nsi` (`setup.iss` for the fallback packer), `versioninfo.json`, `riddix/agents/build_agents.sh` |
 | Release artifacts (`ulrmm-agent-v<x>-<os>-<arch>`) | agent version | agent line | `riddix/agents/build_agents.sh` |
 | Server release artifacts | signed assets per `v<version>` tag; git deployment stays possible | done | `.github/workflows/release.yml`, `riddix/scripts/release_build.sh`, `update.sh` |
 
@@ -131,8 +131,8 @@ library uses `## <date>`). The dashboard's About panel shows all four.
    disagrees, builds the SPA and nats-api from source, migrates, restarts.
 8. Agents: only when the agent changed. Take the version from
    `check_versions.py --next agent` and set it as `LATEST_AGENT_VER` in
-   `settings.py` and in the agent's `main.go` and `build/setup.iss`
-   (`MyAppVersion`), then tag the agent repository `v<version>`. `update.sh`
+   `settings.py` and in the agent's `main.go`, `build/setup.nsi` and, while it
+   exists, `build/setup.iss` (`MyAppVersion`), then tag the agent repository `v<version>`. `update.sh`
    runs `riddix/agents/build_agents.sh` itself; the hourly `update_agents`
    command then rolls the fleet forward.
 
@@ -158,8 +158,8 @@ and a second one that day `2.01.10.2026`. No suffixes, no build metadata; the
 gate rejects anything else, including dates that do not exist.
 
 The stored string never has a `v`: `VERSION`, `package.json`,
-`LATEST_AGENT_VER`, the agent's `main.go` and `setup.iss` all carry
-`1.24.09.2026`. The `v` appears only where something is shown or named: the
+`LATEST_AGENT_VER`, the agent's `main.go`, `setup.nsi` and, while it exists,
+`setup.iss` all carry `1.24.09.2026`. The `v` appears only where something is shown or named: the
 dashboard (`v1.24.09.2026`), artifact names (`ulrmm-agent-v1.24.09.2026-linux-amd64`)
 and git tags. A stored `v` would double it in all three.
 
@@ -171,10 +171,10 @@ helper, `agent_ver()` in `api/ulrmm/ulrmm/helpers.py`, which maps
 and the shell scripts only compare for equality.
 
 Windows needs a numeric version of at most four parts, each up to 65535, for the
-file version and the installer's `VersionInfoVersion`. It gets the same mapping,
+file version of the agent and of the installer. It gets the same mapping,
 `YYYY.M.D.X` (`2026.9.24.1`), which `build_agents.sh` derives from the version
-and hands to `goversioninfo` and to ISCC as `MyAppNumVersion`. The installer's
-`AppVersion`, the text shown in "Apps & features", is `v1.24.09.2026`.
+and hands to `goversioninfo` and to `makensis` (or ISCC) as `MyAppNumVersion`.
+The text shown in "Apps & features" is `v1.24.09.2026`.
 npm accepts the string as it is in the private web package; no numeric form is
 needed there.
 
@@ -210,8 +210,8 @@ verifies:
   not a traceback
 - `LATEST_AGENT_VER` is a literal in the same format
 - `--web`: `package.json` version equals `VERSION`
-- `--agent`: `main.go` version and `build/setup.iss` `MyAppVersion` both equal
-  `LATEST_AGENT_VER`
+- `--agent`: `main.go` version and `build/setup.nsi` `MyAppVersion` (and
+  `build/setup.iss` while the agent repository has it) equal `LATEST_AGENT_VER`
 
 Exit code 1 with a table of mismatches, 0 and one line otherwise. `--web` and
 `--agent` are optional, so the check is useful with only the server tree

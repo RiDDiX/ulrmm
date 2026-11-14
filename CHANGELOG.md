@@ -1,5 +1,15 @@
 # Server changelog
 
+## 1.14.11.2026 (2026-11-14)
+
+- agents update to 1.14.11.2026
+- Windows agent installers are built with NSIS (makensis) from build/setup.nsi, on x86_64 and aarch64 hosts and in the `agents` job of the Docker Compose setup; install.sh and update.sh install nsis, and osslsigncode when Windows signing is configured. Wine and Inno Setup are no longer installed by default
+- `ULRMM_WIN_PACKER = "inno"` (environment or local_settings.py) keeps the old packer, Inno Setup under Wine, set up by hand with riddix/agents/install-innosetup.sh
+- the agent build warns when the NSIS runtime is older than 3.09 and lacks the fix for CVE-2023-37378 (Debian 12's 3.08-3+deb12u1 carries it)
+- identity values the NSIS script cannot use (a backtick, a backslash after a "$", or one of \ / : * ? < > | in the program directory or exe name) skip the Windows build with a warning instead of changing the identity of installed agents
+- update.sh builds no agents when makensis is missing but Windows agents were published before, so Windows endpoints do not silently stop getting updates
+- the PowerShell bootstrap no longer adds a Defender process exclusion for the setup's temporary folder
+
 ## 1.13.11.2026 (2026-11-13)
 
 - agents update to 1.13.11.2026

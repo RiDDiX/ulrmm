@@ -1161,15 +1161,46 @@ natsapi_summary() {
   printf 'nats-api: %s, built from source, sha256 %s\n' "${v%%$'\n'*}" "${s%% *}"
 }
 
-# Windows installer: Inno Setup under Wine, x86_64 only.
-# Without it, build_agents.sh still builds Linux and macOS.
+# Windows installer: makensis (NSIS), packaged on every architecture.
+# Without it, build_agents.sh still builds Linux and macOS. ULRMM_WIN_PACKER=inno
+# (environment or local_settings.py) uses iscc instead, set up by hand with
+# riddix/agents/install-innosetup.sh.
 build_agents_step() {
+  local packer=${ULRMM_WIN_PACKER:-$(ls_get ULRMM_WIN_PACKER)}
+  local pfx=${ULRMM_SIGN_WIN_PFX:-$(ls_get ULRMM_SIGN_WIN_PFX)}
   sudo mkdir -p "$AGENT_ROOT"
   sudo chown "${USER}:${USER}" "$AGENT_ROOT"
-  if ! command -v iscc >/dev/null && [ "$(uname -m)" = x86_64 ]; then
-    lib_info "Installing Inno Setup under Wine for the Windows installer..."
-    bash /rmm/riddix/agents/install-innosetup.sh ||
-      lib_warn "WARNING: Inno Setup could not be installed, no Windows agents are built."
+  # osslsigncode alone is looked for only where signing is configured, so an
+  # update without signing does not run apt each time
+  if [ "${packer:-nsis}" != inno ] &&
+    { ! command -v makensis || { [ -n "$pfx" ] && ! command -v osslsigncode; }; } >/dev/null; then
+    local tools=nsis
+    command -v makensis >/dev/null && tools=''
+    command -v osslsigncode >/dev/null || tools="${tools:+$tools and }osslsigncode"
+    lib_info "Installing $tools for the Windows installer..."
+    # one broken third-party source fails the update, not the install;
+    # a running unattended-upgrades holds the dpkg lock for a while
+    local apt=(sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300)
+    "${apt[@]}" update -qq ||
+      lib_warn "WARNING: apt-get update failed, installing from the package lists at hand."
+    command -v makensis >/dev/null || "${apt[@]}" install -y -qq nsis ||
+      lib_warn "WARNING: nsis could not be installed."
+    # optional: only signing needs it
+    command -v osslsigncode >/dev/null || "${apt[@]}" install -y -qq osslsigncode ||
+      lib_warn "WARNING: osslsigncode could not be installed, Windows signing (ULRMM_SIGN_WIN_PFX) needs it."
+    if ! command -v makensis >/dev/null; then
+      # a server that published Windows setups before would silently stop
+      # updating its Windows endpoints
+      if compgen -G "${AGENT_ROOT}/dist/*-windows-*.exe" >/dev/null; then
+        lib_warn "ERROR: makensis is missing, but ${AGENT_ROOT}/dist holds Windows agents."
+        lib_warn "No agents are built: Windows endpoints would get no further updates."
+        lib_warn "Install it (sudo apt-get install nsis), then run bash /rmm/riddix/agents/build_agents.sh"
+        command -v iscc >/dev/null &&
+          lib_warn "Meanwhile ULRMM_WIN_PACKER = \"inno\" in local_settings.py builds them with Inno Setup."
+        return 1
+      fi
+      lib_warn "WARNING: makensis is missing, no Windows agents are built."
+    fi
   fi
   lib_info "Building agents (this can take a few minutes)..."
   if ! bash /rmm/riddix/agents/build_agents.sh; then
