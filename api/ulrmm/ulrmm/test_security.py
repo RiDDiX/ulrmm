@@ -28,7 +28,7 @@ from ulrmm.helpers import (
     get_nats_server_password,
     setup_nats_options,
 )
-from ulrmm.test import LOCMEM_CACHE, ULRMMTestCase
+from ulrmm.test import LOCMEM_CACHE, NATS_RUNNING, ULRMMTestCase
 from winupdate.models import WinUpdatePolicy
 from winupdate.serializers import WinUpdatePolicySerializer
 
@@ -202,7 +202,7 @@ class TestNatsServerCredential(ULRMMTestCase):
 
     @override_settings(NATS_SERVER_PASSWORD="configured-nats-pass")
     @patch("ulrmm.utils.time.sleep")
-    @patch("ulrmm.utils.subprocess.run")
+    @patch("ulrmm.utils.subprocess.run", return_value=NATS_RUNNING)
     def test_reload_nats_server_user(self, run, sleep):
         from ulrmm.utils import reload_nats
 

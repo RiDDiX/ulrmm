@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+import subprocess
 import time
 from unittest.mock import patch
 
@@ -17,8 +18,13 @@ from ulrmm.celery import app
 from ulrmm.helpers import get_nats_hosts
 from ulrmm.logfilter import SCAN_LIMIT, RedactFilter, redact
 from logs.models import DebugLog
-from ulrmm.test import LOCMEM_CACHE, ULRMMTestCase
-from ulrmm.utils import nats_config, nats_publish_allow, reload_nats
+from ulrmm.test import LOCMEM_CACHE, NATS_RUNNING, ULRMMTestCase
+from ulrmm.utils import (
+    nats_config,
+    nats_publish_allow,
+    nats_signal_wanted,
+    reload_nats,
+)
 
 OLD, NEW = "1.25.10.2026", settings.SEC_R1_MIN_AGENT
 
@@ -112,7 +118,7 @@ def test_websocket_stays_on_loopback():
 
 
 @patch("ulrmm.utils.time.sleep")
-@patch("ulrmm.utils.subprocess.run")
+@patch("ulrmm.utils.subprocess.run", return_value=NATS_RUNNING)
 class TestNatsConfig(ULRMMTestCase):
     path = os.path.join(settings.BASE_DIR, "nats-rmm.conf")
 
@@ -157,10 +163,62 @@ class TestNatsConfig(ULRMMTestCase):
         # natsapi writes the version of an agent that updated itself
         type(self.old).objects.filter(pk=self.old.pk).update(version=NEW)
         self.assertTrue(refresh_nats_config_task())
-        run.assert_called_once()
+        self.assertEqual(
+            [c.args[0][0] for c in run.call_args_list],
+            ["systemctl", "/usr/local/bin/nats-server"],
+        )
         _, users = self.users()
         allow = users[self.old.agent_id]["permissions"]["publish"]["allow"]
         self.assertNotIn(self.old.agent_id, allow)
+
+
+def test_nats_signal_only_to_a_running_unit():
+    unit = "LoadState=loaded\nActiveState={}\n"
+    for state in ("active", "reloading"):
+        assert nats_signal_wanted(unit.format(state)), state
+    # update.sh and install.sh write the file while nats is stopped
+    for state in ("inactive", "activating", "deactivating", "failed"):
+        assert not nats_signal_wanted(unit.format(state)), state
+    # no nats unit or no readable answer: send it, a failure gets logged
+    for odd in ("LoadState=not-found\nActiveState=inactive\n", "", "x"):
+        assert nats_signal_wanted(odd), odd
+
+
+class TestNatsReloadSignal(ULRMMTestCase):
+    def reload(self, state, code=0):
+        def run(cmd, **kwargs):
+            if cmd[0] == "systemctl":
+                out = f"LoadState=loaded\nActiveState={state}\n"
+                return subprocess.CompletedProcess(cmd, 0, out, "")
+            return subprocess.CompletedProcess(cmd, code, b"", b"")
+
+        with patch("ulrmm.utils.time.sleep"), patch(
+            "ulrmm.utils.subprocess.run", side_effect=run
+        ) as mocked:
+            self.assertTrue(reload_nats())
+        return [c.args[0][0] for c in mocked.call_args_list]
+
+    def failures(self):
+        return list(
+            DebugLog.objects.filter(
+                message__startswith="nats-server config reload did not succeed"
+            ).values_list("message", flat=True)
+        )
+
+    def test_stopped_server_gets_no_signal(self):
+        self.assertEqual(self.reload("inactive", code=1), ["systemctl"])
+        self.assertEqual(self.failures(), [])
+
+    def test_running_server_is_reloaded(self):
+        calls = self.reload("active")
+        self.assertEqual(calls, ["systemctl", "/usr/local/bin/nats-server"])
+        self.assertEqual(self.failures(), [])
+
+    def test_failed_reload_of_a_running_server_is_logged(self):
+        self.reload("active", code=1)
+        self.assertEqual(
+            self.failures(), ["nats-server config reload did not succeed: exit code 1"]
+        )
 
 
 @override_settings(CACHES=LOCMEM_CACHE)

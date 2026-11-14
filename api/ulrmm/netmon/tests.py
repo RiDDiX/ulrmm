@@ -643,7 +643,8 @@ class TestPollerAndAlerts(ULRMMTestCase):
         record(self.device, down, now)
         self.assertFalse(Alert.objects.exists())  # fails_b4_alert is 2
 
-        record(self.device, down, now)
+        with self.captureOnCommitCallbacks(execute=True):
+            record(self.device, down, now)
         alert = Alert.objects.get()
         self.assertEqual(alert.alert_type, AlertType.NETWORK)
         self.assertEqual(alert.severity, AlertSeverity.ERROR)
@@ -664,7 +665,8 @@ class TestPollerAndAlerts(ULRMMTestCase):
 
         # the failure mail went out, so the recovery is news
         Alert.objects.filter(pk=alert.pk).update(email_sent=now)
-        record(self.device, up_result(), now)
+        with self.captureOnCommitCallbacks(execute=True):
+            record(self.device, up_result(), now)
         alert.refresh_from_db()
         self.assertTrue(alert.resolved)
         resolved_email.assert_called_once()
@@ -1594,9 +1596,11 @@ class TestMonitorAlerts(ULRMMTestCase):
         with patch.object(
             network_alert_email_task, "delay", side_effect=network_alert_email_task
         ):
-            record(self.device, warning, djangotime.now())
+            with self.captureOnCommitCallbacks(execute=True):
+                record(self.device, warning, djangotime.now())
             self.assertEqual(send_mail.call_count, 1)
-            record(self.device, error, djangotime.now())
+            with self.captureOnCommitCallbacks(execute=True):
+                record(self.device, error, djangotime.now())
             self.assertEqual(send_mail.call_count, 2)
             self.assertIn("expires in 3 days", send_mail.call_args.args[1])
             # once, not on every poll

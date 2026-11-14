@@ -66,12 +66,14 @@ class TestMaintenanceWindowSilences(ULRMMTestCase):
             state="installing",
             schedule__kind="maintenance",
         )
-        Alert.handle_alert_failure(self.result)
+        with self.captureOnCommitCallbacks(execute=True):
+            Alert.handle_alert_failure(self.result)
         email.assert_not_called()
         self.assertFalse(Alert.objects.exists())
 
         run.delete()
-        Alert.handle_alert_failure(self.result)
+        with self.captureOnCommitCallbacks(execute=True):
+            Alert.handle_alert_failure(self.result)
         email.assert_called_once()
 
 
@@ -154,7 +156,8 @@ class TestRecoveryNeedsAFailureNotice(ULRMMTestCase):
                 severity=AlertSeverity.ERROR,
                 email_sent=sent,
             )
-            Alert.handle_alert_resolve(agent)
+            with self.captureOnCommitCallbacks(execute=True):
+                Alert.handle_alert_resolve(agent)
             alert.refresh_from_db()
             self.assertTrue(alert.resolved)
         recovery.assert_called_once_with(pk=alert.pk)

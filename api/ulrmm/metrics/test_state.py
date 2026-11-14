@@ -417,6 +417,50 @@ class TestSeries(SimpleTestCase):
         self.assertEqual(names.count("temp.c"), 16)
         self.assertLessEqual(len(values), 256)
 
+    def mount_series(self, mounts, bound=frozenset()):
+        body = doc()
+        body["system"]["mounts"] = mounts
+        values = series(clean_state(body), bound)
+        return [
+            parse_key(key)[1]["mount"]
+            for key in values
+            if parse_key(key)[0] == "disk.used_pct"
+        ]
+
+    def test_many_mounts_keep_the_largest(self):
+        mount = DOC["system"]["mounts"][0]
+        mounts = [dict(mount, mount=f"/small{i}", size=GB) for i in range(20)]
+        # large pools arrive last, two of equal size, one without a size
+        mounts += [dict(mount, mount=f"/pool{i}", size=(10 + i) * GB) for i in range(3)]
+        mounts.append(dict(mount, mount="/tank", size=10 * GB))
+        nosize = dict(mount, mount="/nosize")
+        del nosize["size"]
+        mounts.append(nosize)
+        mounts.append(dict(mount, mount="/huge", stale=True, size=1000 * GB))
+        kept = self.mount_series(mounts)
+        self.assertEqual(len(kept), 16)
+        self.assertEqual(
+            kept,
+            ["/pool2", "/pool1", "/pool0", "/tank"] + [f"/small{i}" for i in range(12)],
+        )
+
+    def test_many_mounts_keep_the_ones_a_check_reads(self):
+        mount = DOC["system"]["mounts"][0]
+        mounts = [dict(mount, mount=f"/small{i}", size=GB) for i in range(20)]
+        mounts += [dict(mount, mount=f"/pool{i}", size=(10 + i) * GB) for i in range(3)]
+        kept = self.mount_series(mounts, frozenset({"/small19", "/gone"}))
+        self.assertEqual(
+            kept,
+            ["/small19", "/pool2", "/pool1", "/pool0"]
+            + [f"/small{i}" for i in range(12)],
+        )
+
+    def test_few_mounts_keep_the_received_order(self):
+        mount = DOC["system"]["mounts"][0]
+        mounts = [dict(mount, mount=f"/m{i}", size=i * GB) for i in range(16)]
+        mounts.append(dict(mount, mount="/gone", stale=True, size=1000 * GB))
+        self.assertEqual(self.mount_series(mounts), [f"/m{i}" for i in range(16)])
+
 
 class TestStatePush(ULRMMTestCase):
     def setUp(self):
@@ -820,6 +864,22 @@ class TestMetricChecks(ULRMMTestCase):
         self.assertEqual(self.result(below).more_info, "Average of 1 samples: 2")
         self.assertEqual(self.result(above).status, CheckStatus.FAILING)
         self.assertEqual(self.result(below).status, CheckStatus.FAILING)
+
+    def test_bound_mount_keeps_its_series_on_a_crowded_host(self):
+        check = self.metric_check(
+            metric="disk.used_pct", metric_labels={"mount": "/data19"}, metric_error=90
+        )
+        self.metric_check(metric="disk.used_pct", metric_labels={"mount": "*"})
+        mount = DOC["system"]["mounts"][0]
+        body = doc()
+        body["system"]["mounts"] = [
+            dict(mount, mount=f"/data{i}", size=(100 - i) * GB) for i in range(20)
+        ]
+        sample = ingest(self.agent, clean_state(body))
+        mounts = [parse_key(k)[1].get("mount") for k in sample.values]
+        self.assertIn("/data19", mounts)
+        self.assertNotIn("/data15", mounts)
+        self.assertEqual(self.result(check).more_info, "Average of 1 samples: 40")
 
     def test_missing_series_is_an_error(self):
         check = self.metric_check(metric_labels={"sensor": "gone"}, metric_warning=70)

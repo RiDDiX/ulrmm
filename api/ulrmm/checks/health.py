@@ -10,7 +10,7 @@ caps lengths, and ``evaluate`` never raises.
 """
 
 import math
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 SECURITY = "security"
 HW_HEALTH = "hwhealth"
@@ -53,7 +53,53 @@ GAP_ERRORS = {
     ),
 }
 
+# the collector found no smartctl, so disks it would have read are not listed
+NO_SMARTCTL = "smartctl not installed"
+NO_SMARTCTL_TEXT = "disk health not read: smartctl is not installed"
+# maker or model strings of hypervisors, as DMI or WMI name them; a virtual
+# machine has no disks of its own to read, so it gets no such line
+VM_MAKERS = (
+    "qemu",
+    "kvm",
+    "vmware",
+    "virtualbox",
+    "innotek",
+    "xen",
+    "bochs",
+    "bhyve",
+    "parallels",
+    "hyper-v",
+    "virtual machine",
+    # the chassis maker VMware reports
+    "no enclosure",
+    "openstack",
+    "amazon ec2",
+    "google compute engine",
+    # Hetzner vServer, DigitalOcean Droplet, Alibaba Cloud ECS
+    "vserver",
+    "droplet",
+    "alibaba cloud",
+    "nutanix ahv",
+    "ovirt",
+    # Cloud Hypervisor, RHEV Hypervisor
+    "hypervisor",
+)
+
 Problems = list[tuple[str, str]]
+
+
+def is_virtual(make_model: Any) -> bool:
+    """True when the stored make and model name a hypervisor."""
+    name = _s(make_model, 256).lower()
+    return any(maker in name for maker in VM_MAKERS)
+
+
+def _virtual(make_model: Callable[[], Any]) -> bool:
+    try:
+        return is_virtual(make_model())
+    except Exception:
+        # an unreadable make and model counts as a physical host
+        return False
 
 
 def run_interval(check_type: str, interval: int, fallback: int) -> int:
@@ -220,9 +266,16 @@ def _hardware(health: dict, warn: Any, err: Any) -> tuple[Problems, list[str]]:
 
 
 def evaluate(
-    check_type: str, plat: str, health: Any, warn: Any, err: Any
+    check_type: str,
+    plat: str,
+    health: Any,
+    warn: Any,
+    err: Any,
+    make_model: Callable[[], Any] = lambda: "",
 ) -> tuple[str, Optional[str], str]:
-    """Returns (status, severity or None when passing, text for more_info)."""
+    """Returns (status, severity or None when passing, text for more_info).
+    ``make_model`` gives the device's stored make and model; it is only read
+    when a hardware report lists no disk because smartctl is missing."""
     if health is None:
         return FAILING, WARNING, "no health report, agent update required"
     version = health.get("v") if isinstance(health, dict) else None
@@ -264,10 +317,19 @@ def evaluate(
             if e.startswith(GAP_ERRORS[kind])
         ]
 
+    extra = []
+    if (
+        kind == HW_HEALTH
+        and NO_SMARTCTL in errors
+        and not _dicts(health.get("disks"))
+        and not _virtual(make_model)
+    ):
+        extra.append(NO_SMARTCTL_TEXT)
+
     if not problems:
-        return PASSING, None, ("OK: " + "; ".join(notes))[:MAX_TEXT]
+        return PASSING, None, ("OK: " + "; ".join(notes + extra))[:MAX_TEXT]
 
     problems.sort(key=lambda p: p[0] != ERROR)
     severity = ERROR if problems[0][0] == ERROR else WARNING
-    text = "; ".join(t for _, t in problems[:MAX_REASONS])
+    text = "; ".join([t for _, t in problems[:MAX_REASONS]] + extra)
     return FAILING, severity, text[:MAX_TEXT]

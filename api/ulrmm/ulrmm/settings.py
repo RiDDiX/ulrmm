@@ -52,7 +52,7 @@ ULRMM_VERSION = VERSION_FILE.read_text().strip()
 # to alert user they need to manually refresh their browser
 APP_VER = "0.0.203"
 
-LATEST_AGENT_VER = "1.14.11.2026"
+LATEST_AGENT_VER = "2.14.11.2026"
 
 # first agent that installs from winget, older ones only get Chocolatey
 WINGET_MIN_AGENT = "3.20.10.2026"

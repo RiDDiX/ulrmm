@@ -95,7 +95,8 @@ class TestDispatch(ULRMMTestCase):
         route([a, b, off], sources=["check"], severities=["error", "warning"])
         route([a, quiet], sources=["netmon"])
 
-        self.assertEqual(d.dispatch(event()), 2)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(d.dispatch(event()), 2)
         rows = Notification.objects.order_by("pk")
         self.assertEqual({r.channel_id for r in rows}, {a.pk, b.pk})
         self.assertEqual(rows[0].state, State.QUEUED)
@@ -124,7 +125,9 @@ class TestDispatch(ULRMMTestCase):
         from django.test.utils import CaptureQueriesContext
 
         route([channel()])
-        with CaptureQueriesContext(connection) as queries:
+        with CaptureQueriesContext(
+            connection
+        ) as queries, self.captureOnCommitCallbacks(execute=True):
             self.assertEqual(d.dispatch(event(dedupe_key="k1")), 1)
         sql = [q["sql"] for q in queries.captured_queries]
         lock = next(i for i, q in enumerate(sql) if "pg_advisory_xact_lock" in q)

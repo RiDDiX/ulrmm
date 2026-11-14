@@ -581,6 +581,33 @@ def nats_config() -> dict:
     return config
 
 
+def nats_signal_wanted(unit_state: str) -> bool:
+    """Decides from ``systemctl show nats -p LoadState -p ActiveState`` whether
+    a reload signal is needed. A nats unit that is stopped or (re)starting reads
+    nats-rmm.conf when it starts, and nats-server -signal reload fails without
+    a running server. An answer that cannot be read keeps the signal, so a
+    failure is still logged."""
+    props = dict(
+        line.partition("=")[::2] for line in unit_state.splitlines() if "=" in line
+    )
+    if props.get("LoadState") != "loaded" or "ActiveState" not in props:
+        return True
+    return props["ActiveState"] in ("active", "reloading")
+
+
+def _nats_signal_wanted() -> bool:
+    try:
+        result = subprocess.run(
+            ["systemctl", "show", "nats", "-p", "LoadState", "-p", "ActiveState"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except Exception:
+        return True
+    return nats_signal_wanted(result.stdout)
+
+
 def reload_nats(*, only_if_changed: bool = False) -> bool:
     """Writes nats-rmm.conf and reloads nats-server. only_if_changed leaves
     both alone when the file already holds this config. True when written."""
@@ -598,6 +625,8 @@ def reload_nats(*, only_if_changed: bool = False) -> bool:
         _write_conf_atomic(path, config)
     if not settings.ULRMM_NATS_RELOAD:
         # the compose nats service reloads itself (docker/nats/reload-watch.sh)
+        return True
+    if not _nats_signal_wanted():
         return True
 
     time.sleep(0.5)

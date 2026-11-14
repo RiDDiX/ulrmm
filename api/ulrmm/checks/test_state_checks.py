@@ -1,21 +1,36 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+import uuid
+from unittest.mock import patch
+
+from django.core.cache import cache
+from django.test import override_settings
 from django.utils import timezone as djangotime
 from model_bakery import baker
 from rest_framework.exceptions import ValidationError
 
+from alerts.models import Alert
 from automation.models import Policy, _check_key
-from checks.models import Check, CheckResult, clean_result
+from checks.models import (
+    Check,
+    CheckHistory,
+    CheckResult,
+    apply_result,
+    clean_result,
+)
+from logs.models import DebugLog
 from metrics.models import AgentState
+from notify.models import Notification
 from ulrmm.constants import (
     POLICY_CHECK_FIELDS_TO_COPY,
     AgentPlat,
     AlertSeverity,
     CheckStatus,
     CheckType,
+    DebugLogType,
 )
-from ulrmm.test import ULRMMTestCase
+from ulrmm.test import LOCMEM_CACHE, ULRMMTestCase
 
 
 class TestStateCheckValidation(ULRMMTestCase):
@@ -442,3 +457,243 @@ class TestStateCheckRunner(ULRMMTestCase):
                 (result.status, result.fail_count), (CheckStatus.PASSING, 0)
             )
             self.assertFalse(check.alert.filter(resolved=False).exists())
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+class TestCheckResultResend(ULRMMTestCase):
+    def setUp(self):
+        cache.clear()
+        self.setup_coresettings()
+        self.setup_client()
+        self.agent = baker.make_recipe("agents.online_agent", plat=AgentPlat.LINUX)
+        self.authenticate_agent(self.agent)
+        self.unit = baker.make(
+            "checks.Check",
+            agent=self.agent,
+            check_type=CheckType.SYSTEMD,
+            svc_name="nginx.service",
+            fails_b4_alert=1,
+            dashboard_alert=True,
+        )
+        baker.make(
+            "autotasks.AutomatedTask",
+            agent=self.agent,
+            assigned_check=self.unit,
+            enabled=True,
+        )
+
+    def send(self, result_id, status="failing", agent=None):
+        body = {
+            "id": self.unit.pk,
+            "agent_id": (agent or self.agent).agent_id,
+            "status": status,
+            "more_info": "failed/failed, restarts 3",
+        }
+        if result_id is not None:
+            body["result_id"] = result_id
+        return self.client.patch("/api/v3/checkrunner/", body, format="json")
+
+    def applied(self):
+        result = CheckResult.objects.filter(assigned_check=self.unit).first()
+        return (
+            result and result.fail_count,
+            CheckHistory.objects.filter(check_id=self.unit.pk).count(),
+            Alert.objects.filter(assigned_check=self.unit).count(),
+        )
+
+    @patch("autotasks.models.AutomatedTask.run_win_task")
+    def test_first_delivery_and_duplicate(self, run_task):
+        result_id = "0123456789abcdef0123456789abcdef"
+        r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+        self.assertEqual(run_task.call_count, 1)
+
+        # the answer got lost, the agent sends the same result again
+        r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+        self.assertEqual(run_task.call_count, 1)
+
+        # the next result has its own id
+        r = self.send(uuid.uuid4().hex)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (2, 2, 1))
+        self.assertEqual(run_task.call_count, 2)
+
+    @patch("autotasks.models.AutomatedTask.run_win_task")
+    def test_ids_are_per_agent(self, run_task):
+        other = baker.make_recipe("agents.online_agent", plat=AgentPlat.LINUX)
+        result_id = uuid.uuid4().hex
+        self.assertEqual(self.send(result_id).status_code, 200)
+        self.authenticate_agent(other)
+        theirs = baker.make(
+            "checks.Check",
+            agent=other,
+            check_type=CheckType.SYSTEMD,
+            svc_name="nginx.service",
+        )
+        r = self.client.patch(
+            "/api/v3/checkrunner/",
+            {
+                "id": theirs.pk,
+                "agent_id": other.agent_id,
+                "status": "passing",
+                "more_info": "active/running, restarts 0",
+                "result_id": result_id,
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(CheckResult.objects.filter(assigned_check=theirs).exists())
+
+    @patch("autotasks.models.AutomatedTask.run_win_task")
+    def test_failed_apply_is_processed_on_resend(self, run_task):
+        result_id = uuid.uuid4().hex
+        with patch("apiv3.views.apply_result", side_effect=RuntimeError("db gone")):
+            with self.assertRaises(RuntimeError):
+                self.send(result_id)
+        self.assertEqual(self.applied(), (None, 0, 0))
+
+        r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+        self.assertEqual(run_task.call_count, 1)
+
+    @patch("autotasks.models.AutomatedTask.run_win_task")
+    def test_resend_while_applying_is_asked_again(self, run_task):
+        result_id = uuid.uuid4().hex
+        meanwhile = []
+
+        def slow(*args):
+            # the agent stopped waiting and sends again before this one is done
+            meanwhile.append(self.send(result_id).status_code)
+            return apply_result(*args)
+
+        with patch("apiv3.views.apply_result", side_effect=slow):
+            r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(meanwhile, [503])
+        self.assertEqual(self.applied(), (1, 1, 1))
+
+        r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+        self.assertEqual(run_task.call_count, 1)
+
+    def route_check_alerts(self):
+        channel = baker.make(
+            "notify.Channel", kind="ntfy", config={"topic": "t"}, name="n"
+        )
+        route = baker.make("notify.Route", name="r", sources=["check"])
+        route.channels.set([channel])
+
+    @patch("notify.tasks.send_notifications_task.delay")
+    def test_failing_alert_part_rolls_the_result_back(self, delay):
+        self.route_check_alerts()
+        result_id = uuid.uuid4().hex
+        with patch(
+            "alerts.models.Alert.handle_alert_failure",
+            side_effect=RuntimeError("db gone"),
+        ), self.captureOnCommitCallbacks(execute=True):
+            with self.assertRaises(RuntimeError):
+                self.send(result_id)
+        self.assertEqual(self.applied(), (0, 0, 0))
+
+        with patch("autotasks.models.AutomatedTask.run_win_task"):
+            with self.captureOnCommitCallbacks(execute=True):
+                r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+        delay.assert_called_once()
+
+    @patch("notify.tasks.send_notifications_task.delay")
+    def test_failing_task_keeps_result_alert_and_notification(self, delay):
+        self.route_check_alerts()
+        baker.make(
+            "autotasks.AutomatedTask",
+            agent=self.agent,
+            assigned_check=self.unit,
+            enabled=True,
+        )
+        result_id = uuid.uuid4().hex
+        with patch(
+            "autotasks.models.AutomatedTask.run_win_task",
+            side_effect=[RuntimeError("nats gone"), "ok"],
+        ) as run_task, self.captureOnCommitCallbacks(execute=True):
+            r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+        self.assertEqual(run_task.call_count, 2)
+        rows = list(Notification.objects.values_list("pk", flat=True))
+        self.assertEqual(len(rows), 1)
+        delay.assert_called_once_with(rows)
+        self.assertTrue(
+            DebugLog.objects.filter(
+                agent=self.agent,
+                log_type=DebugLogType.AGENT_ISSUES,
+                message__contains="nats gone",
+            ).exists()
+        )
+
+        with patch("autotasks.models.AutomatedTask.run_win_task") as run_task:
+            r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+        run_task.assert_not_called()
+
+    def result_cache_down(self, method):
+        real = getattr(cache, method)
+
+        def call(key, *args, **kwargs):
+            if key.startswith("checkresult:"):
+                raise ConnectionError("down")
+            return real(key, *args, **kwargs)
+
+        return patch.object(cache, method, side_effect=call)
+
+    @patch("autotasks.models.AutomatedTask.run_win_task")
+    def test_cache_down_at_claim_applies_without_duplicate_check(self, run_task):
+        with self.result_cache_down("add"):
+            for count in (1, 2):
+                r = self.send("0123456789abcdef0123456789abcdef")
+                self.assertEqual((r.status_code, r.data), (200, "ok"))
+                self.assertEqual(self.applied()[:2], (count, count))
+        self.assertEqual(run_task.call_count, 2)
+
+    @patch("autotasks.models.AutomatedTask.run_win_task")
+    def test_cache_down_at_final_mark_keeps_the_answer(self, run_task):
+        result_id = uuid.uuid4().hex
+        with self.result_cache_down("set"):
+            r = self.send(result_id)
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+
+        # the claim still holds the id until it expires
+        r = self.send(result_id)
+        self.assertEqual(r.status_code, 503)
+        self.assertEqual(self.applied(), (1, 1, 1))
+        self.assertEqual(run_task.call_count, 1)
+
+    @patch("autotasks.models.AutomatedTask.run_win_task")
+    def test_old_agent_without_id(self, run_task):
+        for count in (1, 2):
+            r = self.send(None)
+            self.assertEqual((r.status_code, r.data), (200, "ok"))
+            self.assertEqual(self.applied()[:2], (count, count))
+        self.assertEqual(run_task.call_count, 2)
+
+    def test_malformed_id_is_refused(self):
+        for bad in (
+            "0123456789ABCDEF0123456789ABCDEF",
+            "0123456789abcdef0123456789abcde",
+            "0123456789abcdef0123456789abcdef0",
+            "0123456789abcdef0123456789abcdeg",
+            "0123456789abcdef0123456789abcdef\n",
+            "",
+            123,
+            ["0123456789abcdef0123456789abcdef"],
+        ):
+            r = self.send(bad)
+            self.assertEqual(r.status_code, 400, bad)
+        self.assertEqual(self.applied(), (None, 0, 0))

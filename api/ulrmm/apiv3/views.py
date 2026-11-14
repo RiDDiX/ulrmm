@@ -149,6 +149,13 @@ MESH_IDENTS = {
 SYNCMESH_DEBOUNCE_KEY = "syncmesh-trigger"
 SYNCMESH_DEBOUNCE = 60
 
+# the agent resends a result whose answer it did not get, under the same id
+RESULT_ID_RE = re.compile(r"[0-9a-f]{32}")
+RESULT_ID_TTL = 15 * 60
+RESULT_APPLYING, RESULT_APPLIED = "applying", "applied"
+# a worker killed by the uwsgi harakiri (300 s) leaves no lasting claim
+RESULT_APPLYING_TTL = 300
+
 
 # helpers
 
@@ -414,7 +421,38 @@ class CheckRunner(AgentTokenView):
         if not _owns_check(agent, check):
             return notify_error("")
 
-        apply_result(check, agent, clean_result(check.check_type, data))
+        result_id = data.get("result_id")
+        if result_id is not None and not (
+            isinstance(result_id, str) and RESULT_ID_RE.fullmatch(result_id)
+        ):
+            return notify_error("result_id must be 32 lowercase hex characters")
+        payload = clean_result(check.check_type, data)
+        if result_id is None:
+            apply_result(check, agent, payload)
+            return Response("ok")
+
+        # claimed before applying, so two deliveries never both apply
+        key = f"checkresult:{agent.pk}:{result_id}"
+        try:
+            claimed = cache.add(key, RESULT_APPLYING, RESULT_APPLYING_TTL)
+        except Exception as e:
+            # a lost result weighs more than a duplicate one
+            logger.warning(f"checkrunner {agent.agent_id}: no duplicate check: {e!r}")
+            apply_result(check, agent, payload)
+            return Response("ok")
+        if not claimed:
+            if cache.get(key) == RESULT_APPLIED:
+                return Response("ok")
+            # the first delivery may still fail, the agent sends again
+            return Response("result is being applied", status=503)
+        try:
+            apply_result(check, agent, payload)
+        except BaseException:
+            cache.delete(key)
+            raise
+        # the claim expires on its own if this fails
+        with suppress(Exception):
+            cache.set(key, RESULT_APPLIED, RESULT_ID_TTL)
         return Response("ok")
 
 

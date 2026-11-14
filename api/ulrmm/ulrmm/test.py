@@ -3,6 +3,7 @@
 
 """Base class and cache settings shared by the API test modules."""
 
+import subprocess
 import uuid
 from typing import Any, Optional
 
@@ -28,6 +29,11 @@ LOCMEM_CACHE = {
         "LOCATION": "totp-enrolment",
     }
 }
+
+# systemctl show for a running nats unit; of nats-server only the code is read
+NATS_RUNNING = subprocess.CompletedProcess(
+    [], 0, "LoadState=loaded\nActiveState=active\n", ""
+)
 
 # dummy key: a CoreSettings row without one makes the mesh helpers wait for a token
 TEST_MESH_KEY = (

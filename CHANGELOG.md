@@ -1,5 +1,14 @@
 # Server changelog
 
+## 2.14.11.2026 (2026-11-14)
+
+- agents update to 2.14.11.2026
+- check results: a result that an agent sends again because the server's answer got lost is stored once, without a second history row, alert or task run (agents from 2.14.11.2026 on send each result with an id); a resend that arrives while the first one is still being stored is answered 503 and the agent sends it again
+- a check result, its history row and its alert are stored together; mail, text messages and notifications go out after that; a task linked to a failing check that cannot be sent to the agent is written to the debug log and no longer loses the check result
+- usage series on hosts with more than 16 mounts go to the mounts a metric check names first, then to the largest ones, instead of the first 16 the agent reported. On such hosts the mounts that have a series can change with this update
+- hardware health: a physical host without smartctl shows "disk health not read: smartctl is not installed" in the check text; virtual machines get no such line
+- updates no longer leave the log entry "nats-server config reload did not succeed": a NATS server that is stopped or starting gets no reload signal and reads the new config when it starts
+
 ## 1.14.11.2026 (2026-11-14)
 
 - agents update to 1.14.11.2026

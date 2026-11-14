@@ -122,7 +122,9 @@ def _dispatch(event: dict) -> int:
                 return 0
         rows = _queue(event, routes, severity, alert, source, key)
     if rows:
-        send_notifications_task.delay([r.pk for r in rows])
+        pks = [r.pk for r in rows]
+        # inside a caller's transaction the rows are visible only after commit
+        transaction.on_commit(lambda: send_notifications_task.delay(pks))
     return len(rows)
 
 

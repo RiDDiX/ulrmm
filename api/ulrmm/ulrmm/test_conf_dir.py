@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.management import call_command
 from django.test import override_settings
 
-from ulrmm.test import ULRMMTestCase
+from ulrmm.test import NATS_RUNNING, ULRMMTestCase
 from ulrmm.utils import reload_nats
 
 
@@ -25,8 +25,7 @@ class TestConfDir(ULRMMTestCase):
         self.assertEqual(settings.ULRMM_CONF_DIR, "")
         with override_settings(BASE_DIR=self.tmp.name), patch(
             "ulrmm.utils.time.sleep"
-        ), patch("ulrmm.utils.subprocess.run") as run:
-            run.return_value.returncode = 0
+        ), patch("ulrmm.utils.subprocess.run", return_value=NATS_RUNNING):
             self.assertTrue(reload_nats())
         self.assertTrue(os.path.exists(os.path.join(self.tmp.name, "nats-rmm.conf")))
 
@@ -55,8 +54,7 @@ class TestConfDir(ULRMMTestCase):
     def test_both_conf_files_follow_the_setting(self):
         with override_settings(ULRMM_CONF_DIR=self.tmp.name), patch(
             "ulrmm.utils.time.sleep"
-        ), patch("ulrmm.utils.subprocess.run") as run:
-            run.return_value.returncode = 0
+        ), patch("ulrmm.utils.subprocess.run", return_value=NATS_RUNNING):
             self.assertTrue(reload_nats())
             call_command("create_natsapi_conf")
         for name, key in (

@@ -13,7 +13,7 @@ from django.db import IntegrityError, models, transaction
 from django.utils import timezone as djangotime
 from rest_framework.exceptions import ValidationError
 
-from logs.models import BaseAuditModel
+from logs.models import BaseAuditModel, DebugLog
 from ulrmm.constants import (
     CHECKS_NON_EDITABLE_FIELDS,
     POLICY_CHECK_FIELDS_TO_COPY,
@@ -21,6 +21,7 @@ from ulrmm.constants import (
     CheckStatus,
     CheckType,
     ContainerKind,
+    DebugLogType,
     EvtLogFailWhen,
     EvtLogNames,
     EvtLogTypes,
@@ -643,6 +644,7 @@ class CheckResult(models.Model):
                 data["health"],
                 check.warning_threshold,
                 check.error_threshold,
+                lambda: agent.make_model,
             )
             self.status = status
             if severity is not None:
@@ -806,15 +808,28 @@ def apply_result(check: Check, agent: "Agent", payload: Any) -> str:
         # the first two results of a check arrived at the same time
         result = results.get(assigned_check=check, agent=agent)
 
-    status = result.handle_check(payload, check, agent)
+    # a failure leaves no history row behind, so a resent result starts clean;
+    # mail, text and notification jobs are queued on commit
+    with transaction.atomic():
+        status = result.handle_check(payload, check, agent)
+
+    # the stored result and alert outweigh a task the agent was not sent
     if status == CheckStatus.FAILING:
         for task in check.assignedtasks.all():
             if not task.enabled:
                 continue
-            if task.policy_id:
-                task.run_win_task(agent)
-            else:
-                task.run_win_task()
+            try:
+                if task.policy_id:
+                    task.run_win_task(agent)
+                else:
+                    task.run_win_task()
+            except Exception as e:
+                DebugLog.warning(
+                    agent=agent,
+                    log_type=DebugLogType.AGENT_ISSUES,
+                    message=f"Unable to run task {task.name} for the failing "
+                    f"check {check}: {e}",
+                )
     return status
 
 

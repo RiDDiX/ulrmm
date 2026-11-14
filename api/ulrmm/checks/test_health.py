@@ -12,6 +12,7 @@ from checks.health import (
     PASSING,
     WARNING,
     evaluate,
+    is_virtual,
     run_interval,
 )
 
@@ -351,6 +352,71 @@ def test_partly_read_disks_never_pass():
     h = copy.deepcopy(LINUX)
     h["errors"] = ["smartctl not installed", "GetPwrCapabilities: x", "FwPolicy2: y"]
     assert hw(h)[0] == PASSING
+
+
+def test_missing_smartctl_is_named_when_no_disk_was_read():
+    h = copy.deepcopy(LINUX)
+    h["disks"], h["temps"], h["errors"] = [], [], ["smartctl not installed"]
+    line = "disk health not read: smartctl is not installed"
+    assert hw(h) == (PASSING, None, f"OK: 0 disk(s); {line}")
+    freebsd = evaluate("hwhealth", "freebsd", h, 20, 30, lambda: "Supermicro X11")
+    assert freebsd == (PASSING, None, f"OK: 0 disk(s); {line}")
+
+    # the status rules stay, the line follows the problems
+    h["temps"] = [{"name": "cpu", "c": 101, "warn_c": 90, "crit_c": 100}]
+    assert hw(h) == (FAILING, ERROR, f"cpu 101 C at critical limit 100 C; {line}")
+
+    # virtual machines have no disks of their own to read
+    h["temps"] = []
+    for vm in ("QEMU pc-q35-8.1", "VMware, Inc. VMware7,1", "BHYVE BHYVE"):
+        assert evaluate("hwhealth", "linux", h, 20, 30, lambda: vm) == (
+            PASSING,
+            None,
+            "OK: 0 disk(s)",
+        )
+
+    # a make and model that cannot be read counts as a physical host
+    def unreadable():
+        raise RuntimeError("database gone")
+
+    assert evaluate("hwhealth", "linux", h, 20, 30, unreadable) == (
+        PASSING,
+        None,
+        f"OK: 0 disk(s); {line}",
+    )
+
+    # disks read another way need no line
+    h = copy.deepcopy(LINUX)
+    h["errors"] = ["smartctl not installed"]
+    assert hw(h)[2] == "OK: 2 disk(s)"
+
+
+def test_is_virtual():
+    for name in (
+        "QEMU Standard PC (Q35 + ICH9, 2009)",
+        "innotek GmbH VirtualBox",
+        "Microsoft Corporation Virtual Machine",
+        "Xen HVM domU",
+        "Amazon EC2 t3.micro",
+        "No Enclosure N/A",
+        "Hetzner vServer",
+        "DigitalOcean Droplet",
+        "Nutanix AHV",
+        "oVirt oVirt Node",
+        "Alibaba Cloud Alibaba Cloud ECS",
+        "Cloud Hypervisor cloud-hypervisor",
+        "Red Hat RHEV Hypervisor",
+    ):
+        assert is_virtual(name), name
+    for name in (
+        "Dell Inc. OptiPlex 7090",
+        "Nutanix NX-3060-G6",
+        "",
+        None,
+        5,
+        "error getting make/model",
+    ):
+        assert not is_virtual(name), name
 
 
 def test_partly_read_security_never_passes():
