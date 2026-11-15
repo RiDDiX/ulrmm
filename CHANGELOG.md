@@ -1,5 +1,9 @@
 # Server changelog
 
+## 1.15.11.2026 (2026-11-15)
+
+- RustDesk client update on Windows: a client installed from the MSI is no longer refused. The check looked for a registry key the MSI never writes; it now reads the uninstall entries of both registry views. A client installed with the exe installer is still refused
+
 ## 4.14.11.2026 (2026-11-14)
 
 - agents update to 3.14.11.2026

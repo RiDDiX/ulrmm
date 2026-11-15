@@ -27,6 +27,12 @@ function Get-Fingerprint {
     $sha = [Security.Cryptography.SHA256]::Create()
     [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($lines -join "`n")))
 }
+# the MSI registers under its product code, which changes with every version;
+# the exe installer registers as "RustDesk" without WindowsInstaller
+function Test-MsiOnly($entries) {
+    $rd = @($entries | Where-Object { $_.PSChildName -eq 'RustDesk' -or $_.DisplayName -eq 'RustDesk' })
+    $rd.Count -gt 0 -and -not @($rd | Where-Object { $_.WindowsInstaller -ne 1 }).Count
+}
 # a failure up to the password step leaves the endpoint with its old password,
 # see PRE_PASSWORD_FAILURES in remote/utils.py
 $prefix = 'setup: '
@@ -47,8 +53,8 @@ try {
     if (-not $installed -or ($update -and $have -lt [version]'rdVersion')) {
         if ($installed) {
             # a major upgrade would leave an install from the exe installer in place
-            $arp = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\RustDesk'
-            if ((Get-ItemProperty -LiteralPath $arp -ErrorAction SilentlyContinue).WindowsInstaller -ne 1) {
+            $arp = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+            if (-not (Test-MsiOnly @(Get-ItemProperty -Path $arp -ErrorAction SilentlyContinue))) {
                 throw 'RustDesk was not installed from the MSI, uninstall it first'
             }
             # the MSI ends every rustdesk.exe. Arguments are matched, never logged.

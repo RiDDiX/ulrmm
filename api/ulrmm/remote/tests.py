@@ -746,6 +746,33 @@ class TestAgentRustDesk(KeyFileMixin, ULRMMTestCase):
                 self.assertGreaterEqual(pos, 0, f"{plat}: {step}")
             self.assertIn(flags + "|--terminal|--whiteboard|--rdp|rustdesk:)", text)
 
+    def test_windows_msi_check_reads_every_uninstall_key(self):
+        # the MSI registers under its product code, never under "RustDesk"
+        code = render_deploy(
+            self.agent,
+            host="rd.example.com",
+            config=config_string("rd.example.com", "", KEY),
+            mode="update",
+            expect_id="123456789",
+        )["payload"]["code"]
+        self.assertIn("function Test-MsiOnly($entries) {", code)
+        self.assertIn(
+            "$_.PSChildName -eq 'RustDesk' -or $_.DisplayName -eq 'RustDesk'", code
+        )
+        # an exe install next to the MSI one would survive the upgrade
+        self.assertIn(
+            "$rd.Count -gt 0 -and -not @($rd | Where-Object "
+            "{ $_.WindowsInstaller -ne 1 }).Count",
+            code,
+        )
+        for root in ("SOFTWARE", "SOFTWARE\\WOW6432Node"):
+            self.assertIn(
+                f"'HKLM:\\{root}\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'",
+                code,
+            )
+        self.assertIn("if (-not (Test-MsiOnly @(Get-ItemProperty -Path $arp", code)
+        self.assertNotIn("Uninstall\\RustDesk", code)
+
     def test_only_update_mode_upgrades(self):
         # Install or reconfigure rotates the password, which must not hinge
         # on an upgrade (open session, exe install, signature, ...)
