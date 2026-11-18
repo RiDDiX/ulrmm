@@ -6,7 +6,14 @@ import json
 from ..models import SourceKind
 from .base import Source, SourceError, validate
 
-__all__ = ["Source", "SourceError", "for_source", "source_class", "validate"]
+__all__ = [
+    "Source",
+    "SourceError",
+    "for_source",
+    "reach",
+    "source_class",
+    "validate",
+]
 
 
 def source_class(kind: str) -> type[Source]:
@@ -27,3 +34,12 @@ def for_source(src) -> Source:
     except ValueError:
         secrets = {}
     return source_class(src.kind)(src.url, src.verify_tls, src.options, secrets)
+
+
+def reach(src) -> tuple[tuple, bool]:
+    """(platforms it can send the installer to, whether it removes its agent);
+    a source read from a file has no server behind it."""
+    if src.from_file:
+        return (), False
+    cls = source_class(src.kind)
+    return cls.PUSH_PLATS, cls.REMOVES

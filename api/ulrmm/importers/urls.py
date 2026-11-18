@@ -9,6 +9,7 @@ urlpatterns = [
     path("sources/", views.Sources.as_view()),
     path("sources/<int:pk>/", views.SourceDetail.as_view()),
     path("sources/<int:pk>/fetch/", views.Fetch.as_view()),
+    path("sources/<int:pk>/upload/", views.Upload.as_view()),
     path("sources/<int:pk>/plan/", views.Plan.as_view()),
     path("sources/<int:pk>/import/", views.Import.as_view()),
     path("sources/<int:pk>/devices/", views.Devices.as_view()),

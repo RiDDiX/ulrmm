@@ -1,5 +1,13 @@
 # Server changelog
 
+## 1.18.11.2026 (2026-11-18)
+
+- import: a compatible RMM server can be read from an export file, for moves where the old server is shut down before the import (README: "Importing from a file")
+- new exporter `riddix/scripts/ulrmm_export.py` (Python 3.9+, cryptography): reads the old server with a superuser's API key and writes one encrypted file (AES-256-GCM); the file key is shown once
+- import: the source option "Read from an export file" takes the file as an upload of up to 64 MB; the file is read with the same checks as a live read, plan, import and device linking work as before
+- a source read from a file offers no Send installer and no automatic removal of the old agent; devices link by host name and site when the ulrmm agent enrolls
+- migration importers 0006
+
 ## 1.15.11.2026 (2026-11-15)
 
 - RustDesk client update on Windows: a client installed from the MSI is no longer refused. The check looked for a registry key the MSI never writes; it now reads the uninstall entries of both registry views. A client installed with the exe installer is still refused

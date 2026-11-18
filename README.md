@@ -680,15 +680,18 @@ run adds one entry with the parts, how many were added and how many left out.
 
 1. **Add source**: the kind, its address (https only) and its credentials.
    - **Compatible RMM server**: a server with the same REST API, read with the
-     API key of a superuser (Global Settings -> API Keys over there).
+     API key of a superuser (Global Settings -> API Keys over there), or from
+     an export file when that server will be off (see [Importing from a
+     file](#importing-from-a-file)).
    - **NinjaOne**: the region host (for example `https://eu.ninjarmm.com`) and
      an API app with the Client Credentials grant and the scopes Monitoring and
      Management (client id and secret). NinjaOne gives no script contents
      through its API, so scripts are not imported. Beta: this source is built
      from NinjaOne's public API documentation and has not been run against a
      NinjaOne account yet.
-2. **Read source** fetches everything and shows what the import would add.
-   Nothing is written yet. What it read, the other RMM's secrets included, is
+2. **Read source** fetches everything (**Upload file** for a source read
+   from a file) and shows what the import would add. Nothing is written
+   yet. What it read, the other RMM's secrets included, is
    kept encrypted like the key store values.
 3. **Import** writes the chosen parts, each part on its own: a part that
    fails leaves the others in place. Clients and sites are matched by name,
@@ -790,6 +793,56 @@ deployments.
    linked and use **Remove old agent**.
 6. Check the devices that end as "old agent not removed" and remove the old
    agent there by hand.
+
+### Importing from a file
+
+When the old server will be shut down before ulrmm runs, export it to a file
+first and import that file later.
+
+1. Download `riddix/scripts/ulrmm_export.py` from this repository to any
+   machine that reaches the old server. It needs Python 3.9 or later and the
+   `cryptography` package; the old server's own Python environment has it.
+2. Run it with the address of the old server's API and a superuser's API key:
+
+   ```bash
+   python3 ulrmm_export.py https://api.old.example
+   ```
+
+   It asks for the key (or reads `ULRMM_EXPORT_API_KEY`), writes one file
+   (`ulrmm-export-<date>-<time>.bin`) and shows the file key once. Write the
+   key down; it is stored nowhere. Use the same address for every export of
+   the same old server. Keep the file, apart from its key, until
+   every part you want is imported; delete it then. When the export would
+   exceed the import's limits (64 MB file, 256 MB of data) it stops without
+   writing a file.
+3. Shut the old server down. Keep its backup or data until the import here
+   has been checked: the exporter cannot run every check the import runs.
+4. In ulrmm: Global Settings -> **Import** -> **Add source** -> Compatible RMM
+   server, **Read from an export file**. Then **Upload file** and enter the
+   file key. The first file binds the source to the server it was read
+   from.
+5. **Import**, as with a live source.
+6. Install the ulrmm agent on each device with a deployment link or by hand.
+   A device links by host name and site when its agent enrolls; for agents
+   that were already there use **Link enrolled agents**.
+7. Remove the old agent by hand.
+
+Limits:
+
+- A source read from a file has no server behind it: no **Send installer** and
+  no automatic removal of the old agent.
+- The file holds the old server's secrets (key store values, script bodies,
+  web hook headers, user e-mail addresses), encrypted with the file key
+  (AES-256-GCM). Keep key and file apart. ulrmm keeps only the encrypted
+  snapshot, not the file. Files up to 64 MB.
+- One source takes the exports of one old server. A file from another server
+  is refused; add a second source for it.
+- The old subdomains cannot be reused for ulrmm: an installation cannot be
+  renamed, and agents are tied to the server name they were installed with.
+  ulrmm needs its own names.
+- A file made today stays usable after updates of ulrmm. An update can ask
+  for the file again (upload the same file). Without the file, parts not yet
+  imported cannot be added later; devices already imported keep linking.
 
 ### Removing the old agent
 

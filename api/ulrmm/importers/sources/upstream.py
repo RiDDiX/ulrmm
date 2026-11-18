@@ -63,6 +63,7 @@ class Upstream(Source):
     SECRETS = ("api_key",)
     PUSH_PLATS = ("windows", "linux", "darwin")
     REMOVES = True
+    FILE = True
     PARTS = (
         *Source.PARTS,
         "url_actions",
@@ -290,7 +291,8 @@ class Upstream(Source):
                     # absent from the list when the policy has none
                     "alert_template": template_names.get(p.get("alert_template")),
                     "patch_policy": patch[0] if patch else None,
-                    **split(owned["policy"].get(p.get("id"), [])),
+                    # once per id: a repeated id must not take the checks again
+                    **split(owned["policy"].pop(p.get("id"), [])),
                     "excluded_clients": [
                         refs["clients"].get(i) for i in _ids(p.get("excluded_clients"))
                     ],
@@ -356,26 +358,30 @@ class Upstream(Source):
             }
 
         mine = {c["ref"]: c for c in clients}
+        # once per client: rows of found can repeat an id
+        site_maps = {ref: {s["ref"]: s for s in c["sites"]} for ref, c in mine.items()}
         for c in found:
             client = mine.get(str(c.get("id")))
             if client is None:
                 continue
             client.update(names(c))
-            sites = {s["ref"]: s for s in client["sites"]}
+            sites = site_maps[str(c.get("id"))]
             for s in c.get("sites") or []:
                 if isinstance(s, dict) and (site := sites.get(str(s.get("id")))):
                     site.update(names(s))
 
     def _device_data(self, devices, refs, by) -> None:
         pks = {agent_id: pk for pk, agent_id in refs["agents"].items()}
+        # sorted once and shared: rows can repeat an agent id
+        excluded = {key: sorted(names) for key, names in by["excluded"].items()}
         for d in devices:
             pk = pks.get(d["ref"])
             own = by["agent"].get(pk, {})
             d.update(
                 checks=own.get("checks", []),
                 tasks=own.get("tasks", []),
-                excluded_policies=sorted(by["excluded"].get(("policy", pk), ())),
-                excluded_templates=sorted(by["excluded"].get(("template", pk), ())),
+                excluded_policies=excluded.get(("policy", pk), []),
+                excluded_templates=excluded.get(("template", pk), []),
             )
             try:
                 detail = self.call("GET", f"/agents/{d['ref']}/")

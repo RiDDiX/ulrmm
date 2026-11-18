@@ -77,6 +77,8 @@ from ulrmm.utils import BodyTooLarge, capped_json
 from winupdate.models import WinUpdatePolicy
 
 TIMEOUT = 30
+# the address of a source; an export file names its server the same way
+URL_RE = r"^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$"
 # raised when the snapshot format changes; an older snapshot is read again
 SNAPSHOT_VERSION = 3
 # a whole fetch ends well before the source's lock (2 h) runs out
@@ -151,6 +153,8 @@ class Source:
     PUSH_PLATS: tuple = ()
     # whether remove() can take the source's own agent off a device
     REMOVES = False
+    # whether its answers can come from an export file, see file.py
+    FILE = False
     # the import parts fetch() delivers
     PARTS: tuple = (
         "clients",

@@ -1299,7 +1299,7 @@ class TestEncryptedData(ULRMMTestCase):
         self.assertNotIn(
             "s3cret-env", self.raw("importers_importeddevice", "data", device.pk)
         )
-        migrate("0005_source_created")
+        migrate("0006_source_from_file")
         src.refresh_from_db()
         self.assertEqual(src.snapshot["keystore"][0]["value"], "abc-123")
 

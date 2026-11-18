@@ -53,6 +53,8 @@ class ImportSource(BaseAuditModel):
     name = models.CharField(max_length=100)
     url = models.CharField(max_length=255)
     verify_tls = models.BooleanField(default=True)
+    # read from an export file: no server behind it, url and secret stay empty
+    from_file = models.BooleanField(default=False)
     # non-secret settings of the source, e.g. a NinjaOne client id
     options = models.JSONField(default=dict, blank=True)
     # JSON object of the source's secrets (API key, client secret, password)
@@ -79,6 +81,7 @@ class ImportSource(BaseAuditModel):
             "name": source.name,
             "url": source.url,
             "verify_tls": source.verify_tls,
+            "from_file": source.from_file,
             "options": source.options,
             # the log shows that a secret changed, never the secret
             "secret": hmac_marker(source.secret),

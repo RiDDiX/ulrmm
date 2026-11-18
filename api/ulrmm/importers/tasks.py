@@ -57,7 +57,8 @@ def fetch_task(self, pk: int) -> str:
     with redis_lock(lock_id(pk), self.app.oid) as acquired:
         if not acquired:
             return _busy(pk)
-        if source := ImportSource.objects.filter(pk=pk).first():
+        # a file source has no server: it is read by the upload
+        if source := ImportSource.objects.filter(pk=pk, from_file=False).first():
             fetch(source)
     return "ok"
 
@@ -90,7 +91,9 @@ def remove_task() -> str:
     waiting = ImportedDevice.objects.filter(remove_state__in=removal.WAITING)
     if not waiting.exists():
         return "idle"
-    for source in ImportSource.objects.filter(pk__in=waiting.values("source_id")):
+    for source in ImportSource.objects.filter(
+        pk__in=waiting.values("source_id"), from_file=False
+    ):
         try:
             client = for_source(source)
         except SourceError as e:

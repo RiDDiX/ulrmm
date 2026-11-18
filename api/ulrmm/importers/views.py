@@ -8,6 +8,7 @@ import json
 
 from django.core.cache import cache
 from django.shortcuts import get_object_or_404
+from django.utils import timezone as djangotime
 from rest_framework import permissions, serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -16,18 +17,25 @@ from rest_framework.views import APIView
 
 from accounts.utils import DELETE_NEEDS_TOTP, has_superuser_rights, verify_fresh_totp
 from accounts.views import _body
+from logs.models import DebugLog
 from ulrmm.helpers import notify_error
 from ulrmm.utils import redis_lock
 
 from . import engine, link, removal
 from .models import ImportedDevice, ImportSource, MigrateState, SourceKind
-from .sources import source_class
-from .sources.base import SNAPSHOT_VERSION
+from .sources import SourceError, file, reach, source_class
+from .sources.base import SNAPSHOT_VERSION, URL_RE
 from .tasks import BUSY, fetch_task, lock_id, migrate_task
 
-URL_RE = r"^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$"
 MAX_DEVICES = 20000
 OLD_SNAPSHOT = "Read the source again; it was read by an older version."
+OLD_FILE = "Upload the file again; it was read by an older version."
+NO_SERVER = "A source read from a file has no server behind it."
+NO_INSTALL = (
+    f"{NO_SERVER} Install the agent with a deployment link or by hand; "
+    "the device links by host name and site when it enrolls."
+)
+NO_REMOVE = f"{NO_SERVER} Remove the old agent on each device by hand."
 
 
 class ImportPerms(permissions.BasePermission):
@@ -43,9 +51,12 @@ def _secrets(source) -> dict:
 
 
 class SourceSerializer(serializers.ModelSerializer):
+    # required for a source with a server, see validate
     url = serializers.RegexField(
         URL_RE,
         max_length=255,
+        required=False,
+        allow_blank=True,
         error_messages={"invalid": "https://host[:port][/path]"},
     )
     name = serializers.CharField(max_length=100)
@@ -70,6 +81,7 @@ class SourceSerializer(serializers.ModelSerializer):
             "name",
             "url",
             "verify_tls",
+            "from_file",
             "options",
             "secrets",
             "last_fetch",
@@ -81,12 +93,14 @@ class SourceSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         cls = source_class(instance.kind)
+        names = () if instance.from_file else cls.SECRETS
         stored = _secrets(instance)
-        ret["secrets_set"] = [k for k in cls.SECRETS if stored.get(k)]
-        ret["secret_names"] = list(cls.SECRETS)
-        ret["push_plats"] = list(cls.PUSH_PLATS)
+        plats, removes = reach(instance)
+        ret["secrets_set"] = [k for k in names if stored.get(k)]
+        ret["secret_names"] = list(names)
+        ret["push_plats"] = list(plats)
         ret["parts"] = list(cls.PARTS)
-        ret["removes_agent"] = cls.REMOVES
+        ret["removes_agent"] = removes
         return ret
 
     def validate_kind(self, value):
@@ -94,11 +108,35 @@ class SourceSerializer(serializers.ModelSerializer):
             raise ValidationError("The kind of a source cannot change.")
         return value
 
+    def validate_from_file(self, value):
+        if self.instance and value != self.instance.from_file:
+            raise ValidationError("A source cannot switch between a server and a file.")
+        return value
+
     def validate(self, attrs):
         inst = self.instance
         kind = attrs.get("kind") or (inst and inst.kind)
         if kind not in SourceKind.values:
             raise ValidationError({"kind": "Choose a source."})
+        if attrs.get("from_file", inst and inst.from_file):
+            if not source_class(kind).FILE:
+                label = SourceKind(kind).label
+                raise ValidationError(
+                    {"from_file": f"{label} cannot be imported from a file."}
+                )
+            if any(attrs.get("secrets", {}).values()):
+                raise ValidationError(
+                    {"secrets": "A source read from a file takes no credentials."}
+                )
+            attrs.pop("secrets", None)
+            # set by the first upload, see Upload
+            if inst:
+                attrs.pop("url", None)
+            else:
+                attrs["url"] = ""
+            return attrs
+        if not attrs.get("url", inst and inst.url):
+            raise ValidationError({"url": "This field is required."})
         names = source_class(kind).SECRETS
         stored = _secrets(inst) if inst else {}
         given = attrs.pop("secrets", {})
@@ -164,12 +202,60 @@ class Fetch(APIView):
 
     def post(self, request, pk):
         source = get_object_or_404(ImportSource, pk=pk)
+        if source.from_file:
+            return notify_error(
+                "This source has no server to read. Upload the export file instead."
+            )
         if cache.get(lock_id(source.pk)):
             return Response(BUSY, status=409)
         # the page polls right away: an old error is not this run's
         ImportSource.objects.filter(pk=source.pk).update(last_error="")
         fetch_task.delay(source.pk)
         return Response({"queued": True}, status=202)
+
+
+class Upload(APIView):
+    """Reads an export file into the source's snapshot, see sources/file.py."""
+
+    permission_classes = [IsAuthenticated, ImportPerms]
+
+    def post(self, request, pk):
+        source = get_object_or_404(ImportSource, pk=pk)
+        if not source.from_file:
+            return notify_error("This source is read from its server, not from a file.")
+        upload, key = request.FILES.get("file"), request.data.get("key")
+        if upload is None or not isinstance(key, str) or not key.strip():
+            return notify_error("Choose the export file and enter its file key.")
+        if upload.size > file.MAX_FILE:
+            return notify_error(f"The file is larger than {file.MAX_FILE // 2**20} MB.")
+        with redis_lock(lock_id(source.pk), "upload") as acquired:
+            if not acquired:
+                return Response(BUSY, status=409)
+            try:
+                snapshot, origin = file.read(upload.read(), key, source.kind)
+            except SourceError as e:
+                return notify_error(str(e))
+            except Exception as e:
+                # the type only: a message could quote the file
+                DebugLog.error(
+                    message=f"export file for {source.name}: {type(e).__name__}"
+                )
+                return notify_error(f"unexpected error: {type(e).__name__}")
+            source = get_object_or_404(ImportSource, pk=pk)
+            # what was created from one server is never completed from another
+            if source.url and source.url.rstrip("/") != origin.rstrip("/"):
+                return notify_error(
+                    f"This file is an export of {origin}. This source holds "
+                    f"{source.url}. For another server add a new source; for the "
+                    f"same server export it again with the address {source.url}."
+                )
+            ImportSource.objects.filter(pk=source.pk).update(
+                url=origin,
+                snapshot=snapshot,
+                last_fetch=djangotime.now(),
+                last_error="",
+            )
+        return Response(SourceSerializer(get_object_or_404(ImportSource, pk=pk)).data)
 
 
 class Plan(APIView):
@@ -249,10 +335,14 @@ class Link(APIView):
 
 def _unread(source):
     if not source.last_fetch:
-        return notify_error("Read the source first.")
+        return notify_error(
+            "Upload the export file first."
+            if source.from_file
+            else "Read the source first."
+        )
     # an older snapshot lacks marks the import relies on (lost references)
     if (source.snapshot or {}).get("version", 0) < SNAPSHOT_VERSION:
-        return notify_error(OLD_SNAPSHOT)
+        return notify_error(OLD_FILE if source.from_file else OLD_SNAPSHOT)
     return None
 
 
@@ -269,7 +359,9 @@ def _ids(request):
 
 
 def _can_remove(source):
-    if not source_class(source.kind).REMOVES:
+    if source.from_file:
+        return notify_error(NO_REMOVE)
+    if not reach(source)[1]:
         return notify_error(
             f"{source.get_kind_display()} cannot remove its agent from a device."
         )
@@ -298,10 +390,11 @@ class Migrate(APIView):
         remove_old = _body(request).get("remove_old", False)
         if not isinstance(remove_old, bool):
             return notify_error("remove_old: true or false")
+        if source.from_file:
+            return notify_error(NO_INSTALL)
         if remove_old and (refused := _can_remove(source)):
             return refused
-        cls = source_class(source.kind)
-        if not cls.PUSH_PLATS:
+        if not reach(source)[0]:
             return notify_error(
                 f"{source.get_kind_display()} cannot run commands on its devices. "
                 "Install the agent with a deployment; it links on enrollment."

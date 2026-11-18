@@ -26,7 +26,7 @@ from logs.models import AuditLog
 from ulrmm.constants import AgentMonType, AgentPlat, AuditActionType, AuditObjType
 
 from .models import ImportedDevice, MigrateState
-from .sources import SourceError, for_source
+from .sources import SourceError, for_source, reach
 
 DEPLOY_DAYS = 3
 
@@ -158,6 +158,8 @@ def send(source, device_ids) -> dict:
     """Sends the installer to the chosen devices that are not linked yet."""
     if getattr(settings, "ULRMM_INSECURE", False):
         raise MigrateError("Not available in insecure mode")
+    if not reach(source)[0]:
+        raise MigrateError("This source cannot run commands on its devices.")
     client = for_source(source)
     installer = _installer_user()
     devices = list(

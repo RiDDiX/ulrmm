@@ -92,6 +92,67 @@ class TestUpstream(SimpleTestCase):
             + [{"params": {"detail": "false"}}],
         )
 
+    def test_repeated_ids_share_their_lists(self):
+        policies = [
+            {"id": i, "name": f"p{i}", "excluded_agents": [7]} for i in range(40)
+        ]
+        rows = [{"agent_id": "A7", "hostname": "h"} for _ in range(40)]
+        rec = Recorded(
+            "upstream",
+            **{
+                "/automation/policies/": policies,
+                "/agents/?site=1": rows,
+                "/agents/?detail=false": [{"id": 7, "agent_id": "A7"}],
+            },
+        )
+        with patch.object(Source, "call", lambda s, *a, **k: rec(s, *a, **k)):
+            data = Upstream("https://old", True, {}, {"api_key": "K"}).fetch()
+        lists = {
+            id(d["excluded_policies"]): d["excluded_policies"]
+            for d in data["devices"]
+            if d["ref"] == "A7"
+        }
+        self.assertEqual(sum(len(v) for v in lists.values()), 40)
+        self.assertEqual(
+            validate(data)["devices"][0]["excluded_policies"][:2], ["p0", "p1"]
+        )
+
+    def test_client_rows_with_one_id_map_its_sites_once(self):
+        reads = []
+
+        class Site(dict):
+            def __getitem__(self, key):
+                reads.append(key)
+                return super().__getitem__(key)
+
+        sites = [Site(ref=str(i), name=f"s{i}") for i in range(40)]
+        clients = [{"ref": "1", "name": "c", "sites": sites}]
+        found = [{"id": 1, "server_policy": 5, "sites": []}] * 40 + [
+            {"id": 1, "sites": [{"id": 3, "alert_template": 9}]}
+        ]
+        by = {"policies": {5: "Servers"}, "templates": {9: "Paging"}}
+        Upstream("https://old", True, {}, {})._assignments(clients, found, by)
+        self.assertEqual(reads.count("ref"), 40)
+        self.assertEqual(sites[3]["alert_template"], "Paging")
+        self.assertEqual(clients[0]["server_policy"], None, "the last row wins")
+
+    def test_repeated_policy_id_takes_its_checks_once(self):
+        rec = Recorded(
+            "upstream",
+            **{
+                "/automation/policies/": [
+                    {"id": 99, "name": f"p{i}"} for i in range(50)
+                ],
+                "/checks/": [
+                    {"id": 1000 + i, "policy": 99, "check_type": "ping"}
+                    for i in range(50)
+                ],
+            },
+        )
+        with patch.object(Source, "call", lambda s, *a, **k: rec(s, *a, **k)):
+            data = Upstream("https://old", True, {}, {"api_key": "K"}).fetch()
+        self.assertEqual(sum(len(p["checks"]) for p in data["policies"]), 50)
+
     def test_fetch_more(self):
         data = self.fetch(Recorded("upstream"))
         hooks = {u["name"]: u for u in data["url_actions"]}
