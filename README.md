@@ -817,15 +817,24 @@ first and import that file later.
    writing a file.
 3. Shut the old server down. Keep its backup or data until the import here
    has been checked: the exporter cannot run every check the import runs.
+   From here on a new ulrmm installation may take the names the old server
+   had; see the limits below.
 4. In ulrmm: Global Settings -> **Import** -> **Add source** -> Compatible RMM
    server, **Read from an export file**. Then **Upload file** and enter the
    file key. The first file binds the source to the server it was read
    from.
 5. **Import**, as with a live source.
-6. Install the ulrmm agent on each device with a deployment link or by hand.
+6. Remove the old agent from each device by hand. With its server off it
+   manages nothing any more, but it keeps calling the old names until it is
+   removed.
+7. Install the ulrmm agent on each device with a deployment link or by hand.
    A device links by host name and site when its agent enrolls; for agents
    that were already there use **Link enrolled agents**.
-7. Remove the old agent by hand.
+
+Keep this order: the removal of the old agent also removes the remote-control
+agent. If the ulrmm agent is already installed, the one that gets removed is
+the one of this installation. What can be repaired afterwards is described
+under [Removing the old agent](#removing-the-old-agent).
 
 Limits:
 
@@ -837,9 +846,19 @@ Limits:
   snapshot, not the file. Files up to 64 MB.
 - One source takes the exports of one old server. A file from another server
   is refused; add a second source for it.
-- The old subdomains cannot be reused for ulrmm: an installation cannot be
-  renamed, and agents are tied to the server name they were installed with.
-  ulrmm needs its own names.
+- The old names can be reused only with an import from a file and only by a
+  new installation: export, shut the old server down, then install ulrmm on
+  the same three names and import the file there. An installation that
+  already exists cannot be renamed, and its agents are tied to the server
+  name they were installed with. ulrmm beside a running old server therefore
+  always needs its own names.
+- On reused names the old agents keep calling these names until they are
+  removed. ulrmm refuses them, and each device tries again every few seconds,
+  so remove them soon. Keep the first file until every part you want is
+  imported: a new export needs the old server running again and reachable
+  under its old address from the machine that runs the exporter. Do not run
+  the exporter against names that lead to ulrmm: it would send the old
+  server's API key there.
 - A file made today stays usable after updates of ulrmm. An update can ask
   for the file again (upload the same file). Without the file, parts not yet
   imported cannot be added later; devices already imported keep linking.
@@ -882,11 +901,17 @@ removal that was not sent yet can be withdrawn for the selected devices;
 once it was sent nothing can be withdrawn. The request, each removal sent and
 each withdrawal are written to the audit log.
 
-Windows: the old uninstaller also deletes the remote-control agent in
-`C:\Program Files\Mesh Agent`, which by then belongs to this installation. A
-few minutes after a confirmed removal the server runs the remote-control
-recovery for the linked agent and shows its outcome with the device. Linux and
-macOS keep the two agents apart, nothing else happens there.
+The removal of the old agent also removes the remote-control agent, which by
+then belongs to this installation: on Windows the old uninstaller deletes
+`C:\Program Files\Mesh Agent`, on Linux and macOS the old removal script
+removes the service `meshagent`. ulrmm uses the same folder and the same
+service name. A few minutes after a confirmed removal the server runs the
+remote-control recovery for the linked agent and shows its outcome with the
+device. After a removal by hand nothing runs by itself: open **Agent
+recovery** for the device and recover the **Mesh Agent**. The recovery
+installs the remote-control agent again on Windows only. On Linux and macOS
+it can only restart it; once the service is gone it ends with "mesh agent not
+installed".
 
 ## Updating
 
