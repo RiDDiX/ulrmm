@@ -9,7 +9,7 @@ from ulrmm.utils import redis_lock
 from . import dispatch, tamper
 
 
-@app.task
+@app.task(ignore_result=True)
 def send_notifications_task(ids: list[int]) -> str:
     dispatch.deliver(ids)
     return "ok"

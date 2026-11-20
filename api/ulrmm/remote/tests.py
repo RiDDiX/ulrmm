@@ -767,10 +767,16 @@ class TestAgentRustDesk(KeyFileMixin, ULRMMTestCase):
         )
         for root in ("SOFTWARE", "SOFTWARE\\WOW6432Node"):
             self.assertIn(
-                f"'HKLM:\\{root}\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'",
+                f"'HKLM:\\{root}\\Microsoft\\Windows\\CurrentVersion\\Uninstall'",
                 code,
             )
-        self.assertIn("if (-not (Test-MsiOnly @(Get-ItemProperty -Path $arp", code)
+        # only two named values are read, a malformed foreign value never is
+        self.assertIn("Get-ChildItem -Path $arp -ErrorAction SilentlyContinue", code)
+        self.assertIn("DisplayName = $_.GetValue('DisplayName')", code)
+        self.assertIn("WindowsInstaller = $_.GetValue('WindowsInstaller')", code)
+        self.assertIn("if (-not (Test-MsiOnly $entries)) {", code)
+        self.assertNotIn("Uninstall\\*", code)
+        self.assertNotIn("Get-ItemProperty", code)
         self.assertNotIn("Uninstall\\RustDesk", code)
 
     def test_only_update_mode_upgrades(self):

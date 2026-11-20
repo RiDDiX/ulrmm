@@ -53,8 +53,13 @@ try {
     if (-not $installed -or ($update -and $have -lt [version]'rdVersion')) {
         if ($installed) {
             # a major upgrade would leave an install from the exe installer in place
-            $arp = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
-            if (-not (Test-MsiOnly @(Get-ItemProperty -Path $arp -ErrorAction SilentlyContinue))) {
+            $arp = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+            # only two named values per key: reading all of them stops on a malformed foreign value
+            $entries = @(Get-ChildItem -Path $arp -ErrorAction SilentlyContinue | ForEach-Object {
+                # a key another installer removes after the listing is skipped
+                try { [pscustomobject]@{ PSChildName = $_.PSChildName; DisplayName = $_.GetValue('DisplayName'); WindowsInstaller = $_.GetValue('WindowsInstaller') } } catch { }
+            })
+            if (-not (Test-MsiOnly $entries)) {
                 throw 'RustDesk was not installed from the MSI, uninstall it first'
             }
             # the MSI ends every rustdesk.exe. Arguments are matched, never logged.

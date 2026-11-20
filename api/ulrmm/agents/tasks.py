@@ -55,22 +55,22 @@ def _notify(pk: int, field: str, send: str, alert_interval=None) -> str:
     return notify_once(alert, field, getattr(alert.agent, send), alert_interval)
 
 
-@app.task
+@app.task(ignore_result=True)
 def agent_outage_email_task(pk: int, alert_interval: Optional[float] = None) -> str:
     return _notify(pk, "email_sent", "send_outage_email", alert_interval)
 
 
-@app.task
+@app.task(ignore_result=True)
 def agent_recovery_email_task(pk: int) -> str:
     return _notify(pk, "resolved_email_sent", "send_recovery_email")
 
 
-@app.task
+@app.task(ignore_result=True)
 def agent_outage_sms_task(pk: int, alert_interval: Optional[float] = None) -> str:
     return _notify(pk, "sms_sent", "send_outage_sms", alert_interval)
 
 
-@app.task
+@app.task(ignore_result=True)
 def agent_recovery_sms_task(pk: int) -> str:
     return _notify(pk, "resolved_sms_sent", "send_recovery_sms")
 

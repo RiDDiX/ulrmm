@@ -64,7 +64,7 @@ def prune_resolved_alerts(older_than_days: int) -> str:
     return "ok"
 
 
-@app.task
+@app.task(ignore_result=True)
 def run_alert_action_task(alert_pk: int, resolved: bool = False) -> str:
     """Runs an alert's failure or resolved action outside the agent's request."""
     alert = Alert.objects.filter(pk=alert_pk).first()

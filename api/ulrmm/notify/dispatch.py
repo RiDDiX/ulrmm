@@ -124,7 +124,7 @@ def _dispatch(event: dict) -> int:
     if rows:
         pks = [r.pk for r in rows]
         # inside a caller's transaction the rows are visible only after commit
-        transaction.on_commit(lambda: send_notifications_task.delay(pks))
+        transaction.on_commit(lambda: send_notifications_task.delay(pks), robust=True)
     return len(rows)
 
 

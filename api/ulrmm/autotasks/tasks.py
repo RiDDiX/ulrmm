@@ -149,21 +149,21 @@ def _notify(
     return notify_once(alert, field, getattr(result, send), alert_interval)
 
 
-@app.task
+@app.task(ignore_result=True)
 def handle_task_email_alert(pk: int, alert_interval: Union[float, None] = None) -> str:
     return _notify(pk, "email_sent", "send_email", alert_interval)
 
 
-@app.task
+@app.task(ignore_result=True)
 def handle_task_sms_alert(pk: int, alert_interval: Union[float, None] = None) -> str:
     return _notify(pk, "sms_sent", "send_sms", alert_interval)
 
 
-@app.task
+@app.task(ignore_result=True)
 def handle_resolved_task_email_alert(pk: int) -> str:
     return _notify(pk, "resolved_email_sent", "send_resolved_email")
 
 
-@app.task
+@app.task(ignore_result=True)
 def handle_resolved_task_sms_alert(pk: int) -> str:
     return _notify(pk, "resolved_sms_sent", "send_resolved_sms")

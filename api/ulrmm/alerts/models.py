@@ -668,7 +668,8 @@ class Alert(models.Model):
             )
         ):
             transaction.on_commit(
-                lambda: email_task.delay(pk=alert.pk, alert_interval=interval)
+                lambda: email_task.delay(pk=alert.pk, alert_interval=interval),
+                robust=True,
             )
 
         if (
@@ -679,7 +680,8 @@ class Alert(models.Model):
             )
         ):
             transaction.on_commit(
-                lambda: sms_task.delay(pk=alert.pk, alert_interval=interval)
+                lambda: sms_task.delay(pk=alert.pk, alert_interval=interval),
+                robust=True,
             )
 
         if template and not alert.action_run:
@@ -724,10 +726,10 @@ class Alert(models.Model):
             )
 
         if core.email_is_configured and wanted("email", "email"):
-            transaction.on_commit(lambda: email_task.delay(pk=alert.pk))
+            transaction.on_commit(lambda: email_task.delay(pk=alert.pk), robust=True)
 
         if core.sms_is_configured and wanted("text", "sms"):
-            transaction.on_commit(lambda: sms_task.delay(pk=alert.pk))
+            transaction.on_commit(lambda: sms_task.delay(pk=alert.pk), robust=True)
 
         if template and not alert.resolved_action_run:
             alert._start_action(resolved=True, inline=family == "agent", core=core)
@@ -789,7 +791,8 @@ class Alert(models.Model):
                 (self.pk, resolved),
                 soft_time_limit=timeout + 120,
                 time_limit=timeout + 150,
-            )
+            ),
+            robust=True,
         )
 
     def run_action(self, resolved: bool = False) -> None:

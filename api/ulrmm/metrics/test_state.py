@@ -23,6 +23,7 @@ from ulrmm.test import ULRMMTestCase
 from .models import AgentState, Sample
 from .state import (
     MAX_BODY,
+    _metric_checks,
     clean_state,
     evaluate_metric_checks,
     ingest,
@@ -404,7 +405,7 @@ class TestSeries(SimpleTestCase):
     def test_caps(self):
         body = doc()
         mount = DOC["system"]["mounts"][0]
-        body["system"]["mounts"] = [dict(mount, mount=f"/m{i}") for i in range(30)]
+        body["system"]["mounts"] = [dict(mount, mount=f"/m{i}") for i in range(40)]
         iface = DOC["net"]["ifaces"][0]
         body["net"]["ifaces"] = [dict(iface, name=f"if{i}") for i in range(30)]
         body["system"]["sensors"] = [
@@ -412,22 +413,22 @@ class TestSeries(SimpleTestCase):
         ]
         values = series(clean_state(body))
         names = [parse_key(key)[0] for key in values]
-        self.assertEqual(names.count("disk.used_pct"), 16)
+        self.assertEqual(names.count("disk.used_pct"), 32)
         self.assertEqual(names.count("net.rx_bps"), 16)
         self.assertEqual(names.count("temp.c"), 16)
         self.assertLessEqual(len(values), 256)
 
-    def mount_series(self, mounts, bound=frozenset()):
+    def mount_series(self, mounts):
         body = doc()
         body["system"]["mounts"] = mounts
-        values = series(clean_state(body), bound)
+        values = series(clean_state(body))
         return [
             parse_key(key)[1]["mount"]
             for key in values
             if parse_key(key)[0] == "disk.used_pct"
         ]
 
-    def test_many_mounts_keep_the_largest(self):
+    def test_many_mounts_keep_the_received_order(self):
         mount = DOC["system"]["mounts"][0]
         mounts = [dict(mount, mount=f"/small{i}", size=GB) for i in range(20)]
         # large pools arrive last, two of equal size, one without a size
@@ -438,28 +439,26 @@ class TestSeries(SimpleTestCase):
         mounts.append(nosize)
         mounts.append(dict(mount, mount="/huge", stale=True, size=1000 * GB))
         kept = self.mount_series(mounts)
-        self.assertEqual(len(kept), 16)
         self.assertEqual(
             kept,
-            ["/pool2", "/pool1", "/pool0", "/tank"] + [f"/small{i}" for i in range(12)],
+            [f"/small{i}" for i in range(20)]
+            + ["/pool0", "/pool1", "/pool2", "/tank", "/nosize"],
         )
 
-    def test_many_mounts_keep_the_ones_a_check_reads(self):
+    def test_mounts_past_the_cap_are_dropped(self):
         mount = DOC["system"]["mounts"][0]
-        mounts = [dict(mount, mount=f"/small{i}", size=GB) for i in range(20)]
+        mounts = [dict(mount, mount=f"/small{i}", size=GB) for i in range(30)]
         mounts += [dict(mount, mount=f"/pool{i}", size=(10 + i) * GB) for i in range(3)]
-        kept = self.mount_series(mounts, frozenset({"/small19", "/gone"}))
         self.assertEqual(
-            kept,
-            ["/small19", "/pool2", "/pool1", "/pool0"]
-            + [f"/small{i}" for i in range(12)],
+            self.mount_series(mounts),
+            [f"/small{i}" for i in range(30)] + ["/pool0", "/pool1"],
         )
 
     def test_few_mounts_keep_the_received_order(self):
         mount = DOC["system"]["mounts"][0]
-        mounts = [dict(mount, mount=f"/m{i}", size=i * GB) for i in range(16)]
+        mounts = [dict(mount, mount=f"/m{i}", size=i * GB) for i in range(31)]
         mounts.append(dict(mount, mount="/gone", stale=True, size=1000 * GB))
-        self.assertEqual(self.mount_series(mounts), [f"/m{i}" for i in range(16)])
+        self.assertEqual(self.mount_series(mounts), [f"/m{i}" for i in range(31)])
 
 
 class TestStatePush(ULRMMTestCase):
@@ -786,7 +785,7 @@ class TestMetricChecks(ULRMMTestCase):
             ts=djangotime.now() - dt.timedelta(minutes=minutes_ago),
             values=values,
         )
-        evaluate_metric_checks(self.agent, sample)
+        evaluate_metric_checks(self.agent, sample, _metric_checks(self.agent))
         return sample
 
     def result(self, check):
@@ -865,11 +864,10 @@ class TestMetricChecks(ULRMMTestCase):
         self.assertEqual(self.result(above).status, CheckStatus.FAILING)
         self.assertEqual(self.result(below).status, CheckStatus.FAILING)
 
-    def test_bound_mount_keeps_its_series_on_a_crowded_host(self):
+    def test_every_mount_under_the_cap_keeps_its_series(self):
         check = self.metric_check(
             metric="disk.used_pct", metric_labels={"mount": "/data19"}, metric_error=90
         )
-        self.metric_check(metric="disk.used_pct", metric_labels={"mount": "*"})
         mount = DOC["system"]["mounts"][0]
         body = doc()
         body["system"]["mounts"] = [
@@ -877,9 +875,22 @@ class TestMetricChecks(ULRMMTestCase):
         ]
         sample = ingest(self.agent, clean_state(body))
         mounts = [parse_key(k)[1].get("mount") for k in sample.values]
-        self.assertIn("/data19", mounts)
-        self.assertNotIn("/data15", mounts)
+        self.assertEqual({m for m in mounts if m}, {f"/data{i}" for i in range(20)})
         self.assertEqual(self.result(check).more_info, "Average of 1 samples: 40")
+
+    def test_wildcard_sees_a_small_full_mount_on_a_crowded_host(self):
+        check = self.metric_check(
+            metric="disk.used_pct", metric_labels={"mount": "*"}, metric_error=90
+        )
+        mount = DOC["system"]["mounts"][0]
+        body = doc()
+        body["system"]["mounts"] = [
+            dict(mount, mount=f"/data{i}", size=(100 - i) * GB) for i in range(19)
+        ]
+        body["system"]["mounts"].append(dict(mount, mount="/", size=GB, used_pct=97.0))
+        ingest(self.agent, clean_state(body))
+        self.assertEqual(self.result(check).status, CheckStatus.FAILING)
+        self.assertEqual(self.result(check).more_info, "Average of 1 samples: 97")
 
     def test_missing_series_is_an_error(self):
         check = self.metric_check(metric_labels={"sensor": "gone"}, metric_warning=70)

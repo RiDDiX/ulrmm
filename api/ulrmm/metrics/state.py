@@ -366,7 +366,7 @@ SERIES = {
     "vm.total": ("kind",),
     "vm.running": ("kind",),
 }
-MAX_MOUNTS = 16
+MAX_MOUNTS = 32
 MAX_IFACES = 16
 MAX_TEMPS = 16
 MAX_CONTAINERS = 32
@@ -393,9 +393,7 @@ def parse_key(key: str) -> tuple[str, dict]:
     return name, labels
 
 
-def series(state: dict, bound: frozenset = frozenset()) -> dict[str, float]:
-    """bound holds the mount labels a metric check reads; they keep their
-    series when a host has more mounts than get one."""
+def series(state: dict) -> dict[str, float]:
     out: dict[str, float] = {}
 
     def put(name: str, value: Any, labels: Optional[dict] = None) -> None:
@@ -417,14 +415,7 @@ def series(state: dict, bound: frozenset = frozenset()) -> dict[str, float]:
     mounts = [
         m for m in system.get("mounts", []) if "mount" in m and not m.get("stale")
     ]
-    if len(mounts) > MAX_MOUNTS:
-        # hosts with many datasets: the mounts a check reads, then the largest;
-        # the sort is stable for ties
-        def rank(m: dict) -> tuple[bool, float]:
-            return label_value(m["mount"]) not in bound, -(m.get("size") or 0)
-
-        mounts = sorted(mounts, key=rank)[:MAX_MOUNTS]
-    for mount in mounts:
+    for mount in mounts[:MAX_MOUNTS]:
         labels = {"mount": mount["mount"]}
         put("disk.used_pct", mount.get("used_pct"), labels)
         put("disk.inode_pct", mount.get("inode_pct"), labels)
@@ -505,7 +496,7 @@ def ingest(agent, state: dict) -> Optional[Sample]:
             mem_total=mem_total,
             mem_used=mem_used,
             disks=disk_usage(agent.disks),
-            values=series(state, _bound_mounts(checks)),
+            values=series(state),
         )
     evaluate_metric_checks(agent, sample, checks)
     return sample
@@ -567,22 +558,9 @@ def _metric_checks(agent) -> list:
     ]
 
 
-def _bound_mounts(checks: list) -> frozenset:
-    mounts = [
-        check.metric_labels.get("mount")
-        for check in checks
-        if isinstance(check.metric_labels, dict)
-    ]
-    return frozenset(label_value(m) for m in mounts if m is not None and m != "*")
-
-
-def evaluate_metric_checks(
-    agent, sample: Sample, checks: Optional[list] = None
-) -> None:
+def evaluate_metric_checks(agent, sample: Sample, checks: list) -> None:
     from checks.models import apply_result
 
-    if checks is None:
-        checks = _metric_checks(agent)
     now = djangotime.now()
     checks = [check for check in checks if _due(check, now)]
     if not checks:

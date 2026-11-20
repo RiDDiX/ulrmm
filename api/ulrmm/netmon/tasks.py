@@ -126,21 +126,21 @@ def _send(alert: Alert, channel: str, resolved: bool) -> tuple[str, bool]:
     return core.send_sms(text, alert_template=template)
 
 
-@app.task
+@app.task(ignore_result=True)
 def network_alert_email_task(pk: int, alert_interval=None) -> str:
     return _notify(pk, "email", False, alert_interval)
 
 
-@app.task
+@app.task(ignore_result=True)
 def network_alert_sms_task(pk: int, alert_interval=None) -> str:
     return _notify(pk, "sms", False, alert_interval)
 
 
-@app.task
+@app.task(ignore_result=True)
 def network_resolved_email_task(pk: int) -> str:
     return _notify(pk, "email", True)
 
 
-@app.task
+@app.task(ignore_result=True)
 def network_resolved_sms_task(pk: int) -> str:
     return _notify(pk, "sms", True)

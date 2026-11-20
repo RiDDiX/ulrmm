@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 import uuid
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 from django.core.cache import cache
+from django.db import transaction
 from django.test import override_settings
 from django.utils import timezone as djangotime
 from model_bakery import baker
@@ -641,6 +642,85 @@ class TestCheckResultResend(ULRMMTestCase):
         self.assertEqual((r.status_code, r.data), (200, "ok"))
         self.assertEqual(self.applied(), (1, 1, 1))
         run_task.assert_not_called()
+
+    @patch(
+        "notify.tasks.send_notifications_task.delay",
+        side_effect=ConnectionError("broker down"),
+    )
+    def test_failing_publish_keeps_result_and_later_hooks(self, delay):
+        self.route_check_alerts()
+        later = []
+        with patch("autotasks.models.AutomatedTask.run_win_task"):
+            with self.captureOnCommitCallbacks(execute=True):
+                r = self.send(uuid.uuid4().hex)
+                transaction.on_commit(lambda: later.append(1))
+        self.assertEqual((r.status_code, r.data), (200, "ok"))
+        self.assertEqual(self.applied(), (1, 1, 1))
+        self.assertEqual(Notification.objects.count(), 1)
+        delay.assert_called_once()
+        self.assertEqual(later, [1])
+
+    @patch(
+        "core.models.CoreSettings.email_is_configured",
+        new=PropertyMock(return_value=True),
+    )
+    def test_failing_mail_publish_keeps_result_alert_and_later_hooks(self):
+        self.unit.email_alert = True
+        self.unit.save(update_fields=["email_alert"])
+        self.agent.alert_template = baker.make(
+            "alerts.AlertTemplate", is_active=True, check_email_on_resolved=True
+        )
+        self.agent.save(update_fields=["alert_template"])
+        down = ConnectionError("broker down")
+        for status, task in (
+            ("failing", "handle_check_email_alert_task"),
+            ("passing", "handle_resolved_check_email_alert_task"),
+        ):
+            later = []
+            with patch(f"checks.tasks.{task}.delay", side_effect=down) as delay:
+                with patch("autotasks.models.AutomatedTask.run_win_task"):
+                    with self.captureOnCommitCallbacks(execute=True):
+                        r = self.send(uuid.uuid4().hex, status=status)
+                        transaction.on_commit(lambda: later.append(1))
+            self.assertEqual((r.status_code, r.data), (200, "ok"))
+            delay.assert_called_once()
+            self.assertEqual(later, [1])
+            alert = Alert.objects.get(assigned_check=self.unit)
+            # the recovery mail goes out only after the failure mail was sent
+            alert.email_sent = djangotime.now()
+            alert.save(update_fields=["email_sent"])
+        self.assertEqual(CheckHistory.objects.filter(check_id=self.unit.pk).count(), 2)
+        self.assertTrue(alert.resolved)
+
+    def test_published_alert_tasks_store_no_result(self):
+        from agents import tasks as agents
+        from alerts.tasks import run_alert_action_task
+        from autotasks import tasks as autotasks
+        from checks import tasks as checks
+        from netmon import tasks as netmon
+        from notify.tasks import send_notifications_task
+
+        published = [
+            agents.agent_outage_email_task,
+            agents.agent_recovery_email_task,
+            agents.agent_outage_sms_task,
+            agents.agent_recovery_sms_task,
+            run_alert_action_task,
+            autotasks.handle_task_email_alert,
+            autotasks.handle_task_sms_alert,
+            autotasks.handle_resolved_task_email_alert,
+            autotasks.handle_resolved_task_sms_alert,
+            checks.handle_check_email_alert_task,
+            checks.handle_check_sms_alert_task,
+            checks.handle_resolved_check_email_alert_task,
+            checks.handle_resolved_check_sms_alert_task,
+            netmon.network_alert_email_task,
+            netmon.network_alert_sms_task,
+            netmon.network_resolved_email_task,
+            netmon.network_resolved_sms_task,
+            send_notifications_task,
+        ]
+        self.assertEqual([t.name for t in published if not t.ignore_result], [])
 
     def result_cache_down(self, method):
         real = getattr(cache, method)
