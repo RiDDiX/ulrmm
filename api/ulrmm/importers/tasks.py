@@ -21,6 +21,9 @@ BUSY = (
 )
 
 
+REMOVE_LOCK = "importers-remove"
+
+
 def lock_id(pk: int) -> str:
     return f"importers-source-{pk}"
 
@@ -42,7 +45,8 @@ def fetch(source) -> None:
         ImportSource.objects.filter(pk=source.pk).update(last_error=str(e)[:500])
         return
     except Exception as e:
-        DebugLog.error(message=f"import from {source.name}: {e!r}"[:1000])
+        # the type only: a message can quote the key
+        DebugLog.error(message=f"import from {source.name}: {type(e).__name__}")
         ImportSource.objects.filter(pk=source.pk).update(
             last_error=f"unexpected error: {type(e).__name__}"
         )
@@ -78,36 +82,46 @@ def migrate_task(self, pk: int, device_ids: list[int]) -> dict | str:
             return str(e)
 
 
-@app.task
-def remove_task() -> str:
+@app.task(bind=True)
+def remove_task(self) -> str:
     """Runs every few minutes; does nothing while no removal waits."""
+    # conditional updates: safe without the lock, never held up by a round
     removal.end_stale_claims()
     for pk in removal.recover_due():
         try:
             recover_task.delay(pk)
         except Exception as e:
-            DebugLog.error(message=f"remote-control recovery of {pk}: {e!r}"[:1000])
+            DebugLog.error(
+                message=f"remote-control recovery of {pk}: {type(e).__name__}"
+            )
             ImportedDevice.objects.filter(pk=pk).update(recovery_at=None)
-    waiting = ImportedDevice.objects.filter(remove_state__in=removal.WAITING)
-    if not waiting.exists():
-        return "idle"
-    for source in ImportSource.objects.filter(
-        pk__in=waiting.values("source_id"), from_file=False
-    ):
-        try:
-            client = for_source(source)
-        except SourceError as e:
-            ImportSource.objects.filter(pk=source.pk).update(last_error=str(e)[:500])
-            continue
-        for device in waiting.filter(source=source).select_related("source"):
-            # one device that fails never ends the round for the others
+    # a round of slow answers outlasts the beat interval
+    with redis_lock(REMOVE_LOCK, self.app.oid) as acquired:
+        if not acquired:
+            return "busy"
+        waiting = ImportedDevice.objects.filter(remove_state__in=removal.WAITING)
+        if not waiting.exists():
+            return "idle"
+        for source in ImportSource.objects.filter(
+            pk__in=waiting.values("source_id"), from_file=False
+        ):
             try:
-                removal.step(device, client)
-            except Exception as e:
-                DebugLog.error(
-                    message=f"removal of the old agent on {device}: {e!r}"[:1000]
+                client = for_source(source)
+            except SourceError as e:
+                ImportSource.objects.filter(pk=source.pk).update(
+                    last_error=str(e)[:500]
                 )
-    return "ok"
+                continue
+            for device in waiting.filter(source=source).select_related("source"):
+                # one device that fails never ends the round for the others
+                try:
+                    removal.step(device, client)
+                except Exception as e:
+                    why = type(e).__name__
+                    DebugLog.error(
+                        message=f"removal of the old agent on {device}: {why}"
+                    )
+        return "ok"
 
 
 @app.task

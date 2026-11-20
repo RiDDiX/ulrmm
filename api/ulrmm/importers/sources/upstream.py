@@ -18,9 +18,18 @@ agent: 200 "<hostname> will now be uninstalled.", sent without waiting for
 the device, and the row is gone at once."""
 
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 
-from .base import AGENT_SETTINGS, TASK_FIELDS, NotFound, Source, SourceError
+from .base import (
+    AGENT_SETTINGS,
+    TASK_FIELDS,
+    NoAnswer,
+    NotFound,
+    Source,
+    SourceError,
+    _name,
+    _str,
+)
 
 SHELLS = {"windows": "powershell", "linux": "/bin/bash", "darwin": "/bin/bash"}
 # what the agent waits for the command; it only starts the detached installer
@@ -42,6 +51,14 @@ def _ids(value) -> list:
     return value if isinstance(value, list) else []
 
 
+def _named_once(names: dict, key) -> dict:
+    """{id: name} with None for the ids whose name repeats over there (key
+    normalizes like validate does): a reference to one of them cannot be
+    told apart here and is reported as lost."""
+    seen = Counter(key(v) for v in names.values() if v)
+    return {i: v if v and seen[key(v)] == 1 else None for i, v in names.items()}
+
+
 def _lost(row, refs, slots) -> list[str]:
     # slots: (snapshot key, field over there, refs kind); an id the key cannot
     # see would be dropped and the limit or exclusion would widen
@@ -59,7 +76,6 @@ EXCLUDED = (
 
 
 class Upstream(Source):
-    KIND = "upstream"
     SECRETS = ("api_key",)
     PUSH_PLATS = ("windows", "linux", "darwin")
     REMOVES = True
@@ -163,10 +179,13 @@ class Upstream(Source):
             )
 
         refs = {
-            "scripts": {
-                s.get("id"): {"name": s.get("name"), "shell": s.get("shell")}
-                for s in listed
-            },
+            "scripts": _named_once(
+                {
+                    s.get("id"): {"name": s.get("name"), "shell": s.get("shell")}
+                    for s in listed
+                },
+                lambda v: (_name(v["name"], 255).lower(), _str(v["shell"], 30).lower()),
+            ),
             "fields": names,
             "clients": {c.get("id"): c.get("name") for c in found},
             "sites": {
@@ -248,10 +267,17 @@ class Upstream(Source):
             return ret
 
         actions = self._get("/core/urlaction/")
-        hooks = {u.get("id"): u.get("name") for u in actions}
-        templates, template_names, excluded = [], {}, defaultdict(set)
-        for t in self._get("/alerts/templates/"):
-            template_names[t.get("id")] = t.get("name")
+        hooks = _named_once(
+            {u.get("id"): u.get("name") for u in actions},
+            lambda v: _name(v, 255).lower(),
+        )
+        found = self._get("/alerts/templates/")
+        template_names = _named_once(
+            {t.get("id"): t.get("name") for t in found},
+            lambda v: _name(v, 100).lower(),
+        )
+        templates, excluded = [], defaultdict(set)
+        for t in found:
             for pk in _ids(t.get("excluded_agents")):
                 excluded[("template", pk)].add(t.get("name"))
             slots = {
@@ -276,9 +302,12 @@ class Upstream(Source):
             )
             templates[-1]["lost"] += _lost(t, refs, EXCLUDED)
 
-        policies, policy_names = [], {}
-        for p in self._get("/automation/policies/"):
-            policy_names[p.get("id")] = p.get("name")
+        policies, found = [], self._get("/automation/policies/")
+        policy_names = _named_once(
+            {p.get("id"): p.get("name") for p in found},
+            lambda v: _name(v, 255).lower(),
+        )
+        for p in found:
             for pk in _ids(p.get("excluded_agents")):
                 excluded[("policy", pk)].add(p.get("name"))
             patch = [w for w in _ids(p.get("winupdatepolicy")) if isinstance(w, dict)]
@@ -300,6 +329,8 @@ class Upstream(Source):
                     "lost": _lost(p, refs, EXCLUDED),
                 }
             )
+            if p.get("alert_template") and not policies[-1]["alert_template"]:
+                policies[-1]["lost"].append("alert_template")
 
         roles = [
             {
@@ -351,10 +382,15 @@ class Upstream(Source):
     def _assignments(self, clients, found, by) -> None:
         # the policies and template a client or site has, by name
         def names(row) -> dict:
-            return {
+            slots = {
                 "server_policy": by["policies"].get(row.get("server_policy")),
                 "workstation_policy": by["policies"].get(row.get("workstation_policy")),
                 "alert_template": by["templates"].get(row.get("alert_template")),
+            }
+            return {
+                **slots,
+                "block_policy_inheritance": row.get("block_policy_inheritance"),
+                "lost": [k for k, v in slots.items() if row.get(k) and not v],
             }
 
         mine = {c["ref"]: c for c in clients}
@@ -394,10 +430,12 @@ class Upstream(Source):
                 w for w in _ids(detail.get("winupdatepolicy")) if isinstance(w, dict)
             ]
             # the detail is large (inventory); only what validate reads stays
+            policy = by["policies"].get(detail.get("policy"))
             d.update(
-                policy=by["policies"].get(detail.get("policy")),
+                policy=policy,
                 patch_policy=patch[0] if patch else None,
                 settings={k: detail[k] for k in AGENT_SETTINGS if k in detail},
+                lost=["policy"] if detail.get("policy") and not policy else [],
             )
 
     def _agent(self, ref: str) -> str:
@@ -414,7 +452,8 @@ class Upstream(Source):
     def remove(self, ref: str, hostname: str) -> None:
         answer = self.call("DELETE", self._agent(ref))
         if answer != f"{hostname} will now be uninstalled.":
-            raise SourceError("the removal got an unexpected answer")
+            # an empty or other answer can come after the work was done
+            raise NoAnswer("the removal got an unexpected answer")
 
     def push(self, ref: str, plat: str, command: str, url: str = "") -> None:
         if plat not in SHELLS:

@@ -32,6 +32,7 @@ from agents.models import Agent
 from logs.models import AuditLog, DebugLog
 from ulrmm.constants import AGENT_STATUS_ONLINE, AuditActionType, AuditObjType
 
+from . import link
 from .link import short
 from .models import ImportedDevice, RemoveState
 from .sources import SourceError
@@ -53,31 +54,6 @@ STALE_CLAIM = dt.timedelta(hours=1)
 WAITING = (RemoveState.WAITING_HERE, RemoveState.WAITING_THERE)
 # serials with JSON escapes would slip past the text search in _serial_unique
 SERIAL_RE = re.compile(r"[A-Za-z0-9 ._:/-]+")
-# what firmware reports when nobody set a serial number
-FILLER_SERIALS = {
-    "to be filled by o.e.m.",
-    "default string",
-    "system serial number",
-    "chassis serial number",
-    "serial number",
-    "none",
-    "not specified",
-    "not applicable",
-    "not available",
-    "n/a",
-    "na",
-    "unknown",
-    "invalid",
-    "oem",
-    "empty",
-    "0123456789",
-    "123456789",
-    "1234567890",
-    "not defined",
-    "not provided",
-    "system product name",
-    "0000-0000-0000",
-}
 GONE = "the other server no longer lists the device"
 
 
@@ -192,14 +168,6 @@ def _ipv4(text) -> set:
     return found
 
 
-def _serial(agent) -> str:
-    return str(agent.serial_number or "").strip().lower()
-
-
-def _filler(serial: str) -> bool:
-    return len(serial) < 5 or len(set(serial)) == 1 or serial in FILLER_SERIALS
-
-
 def _serial_unique(serial: str, agent, device) -> bool:
     """No other agent here and no other device of the source has it."""
     if not SERIAL_RE.fullmatch(serial):
@@ -211,7 +179,7 @@ def _serial_unique(serial: str, agent, device) -> bool:
         .filter(raw__icontains=serial)
         .only("pk", "plat", "wmi_detail")
     )
-    if any(_serial(a) == serial for a in others):
+    if any(link.real_serial(a.serial_number) == serial for a in others):
         return False
     return not (
         ImportedDevice.objects.filter(source_id=device.source_id)
@@ -228,6 +196,13 @@ def same_machine(detail: dict, agent, device) -> str:
         return "the host names differ on both sides"
     if detail.get("plat") != agent.plat:
         return "the platforms differ on both sides"
+    wmi = detail.get("wmi_detail")
+    theirs = Agent(plat=agent.plat, wmi_detail=wmi if isinstance(wmi, dict) else {})
+    serial = link.real_serial(theirs.serial_number)
+    ours = link.real_serial(agent.serial_number)
+    # clones share names and addresses, never a real serial number
+    if serial and ours and serial != ours:
+        return "the serial numbers differ on both sides"
     # bridge addresses repeat on many hosts behind one public address, so one
     # common address proves nothing; all of them have to match
     public = str(detail.get("public_ip") or "").strip()
@@ -240,14 +215,7 @@ def same_machine(detail: dict, agent, device) -> str:
     ):
         return ""
     # checked second: the uniqueness test reads the whole agent table
-    wmi = detail.get("wmi_detail")
-    theirs = Agent(plat=agent.plat, wmi_detail=wmi if isinstance(wmi, dict) else {})
-    serial = _serial(theirs)
-    if (
-        not _filler(serial)
-        and serial == _serial(agent)
-        and _serial_unique(serial, agent, device)
-    ):
+    if serial and serial == ours and _serial_unique(serial, agent, device):
         return ""
     return (
         "not proven to be the same machine: no serial number only this machine "
@@ -263,7 +231,9 @@ def step(device, client) -> str:
         return ""
     expired = device.remove_requested_at < now - dt.timedelta(days=REMOVE_DAYS)
     if expired and device.remove_tried_at is None:
-        ImportedDevice.objects.filter(pk=device.pk, remove_state__in=WAITING).update(
+        ImportedDevice.objects.filter(
+            pk=device.pk, remove_state__in=WAITING, remove_tried_at__isnull=True
+        ).update(
             remove_state=RemoveState.NOT_REMOVED,
             remove_reason=(
                 device.remove_reason or f"not removed within {REMOVE_DAYS} days"
@@ -274,10 +244,15 @@ def step(device, client) -> str:
     if not _claim(device, now):
         # withdrawn, or another worker has it
         return ""
+    # a round that loaded the row earlier may have missed another's call
+    device.refresh_from_db()
     try:
         return _send(device, client, now, expired)
     except Exception as e:
-        DebugLog.error(message=f"removal of the old agent on {device}: {e!r}"[:1000])
+        # the type only: a message can quote the key
+        DebugLog.error(
+            message=f"removal of the old agent on {device}: {type(e).__name__}"
+        )
         why = f"unexpected error: {type(e).__name__}"
         # past the days a tried device stops here too, as in _send's wait()
         state = RemoveState.NOT_REMOVED if expired else RemoveState.WAITING_THERE
@@ -314,7 +289,7 @@ def _send(device, client, now, expired: bool) -> str:
         detail = client.device(device.ref)
     except NotFound:
         if tried:
-            return _removed(device, now, f"{GONE}, its answer was lost")
+            return _removed(device, now, f"{GONE}, its answer was lost or unclear")
         _release(device, RemoveState.NOT_REMOVED, GONE, now)
         return RemoveState.NOT_REMOVED
     except SourceError as e:

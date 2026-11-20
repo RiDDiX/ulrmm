@@ -216,6 +216,11 @@ def send(source, device_ids) -> dict:
                 _fail(d, str(e))
                 result["failed"] += 1
                 continue
+            except Exception as e:
+                # the text can hold the key (a non-latin-1 character in it)
+                _fail(d, f"unexpected error: {type(e).__name__}")
+                result["failed"] += 1
+                continue
             d.migrate_state = MigrateState.SENT
             d.migrate_error = ""
             d.sent_at = djangotime.now()

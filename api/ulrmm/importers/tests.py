@@ -79,7 +79,6 @@ SNAPSHOT = {
 
 
 class FakeSource(Source):
-    KIND = "upstream"
     SECRETS = ("api_key",)
     PUSH_PLATS = ("windows", "linux")
     pushed: list = []
@@ -304,6 +303,15 @@ class TestMigrate(ULRMMTestCase):
         d.refresh_from_db()
         self.assertEqual(d.migrate_error, "agent offline")
         self.assertFalse(Deployment.objects.exists(), "an unused link is deleted")
+
+    def test_push_crash_keeps_only_the_type(self, for_source, _):
+        for_source.return_value = FakeSource("https://x", True, {}, {})
+        d = ImportedDevice.objects.get(ref="d2")
+        error = UnicodeEncodeError("latin-1", "k3y-\u201cpasted", 4, 5, "not in range")
+        with patch.object(FakeSource, "push", side_effect=error):
+            self.assertEqual(migrate.send(self.src, [d.pk])["failed"], 1)
+        d.refresh_from_db()
+        self.assertEqual(d.migrate_error, "unexpected error: UnicodeEncodeError")
 
     def test_linked_devices_are_skipped(self, for_source, _):
         for_source.return_value = FakeSource("https://x", True, {}, {})
@@ -535,11 +543,14 @@ class TestFetchLimits(ULRMMTestCase):
         request.assert_not_called()
 
 
-def _recorded() -> dict:
+def _recorded(edit=None) -> dict:
+    """The recorded fetch; edit(answers) changes the raw answers first."""
     from .sources.upstream import Upstream
     from .test_sources import Recorded
 
     rec = Recorded("upstream")
+    if edit:
+        edit(rec.answers)
     with patch.object(Source, "call", lambda s, *a, **k: rec(s, *a, **k)):
         return validate(Upstream("https://old", True, {}, {"api_key": "K"}).fetch())
 
@@ -1694,7 +1705,8 @@ class TestRemoval(ULRMMTestCase):
         self.remote.detail_error = NotFound("404")
         self.assertEqual(self.step()[0], "removed")
         self.assertEqual(
-            self.state(), ("removed", f"{self.removal.GONE}, its answer was lost")
+            self.state(),
+            ("removed", f"{self.removal.GONE}, its answer was lost or unclear"),
         )
         self.assertEqual(
             ImportedDevice.objects.get(pk=self.device.pk).recovery, "pending"
@@ -1819,7 +1831,7 @@ class TestRemoval(ULRMMTestCase):
     def test_an_error_answer_is_no_try(self, later):
         from .sources.base import NotFound
 
-        self.remote.answer_error = SourceError("/agents/AGENT1/ answered 500")
+        self.remote.answer_error = SourceError("/agents/AGENT1/ answered 400")
         self.assertEqual(self.step()[0], "waiting_there")
         self.assertIsNone(ImportedDevice.objects.get(pk=self.device.pk).remove_tried_at)
         self.removal.withdraw(self.src, [self.device.pk], "alice")

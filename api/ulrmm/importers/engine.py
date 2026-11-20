@@ -16,7 +16,7 @@ Objects point at each other by name in the snapshot and are resolved through
 what this import created or matched. An object whose reference does not
 resolve, or that this installation refuses, is left out with the reason."""
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -74,6 +74,19 @@ LIMIT_LOST = (
     "it is limited to a client or site the source did not list, here it would "
     "see more"
 )
+BLOCK_LEFT_OUT = (
+    "it blocks policy inheritance over there; the import does not change what "
+    "is here, set it by hand"
+)
+REPEATED_SCRIPT = (
+    "another script over there has the same name and shell; references to "
+    "either cannot be told apart, rename one there and read the source again"
+)
+TEMPLATE_LOST = (
+    "its alert template over there is not in the source's list or its name "
+    "repeats there, set one here"
+)
+POLICY_SLOTS = ("server_policy", "workstation_policy")
 EXCLUSION_LOST = (
     "it excludes a client or site the source did not list, so the import "
     "assigns it nowhere; assign it here by hand"
@@ -178,39 +191,6 @@ def _policy_template(p) -> str:
     return f"{p['name']}: alert template {p['alert_template']}"
 
 
-def _missing_children(policy, p) -> tuple[list, list, dict]:
-    """The checks and tasks of snapshot policy p that policy here lacks, and
-    {check ref: check} of those it has; matched by description and name."""
-    have = defaultdict(list)
-    for c in policy.policychecks.order_by("pk"):
-        # spaced like validate's names: the description here has double spaces
-        have[" ".join(c.readable_desc.split())[:255].lower()].append(c)
-    # twins (one description, e.g. a script with other arguments) are told
-    # apart by the fields the builder writes; a single one by description
-    twins = Counter(c["desc"].lower() for c in p["checks"])
-    missing, present = [], {}
-    for c in p["checks"]:
-        local = have.get(c["desc"].lower(), [])
-        if twins[c["desc"].lower()] > 1:
-            fields = build.check_fields(c).items()
-            same = (h for h in local if all(getattr(h, k) == v for k, v in fields))
-            found = next(same, None)
-        else:
-            found = local[0] if local else None
-        if found is None:
-            missing.append(c)
-            continue
-        local.remove(found)
-        if c["ref"]:
-            present[c["ref"]] = found
-    tasks = {t.name.lower() for t in policy.autotasks.all()}
-    return (
-        missing,
-        [t for t in p["tasks"] if t["name"].lower() not in tasks],
-        present,
-    )
-
-
 class _Have:
     """What the snapshot would resolve against: the names here plus the
     names the import would add."""
@@ -218,7 +198,11 @@ class _Have:
     def __init__(self, snap):
         self.scripts = {
             _key(n, s) for n, s in Script.objects.values_list("name", "shell")
-        } | {_key(s["name"], s["shell"]) for s in snap.get("scripts", [])}
+        } | {
+            _key(s["name"], s["shell"])
+            for s in snap.get("scripts", [])
+            if not s.get("too_long")
+        }
         self.fields = {
             _key(n)
             for n in CustomField.objects.filter(model="agent").values_list(
@@ -369,7 +353,7 @@ def _plan_more(source, snap) -> dict:
         _skip(_assignment(t), EXCLUSION_LOST)
         for t in templates
         if _exclusion_lost(t) and _key(t["name"]) not in templates_left_out
-    ]
+    ] + _slots_lost(snap, ("alert_template",))
     p_skip, to_complete = [], []
     own_policies = _own_by_name(source, Policy, "policies")
     blocked = {_key(n) for n in _blocked(snap)}
@@ -382,7 +366,9 @@ def _plan_more(source, snap) -> dict:
         if _key(p["name"]) not in policies_here:
             p_skip += have.owned(prefix, p["checks"], p["tasks"])
         elif policy := own_policies.get(p["name"].lower()):
-            checks, tasks, present = _missing_children(policy, p)
+            checks, tasks, present = build.missing_children(
+                policy.policychecks, policy.autotasks, p
+            )
             skipped = have.owned(prefix, checks, tasks, present)
             slot_empty = policy.alert_template_id is None
             template = (
@@ -397,8 +383,11 @@ def _plan_more(source, snap) -> dict:
             slot_empty = False
         if slot_empty and _key(p["alert_template"]) in blocked:
             p_skip.append(_skip(_policy_template(p), EXCLUSION_LOST))
+        if slot_empty and "alert_template" in p["lost"]:
+            p_skip.append(_skip(f"{p['name']}: alert template", TEMPLATE_LOST))
         if _exclusion_lost(p):
             p_skip.append(_skip(_assignment(p), EXCLUSION_LOST))
+    p_skip += _slots_lost(snap, POLICY_SLOTS)
     r_skip = [
         _skip(r["name"], why)
         for r in roles
@@ -491,10 +480,12 @@ def plan(source) -> dict:
     known = set(source.devices.values_list("ref", flat=True))
     site_names = _site_names(snap)
     resolve = _Have(snap)
+    scripts_left_out = _scripts_left_out(scripts, have["scripts"])
     return {
         "clients": _part(
             [c["name"] for c in clients],
             [c["name"] for c in clients if _key(c["name"]) not in have["clients"]],
+            _blocks_left_out(snap),
         ),
         "sites": _part(
             [f"{c} / {s}" for c, s in sites],
@@ -512,9 +503,12 @@ def plan(source) -> dict:
             [s["name"] for s in scripts],
             [
                 s["name"]
-                for s in scripts
+                for i, s in enumerate(scripts)
                 if _key(s["name"], s["shell"]) not in have["scripts"]
+                and i not in scripts_left_out
             ],
+            [_skip(scripts[i]["name"], why) for i, why in scripts_left_out.items()],
+            len(scripts_left_out),
         ),
         "snippets": _part(
             [s["name"] for s in snippets],
@@ -546,12 +540,52 @@ def plan(source) -> dict:
     }
 
 
-def _import_clients(snap, done):
+def _client_rows(snap) -> list[tuple]:
+    # (shown name, key, row) of the clients and sites
+    return [(c["name"], _key(c["name"]), c) for c in snap.get("clients", [])] + [
+        (f"{c['name']} / {s['name']}", _key(c["name"], s["name"]), s)
+        for c in snap.get("clients", [])
+        for s in c["sites"]
+    ]
+
+
+def _blocks_left_out(snap) -> list[dict]:
+    """Clients and sites here that do not block policy inheritance while they
+    do over there; the import never changes what exists."""
+    here = {_key(c.name): c.block_policy_inheritance for c in Client.objects.all()}
+    here |= {k: s.block_policy_inheritance for k, s in _sites_here().items()}
+    return [
+        _skip(f"{name}: block policy inheritance", BLOCK_LEFT_OUT)
+        for name, key, row in _client_rows(snap)
+        if row["block_policy_inheritance"] and here.get(key) is False
+    ]
+
+
+def _slots_lost(snap, slots: tuple) -> list[dict]:
+    """The lost slots of clients and sites that are still empty here."""
+    here = {_key(c.name): c for c in Client.objects.all()} | _sites_here()
+    return [
+        _skip(
+            f"{name}: {slot.replace('_', ' ')}",
+            TEMPLATE_LOST if slot == "alert_template" else build.POLICY_LOST,
+        )
+        for name, key, row in _client_rows(snap)
+        for slot in slots
+        if slot in row.get("lost", ())
+        and getattr(here.get(key), f"{slot}_id", None) is None
+    ]
+
+
+def _import_clients(snap, done, skip):
+    for row in _blocks_left_out(snap):
+        skip(row["name"], row["reason"])
     clients = {c.name.lower(): c for c in Client.objects.all()}
     for c in snap.get("clients", []):
         client = clients.get(c["name"].lower())
         if client is None:
-            client = Client(name=c["name"])
+            client = Client(
+                name=c["name"], block_policy_inheritance=c["block_policy_inheritance"]
+            )
             client.save()
             clients[client.name.lower()] = client
             done["clients"] += 1
@@ -560,7 +594,11 @@ def _import_clients(snap, done):
         for s in c["sites"]:
             site = sites.get(s["name"].lower())
             if site is None:
-                site = Site(client=client, name=s["name"])
+                site = Site(
+                    client=client,
+                    name=s["name"],
+                    block_policy_inheritance=s["block_policy_inheritance"],
+                )
                 site.save()
                 done["sites"] += 1
             link.fill(site, "site", s["custom_fields"])
@@ -578,9 +616,29 @@ def _import_fields(snap, done):
         done["custom_fields"] += 1
 
 
-def _import_scripts(snap, done):
+def _scripts_left_out(scripts, have: set) -> dict:
+    """{index: reason} of the snapshot scripts the import leaves out; one
+    that exists here counts as existing."""
+    seen, ret = set(), {}
+    for i, s in enumerate(scripts):
+        key = _key(s["name"], s["shell"])
+        if key in have:
+            continue
+        if key in seen:
+            ret[i] = REPEATED_SCRIPT
+        elif s.get("too_long"):
+            ret[i] = build.TOO_LONG
+        seen.add(key)
+    return ret
+
+
+def _import_scripts(snap, done, skip):
     have = {_key(n, s) for n, s in Script.objects.values_list("name", "shell")}
-    for s in snap.get("scripts", []):
+    left_out = _scripts_left_out(snap.get("scripts", []), have)
+    for i, s in enumerate(snap.get("scripts", [])):
+        if i in left_out:
+            skip(s["name"], left_out[i])
+            continue
         if _key(s["name"], s["shell"]) in have:
             continue
         Script(
@@ -679,6 +737,15 @@ def _site_pks(pairs, sites: dict) -> list[int]:
     return _pks((_key(c, s) for c, s in pairs), sites)
 
 
+def _unplaced(row, clients: dict, sites: dict) -> str:
+    """Why a new policy or template waits: an excluded client or site that is
+    not here yet; created without it, it would apply there."""
+    lost = [n for n in row["excluded_clients"] if n.lower() not in clients] + [
+        f"{c} / {s}" for c, s in row["excluded_sites"] if _key(c, s) not in sites
+    ]
+    return f"it excludes {lost[0]}, which is not here yet" if lost else ""
+
+
 def _import_url_actions(snap, done, skip):
     have = _named(URLAction)
     for u in snap.get("url_actions", []):
@@ -733,6 +800,7 @@ def _import_templates(source, snap, done, skip):
                 why = f"URL action {hook} is not here"
             elif not rest and script and data[f"{prefix}action"] is None:
                 why = f"script {script['name']} is not here"
+        why = why or _unplaced(t, clients, sites)
         if why:
             skip(t["name"], why)
             continue
@@ -749,6 +817,8 @@ def _import_templates(source, snap, done, skip):
     for t in snap.get("alert_templates", []):
         if _exclusion_lost(t) and templates.pop(t["name"].lower(), None):
             skip(_assignment(t), EXCLUSION_LOST)
+    for lost in _slots_lost(snap, ("alert_template",)):
+        skip(lost["name"], lost["reason"])
     _fill_slots(snap, ("alert_template",), templates)
     default = next((t for t in snap.get("alert_templates", []) if t["default"]), None)
     core = CoreSettings.objects.first()
@@ -771,8 +841,13 @@ def _import_policies(source, snap, done, skip):
                 completed = _complete(policy, p, templates, blocked, refs, skip)
                 done["completed"]["policies"] += int(completed)
             continue
+        if why := _unplaced(p, clients, sites):
+            skip(p["name"], why)
+            continue
         template = None
-        if p["alert_template"].lower() in blocked:
+        if "alert_template" in p["lost"]:
+            skip(f"{p['name']}: alert template", TEMPLATE_LOST)
+        elif p["alert_template"].lower() in blocked:
             skip(_policy_template(p), EXCLUSION_LOST)
         elif p["alert_template"]:
             template = templates.get(p["alert_template"].lower())
@@ -804,21 +879,27 @@ def _import_policies(source, snap, done, skip):
     for p in snap.get("policies", []):
         if _exclusion_lost(p) and policies.pop(p["name"].lower(), None):
             skip(_assignment(p), EXCLUSION_LOST)
-    _fill_slots(snap, ("server_policy", "workstation_policy"), policies)
+    for lost in _slots_lost(snap, POLICY_SLOTS):
+        skip(lost["name"], lost["reason"])
+    _fill_slots(snap, POLICY_SLOTS, policies)
 
 
 def _complete(policy, p, templates, blocked, refs, skip) -> bool:
     """Adds what a policy this source created still lacks: its checks, its
     tasks and an empty alert template slot. Returns whether it added any."""
     prefix = f"{p['name']}: "
-    checks, tasks, present = _missing_children(policy, p)
+    checks, tasks, present = build.missing_children(
+        policy.policychecks, policy.autotasks, p
+    )
     owner = {"policy": policy.pk}
     new = build.checks(owner, checks, refs, skip, prefix)
     added = bool(new) | bool(
         build.tasks(owner, tasks, refs, {**present, **new}, skip, prefix)
     )
     template = templates.get(p["alert_template"].lower())
-    if policy.alert_template_id is None and p["alert_template"].lower() in blocked:
+    if policy.alert_template_id is None and "alert_template" in p["lost"]:
+        skip(f"{p['name']}: alert template", TEMPLATE_LOST)
+    elif policy.alert_template_id is None and p["alert_template"].lower() in blocked:
         skip(_policy_template(p), EXCLUSION_LOST)
     elif template and policy.alert_template_id is None:
         policy.alert_template = template
@@ -931,8 +1012,8 @@ def run(source, parts, username: str = "importer") -> dict:
     steps = (
         # fields first: client, site and device values need them
         ("custom_fields", lambda skip: _import_fields(snap, done)),
-        ("clients", lambda skip: _import_clients(snap, done)),
-        ("scripts", lambda skip: _import_scripts(snap, done)),
+        ("clients", lambda skip: _import_clients(snap, done, skip)),
+        ("scripts", lambda skip: _import_scripts(snap, done, skip)),
         ("snippets", lambda skip: _import_snippets(snap, done)),
         ("keystore", lambda skip: _import_keystore(snap, done)),
         ("url_actions", lambda skip: _import_url_actions(snap, done, skip)),

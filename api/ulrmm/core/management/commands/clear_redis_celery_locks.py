@@ -23,6 +23,7 @@ LOCKS = (
     "discovery-scan-lock-key",
     "driver-catalog",
     "encryption-collect-lock",
+    "importers-remove",
     "integrations-sync-lock",
     "laps-rotate-lock",
     "maintenance-schedule-lock",

@@ -17,7 +17,7 @@ their ids as the options script_windows and script_linux."""
 
 import datetime as dt
 
-from .base import MAX_ITEMS, Source, SourceError
+from .base import MAX_ITEMS, NotFound, Refused, Source, SourceError
 
 PAGE = 200
 CLASSES = {
@@ -52,7 +52,6 @@ def _value(value, kind: str):
 
 
 class NinjaOne(Source):
-    KIND = "ninjaone"
     SECRETS = ("client_secret",)
     PUSH_PLATS = ("windows", "linux")
 
@@ -91,7 +90,7 @@ class NinjaOne(Source):
     def _values(self, path: str, labels: dict, kinds: dict) -> dict:
         try:
             values = self.call("GET", path)
-        except SourceError:
+        except (NotFound, Refused):
             # fields hidden from the API give nothing; values are optional
             return {}
         if not isinstance(values, dict):

@@ -9,13 +9,14 @@ A source turns the other RMM's API into one dict:
                      sites: [{ref, name, custom_fields}]}]
     custom_fields: [{model: client|site|agent, name, type, options}]
     scripts:       [{name, description, shell, category, args, env_vars, body,
-                     timeout, platforms, run_as_user, syntax}]
+                     timeout, platforms, run_as_user, syntax, too_long}]
     snippets:      [{name, desc, code, shell}]
     keystore:      [{name, value}]
     devices:       [{ref, site_ref, hostname, serial, plat, goarch,
                      monitoring_type, os_name, description, notes: [str],
                      custom_fields, policy, patch_policy, settings, checks,
-                     tasks, excluded_policies, excluded_templates}]
+                     tasks, excluded_policies, excluded_templates,
+                     lost}]
 
 Sources that read more also deliver (others leave them out):
 
@@ -30,7 +31,9 @@ Sources that read more also deliver (others leave them out):
                         did not list
     policies:         [{name, desc, active, enforced, alert_template,
                         patch_policy, checks, tasks, excluded_clients,
-                        excluded_sites, lost}]; lost as for templates
+                        excluded_sites, lost}]; lost as for templates,
+                        plus alert_template when its template cannot be
+                        named (not listed, or its name repeats over there)
     roles:            [{name, superuser, perms, unknown, clients, sites,
                         lost}]; lost names clients or sites when the role is
                         limited to one the source did not list
@@ -38,14 +41,17 @@ Sources that read more also deliver (others leave them out):
     report_html, report_queries, report_templates: the reporting module's rows
 
 Clients and sites name their server_policy, workstation_policy and
-alert_template. Other objects are referenced by name as well: scripts as
+alert_template, and carry block_policy_inheritance and lost (the slots
+whose name repeats over there). Other objects are referenced by name as well: scripts as
 {name, shell}, sites as [client, site], devices by ref, a task's check by the
 check's ref. A check is {ref, desc, script, fields}, a task {ref, name,
-fields, actions, assigned_check, custom_field}; fields holds the model
+fields, actions, assigned_check, custom_field, too_long}; fields holds the model
 fields both sides share.
 
 validate() is the trust boundary: the answer comes from another server, so
-every value is type checked and cut to the column sizes before it is stored."""
+every value is type checked and cut to the column sizes before it is stored.
+Task actions and scripts whose values exceed the caps here are marked
+too_long instead and left out by the import."""
 
 import json
 import math
@@ -80,13 +86,15 @@ TIMEOUT = 30
 # the address of a source; an export file names its server the same way
 URL_RE = r"^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$"
 # raised when the snapshot format changes; an older snapshot is read again
-SNAPSHOT_VERSION = 3
+SNAPSHOT_VERSION = 4
 # a whole fetch ends well before the source's lock (2 h) runs out
 FETCH_SECONDS = 90 * 60
 # more than any fleet this importer is meant for; a bigger answer is refused
 MAX_ITEMS = 20000
 MAX_BODY = 1_000_000
 MAX_JSON = 100_000
+# task commands, script arguments and environment variables
+LONG = 10_000
 
 AUDIT_FIELDS = {"id", "created_by", "created_time", "modified_by", "modified_time"}
 CHECK_FIELDS = [f for f in POLICY_CHECK_FIELDS_TO_COPY if f != "script"]
@@ -139,14 +147,18 @@ class NotFound(SourceError):
 
 
 class NoAnswer(SourceError):
-    """The request got no answer: whether it took effect is unknown."""
+    """No usable answer (none, a server error or an unexpected body): whether
+    the request took effect is unknown."""
+
+
+class Refused(SourceError):
+    """The key or login was refused."""
 
 
 class Source:
-    """One other RMM. Subclasses set KIND and SECRETS and implement fetch;
+    """One other RMM. Subclasses set SECRETS and implement fetch;
     push is only there when the source can run a command on a device."""
 
-    KIND = ""
     # names of the secret fields the source needs
     SECRETS: tuple = ()
     # platforms push() can send an installer to
@@ -200,7 +212,7 @@ class Source:
                 f"reading the source took longer than {FETCH_SECONDS // 60} "
                 "minutes and was stopped"
             )
-        url = path if path.startswith("https://") else self.base + path
+        url = self.base + path
         try:
             r = self.session.request(
                 method,
@@ -219,9 +231,12 @@ class Source:
         if 300 <= r.status_code < 400:
             raise SourceError(f"{path} answered with a redirect")
         if r.status_code in (401, 403):
-            raise SourceError(f"{path}: the key or login was refused ({r.status_code})")
+            raise Refused(f"{path}: the key or login was refused ({r.status_code})")
         if r.status_code == 404:
             raise NotFound(f"{path} answered 404")
+        if r.status_code >= 500:
+            # a server error can come after the work was done
+            raise NoAnswer(f"{path} answered {r.status_code}")
         if r.status_code >= 400:
             raise SourceError(f"{path} answered {r.status_code}")
         if r.status_code == 204:
@@ -261,6 +276,13 @@ def _strings(value, limit: int, count: int = 100) -> list[str]:
     if not isinstance(value, list):
         return []
     return [_str(v, limit) for v in value[:count] if v is not None]
+
+
+def _too_long(value, limit: int, count: int = 100) -> bool:
+    """Whether _str or _strings would cut value."""
+    if isinstance(value, list):
+        return len(value) > count or any(_too_long(v, limit) for v in value)
+    return isinstance(value, str) and len(value.replace("\x00", "")) > limit
 
 
 def _fields(value) -> dict:
@@ -367,6 +389,13 @@ def _pairs(value) -> list[list[str]]:
     return ret
 
 
+def _cut(a) -> bool:
+    # what _action would cut of a task action
+    return isinstance(a, dict) and any(
+        _too_long(a.get(k), LONG) for k in ("script_args", "env_vars", "command")
+    )
+
+
 def _action(a) -> dict | None:
     kind = a.get("type") if isinstance(a, dict) else None
     common = {"timeout": _int(a.get("timeout")) if kind else None}
@@ -375,15 +404,15 @@ def _action(a) -> dict | None:
             "type": "script",
             "script": _script(a.get("script")),
             "name": _name(a.get("name"), 255),
-            "script_args": _strings(a.get("script_args"), 255),
-            "env_vars": _strings(a.get("env_vars"), 1000),
+            "script_args": _strings(a.get("script_args"), LONG),
+            "env_vars": _strings(a.get("env_vars"), LONG),
             "run_as_user": a.get("run_as_user") is True,
             **common,
         }
     if kind == "cmd":
         return {
             "type": "cmd",
-            "command": _str(a.get("command"), 10_000),
+            "command": _str(a.get("command"), LONG),
             "shell": _str(a.get("shell"), 255) or None,
             "run_as_user": a.get("run_as_user") is True,
             **common,
@@ -437,6 +466,7 @@ def _tasks(value) -> list[dict]:
                 "name": _name(fields["name"], 255),
                 "fields": fields,
                 "actions": [a for a in map(_action, actions[:100]) if a],
+                "too_long": len(actions) > 100 or any(map(_cut, actions)),
                 "assigned_check": _str(t.get("assigned_check"), 40),
                 "custom_field": _name(t.get("custom_field"), 100),
             }
@@ -515,7 +545,11 @@ def _more(data) -> dict:
                 "tasks": _tasks(p.get("tasks")),
                 "excluded_clients": _names(p.get("excluded_clients")),
                 "excluded_sites": _pairs(p.get("excluded_sites")),
-                "lost": [s for s in _strings(p.get("lost"), 40) if s in EXCLUSIONS],
+                "lost": [
+                    s
+                    for s in _strings(p.get("lost"), 40)
+                    if s in EXCLUSIONS + ("alert_template",)
+                ],
             }
             for p in _list(data.get("policies"), "policies")
         ),
@@ -597,11 +631,17 @@ def _more(data) -> dict:
     }
 
 
+ASSIGNED = ("server_policy", "workstation_policy", "alert_template")
+
+
 def _assigned(row) -> dict:
     return {
         "server_policy": _name(row.get("server_policy"), 255),
         "workstation_policy": _name(row.get("workstation_policy"), 255),
         "alert_template": _name(row.get("alert_template"), 100),
+        "block_policy_inheritance": row.get("block_policy_inheritance") is True,
+        # set over there, but its name repeats there
+        "lost": [s for s in _strings(row.get("lost"), 40) if s in ASSIGNED],
     }
 
 
@@ -679,6 +719,9 @@ def validate(data) -> dict:
                 ],
                 "run_as_user": s.get("run_as_user") is True,
                 "syntax": _str(s.get("syntax"), 10_000),
+                "too_long": _too_long(s.get("args"), 1000)
+                or _too_long(s.get("env_vars"), 1000)
+                or _too_long(s.get("body"), MAX_BODY),
             }
         )
 
@@ -730,6 +773,8 @@ def validate(data) -> dict:
                 "tasks": _tasks(d.get("tasks")),
                 "excluded_policies": _names(d.get("excluded_policies")),
                 "excluded_templates": _names(d.get("excluded_templates"), 100),
+                # its policy over there, whose name repeats there
+                "lost": [s for s in _strings(d.get("lost"), 40) if s == "policy"],
             }
         )
 

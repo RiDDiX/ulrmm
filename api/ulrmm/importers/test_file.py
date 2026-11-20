@@ -340,6 +340,14 @@ class TestFileViews(ULRMMTestCase):
         }
         return self.client.post(f"{BASE}/{src.pk}/upload/", body, format="multipart")
 
+    def test_upload_lock_outlives_the_request_only_briefly(self):
+        from ulrmm.utils import redis_lock
+
+        src = _file_source()
+        with NO_NETWORK, patch("importers.views.redis_lock", wraps=redis_lock) as lock:
+            self.assertEqual(self.upload(src).status_code, 200)
+        self.assertEqual(lock.call_args.kwargs["ttl"], 330)
+
     def test_superuser_only(self):
         src = _file_source()
         self.client.force_authenticate(
@@ -533,7 +541,6 @@ class TestFileViews(ULRMMTestCase):
             ("from_file", True),
             ("push_plats", []),
             ("removes_agent", False),
-            ("secret_names", []),
             ("secrets_set", []),
             ("parts", list(Upstream.PARTS)),
         ):

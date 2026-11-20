@@ -5,18 +5,26 @@
 uses, so an import is checked like an edit in the dashboard. A row that does
 not pass is left out with the reason; it never stops the others."""
 
+import datetime as dt
+from collections import Counter, defaultdict
+
 from django.db import DataError, IntegrityError, transaction
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
 
 from checks.serializers import CheckSerializer
 from core.models import CustomField
 from scripts.models import Script
-from ulrmm.constants import AgentPlat, CheckType
+from ulrmm.constants import AgentPlat, CheckType, TaskType
 from winupdate.models import WinUpdatePolicy
 from winupdate.serializers import WinUpdatePolicySerializer
 
 WINDOWS_ONLY = (CheckType.WINSVC, CheckType.EVENT_LOG)
 SERVICE_PLATS = (AgentPlat.LINUX, AgentPlat.FREEBSD)
+# a value over the import's caps: the row is left out, never cut
+TOO_LONG = "a value is longer than the import takes, take it over by hand"
+POLICY_LOST = "its policy over there has a name that repeats there, set one here"
 
 
 def key(*names) -> tuple:
@@ -77,18 +85,71 @@ def missing(row, kind: str, available) -> str:
         ):
             return _no_script(row["script"])
         return ""
+    if row.get("too_long"):
+        return TOO_LONG
     for action in row["actions"]:
         if action["type"] == "script" and not available(action["script"]):
             return _no_script(action["script"])
     if not row["actions"]:
         return "it has no actions"
+    if row["fields"].get("task_type") == TaskType.RUN_ONCE and _past(
+        row["fields"].get("run_time_date")
+    ):
+        return "it runs once at a time that has passed"
     return ""
+
+
+def _past(value) -> bool:
+    try:
+        when = parse_datetime(value or "")
+    except ValueError:
+        return False
+    if when is None:
+        return False
+    if timezone.is_naive(when):
+        when = timezone.make_aware(when, dt.timezone.utc)
+    # the agent's wall clock: a day of margin for its time zone
+    return when < timezone.now() - dt.timedelta(days=1)
 
 
 def _no_script(ref) -> str:
     if not ref:
         return "its script is not in the source's list"
     return f"script {ref['name']} is not here"
+
+
+def missing_children(checks, tasks, p) -> tuple[list, list, dict]:
+    """The checks and tasks of snapshot row p (a policy or device) that the
+    owner's checks and tasks here lack, and {check ref: check} of those it
+    has; matched by description and name."""
+    have = defaultdict(list)
+    for c in checks.order_by("pk"):
+        # spaced like validate's names: the description here has double spaces
+        have[" ".join(c.readable_desc.split())[:255].lower()].append(c)
+    # twins (one description, e.g. a script with other arguments) are told
+    # apart by the fields the builder writes; a single one by description
+    twins = Counter(c["desc"].lower() for c in p["checks"])
+    missing, present = [], {}
+    for c in p["checks"]:
+        local = have.get(c["desc"].lower(), [])
+        if twins[c["desc"].lower()] > 1:
+            fields = check_fields(c).items()
+            same = (h for h in local if all(getattr(h, k) == v for k, v in fields))
+            found = next(same, None)
+        else:
+            found = local[0] if local else None
+        if found is None:
+            missing.append(c)
+            continue
+        local.remove(found)
+        if c["ref"]:
+            present[c["ref"]] = found
+    names = {" ".join(t.name.split()).lower() for t in tasks.all()}
+    return (
+        missing,
+        [t for t in p["tasks"] if t["name"].lower() not in names],
+        present,
+    )
 
 
 def check_fields(row) -> dict:

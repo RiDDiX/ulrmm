@@ -6,6 +6,7 @@ sites, scripts, keystore entries, policies, roles and users for everyone."""
 
 import json
 
+from django.conf import settings
 from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as djangotime
@@ -18,6 +19,7 @@ from rest_framework.views import APIView
 from accounts.utils import DELETE_NEEDS_TOTP, has_superuser_rights, verify_fresh_totp
 from accounts.views import _body
 from logs.models import DebugLog
+from ulrmm.constants import REDIS_LOCK_EXPIRE
 from ulrmm.helpers import notify_error
 from ulrmm.utils import redis_lock
 
@@ -36,6 +38,9 @@ NO_INSTALL = (
     "the device links by host name and site when it enrolls."
 )
 NO_REMOVE = f"{NO_SERVER} Remove the old agent on each device by hand."
+# a request killed by the harakiri never releases its lock
+HARAKIRI = int(getattr(settings, "UWSGI_HARAKIRI", 300))
+REQUEST_LOCK = HARAKIRI + 30 if HARAKIRI > 0 else REDIS_LOCK_EXPIRE
 
 
 class ImportPerms(permissions.BasePermission):
@@ -97,7 +102,6 @@ class SourceSerializer(serializers.ModelSerializer):
         stored = _secrets(instance)
         plats, removes = reach(instance)
         ret["secrets_set"] = [k for k in names if stored.get(k)]
-        ret["secret_names"] = list(names)
         ret["push_plats"] = list(plats)
         ret["parts"] = list(cls.PARTS)
         ret["removes_agent"] = removes
@@ -155,6 +159,11 @@ class SourceSerializer(serializers.ModelSerializer):
         for k, v in given.items():
             if v is None:
                 stored.pop(k, None)
+            elif v and not v.isascii():
+                # a request header cannot carry it, and the error would quote it
+                raise ValidationError(
+                    {"secrets": f"{k} may only hold plain ASCII characters."}
+                )
             elif v:
                 stored[k] = v
         attrs["secret"] = json.dumps(stored) if stored else ""
@@ -228,7 +237,7 @@ class Upload(APIView):
             return notify_error("Choose the export file and enter its file key.")
         if upload.size > file.MAX_FILE:
             return notify_error(f"The file is larger than {file.MAX_FILE // 2**20} MB.")
-        with redis_lock(lock_id(source.pk), "upload") as acquired:
+        with redis_lock(lock_id(source.pk), "upload", ttl=REQUEST_LOCK) as acquired:
             if not acquired:
                 return Response(BUSY, status=409)
             try:
@@ -284,7 +293,7 @@ class Import(APIView):
             return refused
         # shortcut: the import runs in the request, so a very large installation
         # can outlast the request time; move it into a celery task when it does
-        with redis_lock(lock_id(source.pk), "import") as acquired:
+        with redis_lock(lock_id(source.pk), "import", ttl=REQUEST_LOCK) as acquired:
             if not acquired:
                 return Response(BUSY, status=409)
             return Response(engine.run(source, parts, request.user.username))
