@@ -1,5 +1,24 @@
 # Server changelog
 
+## 2.20.11.2026 (2026-11-20)
+
+- agents update to 2.20.11.2026
+- agent updates: with `SELF_BUILT_AGENTS_URL` set, the checksum handed to agents is the one of the file in the local build folder; the checksum remembered for 30 days is only used when no local file exists. Before, a replaced build of the same version was handed out with the old checksum and agents refused it
+- import: of scripts whose name and shell repeat on the other server none is imported while the name repeats; rename them there and read again. 1.20.11.2026 imported the first one, and a later rename could tie checks and tasks to the wrong script. Checks and tasks that an earlier import already tied to a script of a repeated name are not corrected: compare them with the other server by hand
+- import: an old agent removal that got a server error is no longer shown as removed when the device is later deleted on the other server by hand
+- import: the address of a source cannot be changed once the source has devices; another server needs a new source
+- import: key store values, custom field text and notes are no longer cut at 10,000 characters; what is still too long, and notes past the first 100 of a device, are listed as left out
+- import: the link run does not link a device to an agent when both report a real serial number and the two differ; the device shows the reason. An agent that enrolls into the device's site still links at once, the serial number is not known at that time
+- import: a policy or alert template whose excluded client or site the read itself left out is imported without that exclusion and listed, instead of waiting for ever
+- import: a run-once task in the past is listed once, not on every later run
+- import: each source has to be read again once after this update before it imports
+- app updates: an update that finishes no longer overwrites an exclusion set while it ran; the daily run takes the agents whose last attempt is oldest first, so a device that keeps failing no longer holds a slot
+- ISO library: a download or an inspection that a worker restart interrupted is marked as interrupted and can be retried, also for an uploaded image; an image deleted while it is downloaded, verified or inspected leaves no file and does not come back
+- check-ins: the NATS writer gives up on a database statement after 15 seconds and on a lock after 5 seconds
+- metrics: the mount limit that never applied is removed; the report of an agent still holds at most 32 mounts
+- agent build: an identity setting that differs from its cleaned form (a space at the start or end, double spaces, a tab) stops the build with a message; before, agents were built under the cleaned name and the server no longer knew them
+- agent build: a publish that was interrupted while it replaced a version is repaired by the next run; an empty published file no longer blocks later runs; staging files left by a stopped run are removed
+
 ## 1.20.11.2026 (2026-11-20)
 
 - agents update to 1.20.11.2026
