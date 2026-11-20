@@ -45,7 +45,6 @@ def tree(root, version="1.23.09.2026", settings=SETTINGS):
     agent = root / "agent"
     (agent / "build").mkdir(parents=True)
     (agent / "main.go").write_text('var (\n\tversion = "1.22.09.2026"\n)\n')
-    (agent / "build" / "setup.iss").write_text('#define MyAppVersion "1.22.09.2026"\n')
     (agent / "build" / "setup.nsi").write_text(
         '!ifndef MyAppVersion\n  !define MyAppVersion "1.22.09.2026"\n!endif\n'
     )
@@ -88,12 +87,6 @@ class TestCheckVersions(unittest.TestCase):
         rows = self.run_check(web=web, agent=agent)
         self.assertEqual([r[0] for r in rows], ["agent main.go"])
 
-    def test_installer_out_of_step(self):
-        web, agent = tree(self.root)
-        (agent / "build" / "setup.iss").write_text('#define MyAppVersion "2.12.0"\n')
-        rows = self.run_check(web=web, agent=agent)
-        self.assertEqual([r[0] for r in rows], ["setup.iss MyAppVersion"])
-
     def test_nsis_installer_out_of_step(self):
         web, agent = tree(self.root)
         (agent / "build" / "setup.nsi").write_text('  !define MyAppVersion "2.12.0"\n')
@@ -109,10 +102,9 @@ class TestCheckVersions(unittest.TestCase):
             [("setup.nsi", "unreadable (No such file or directory)")],
         )
 
-    def test_fallback_script_may_be_gone(self):
-        # setup.iss stays for one release only
+    def test_leftover_inno_script_is_not_checked(self):
         web, agent = tree(self.root)
-        (agent / "build" / "setup.iss").unlink()
+        (agent / "build" / "setup.iss").write_text('#define MyAppVersion "2.12.0"\n')
         self.assertEqual(self.run_check(web=web, agent=agent), [])
 
     def test_second_assignment_wins_and_is_reported(self):

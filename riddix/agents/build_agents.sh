@@ -81,18 +81,11 @@ AGENT_NUMVER="${BASH_REMATCH[4]}.$((10#${BASH_REMATCH[3]})).$((10#${BASH_REMATCH
 
 POSIX_TARGETS="linux/amd64 linux/386 linux/arm64 linux/arm darwin/amd64 darwin/arm64 freebsd/amd64 freebsd/arm64"
 WIN_ARCHS="amd64 386"
-# Windows setup: makensis with build/setup.nsi, or iscc with build/setup.iss
-# (Inno Setup under Wine, kept as the way back)
 WIN_PACKER=${ULRMM_WIN_PACKER:-$(py_setting ULRMM_WIN_PACKER)}
-WIN_PACKER=${WIN_PACKER:-nsis}
-case $WIN_PACKER in
-nsis) WIN_PACKER_BIN=makensis ;;
-inno) WIN_PACKER_BIN=iscc ;;
-*) die "ULRMM_WIN_PACKER '$WIN_PACKER' is neither nsis nor inno" ;;
-esac
+[ -z "$WIN_PACKER" ] || warn "ULRMM_WIN_PACKER '$WIN_PACKER' is ignored, the Windows setup is built with makensis"
 
 echo "=== Configuration ==="
-printf '  %-18s %s\n' AGENT_VER "$AGENT_VER ($AGENT_NUMVER)" ARTIFACT "$ARTIFACT" AGENT_SRC "$AGENT_GIT_URL@$AGENT_GIT_REF" SRC "$SRC" DIST "$DIST" GO "$ROOT/go" PYTHON "$PY" WIN_PACKER "$WIN_PACKER"
+printf '  %-18s %s\n' AGENT_VER "$AGENT_VER ($AGENT_NUMVER)" ARTIFACT "$ARTIFACT" AGENT_SRC "$AGENT_GIT_URL@$AGENT_GIT_REF" SRC "$SRC" DIST "$DIST" GO "$ROOT/go" PYTHON "$PY"
 
 # shellcheck source=riddix/agents/sign.sh
 . "$SELF_DIR/sign.sh"
@@ -267,6 +260,8 @@ for t in $POSIX_TARGETS; do
   out="$TMP/$ARTIFACT-v$AGENT_VER-$goos-$goarch"
   ( cd "$SRC" && env GOOS="$goos" GOARCH="$goarch" "$GO" build -trimpath -buildvcs=false -ldflags "-s -w" -o "$out" . ) \
     || die "build $goos/$goarch failed"
+  # signing gives other bytes on every run; the publish guard compares this
+  sha256sum "$out" | cut -d' ' -f1 >"$out.presign.sha256"
   printf '  %-46s %s\n' "$(basename "$out")" "$(du -h "$out" | cut -f1)"
   if [ "$goos" = darwin ]; then
     sign_mac "$out"
@@ -291,20 +286,17 @@ if [ "$(uname -s)" = Linux ] && [ -x "$selfcheck" ]; then
 fi
 
 # Windows
-# The installer is built with makensis (package nsis, any architecture), or
-# with iscc for ULRMM_WIN_PACKER=inno (install-innosetup.sh, x86_64 only).
-# Without the packer there is only Linux/macOS/FreeBSD.
+# The installer is built with makensis (package nsis, any architecture).
+# Without it there is only Linux/macOS/FreeBSD.
 echo "=== Windows ==="
-if ! command -v "$WIN_PACKER_BIN" >/dev/null 2>&1; then
+if ! command -v makensis >/dev/null 2>&1; then
   WIN_ARCHS=''
-  hint="apt-get install nsis"
-  [ "$WIN_PACKER" = nsis ] || hint="riddix/agents/install-innosetup.sh, x86_64 only"
   warn "================================================================"
-  warn "no $WIN_PACKER_BIN found - Windows agents are NOT built. Windows"
+  warn "no makensis found - Windows agents are NOT built. Windows"
   warn "endpoints get no update from this server until a build with"
-  warn "$WIN_PACKER_BIN succeeds ($hint)."
+  warn "makensis succeeds (apt-get install nsis)."
   warn "================================================================"
-elif [ "$WIN_PACKER" = nsis ]; then
+else
   # Setup stubs before NSIS 3.09 lack the fix for CVE-2023-37378 (the
   # uninstaller's temporary directory); Debian 12 carries it in
   # 3.08-3+deb12u1. Older runtimes (Ubuntu 22.04: 3.08-2) still build,
@@ -325,7 +317,7 @@ fi
 # ends a string in setup.nsi, and makensis reads "$$\r" as "$" plus a carriage
 # return. The value is kept: another one would give installed agents another
 # identity.
-if [ -n "$WIN_ARCHS" ] && [ "$WIN_PACKER" = nsis ]; then
+if [ -n "$WIN_ARCHS" ]; then
   for s in "AGENT_WIN_PROG_DIR=$ISCC_PROG_DIR" "AGENT_WIN_EXE=$ISCC_EXE_NAME" \
     "AGENT_SVC_NAME=$ISCC_SVC_NAME" "AGENT_WIN_REG_KEY=$ISCC_REG_KEY"; do
     case $s in
@@ -338,10 +330,9 @@ if [ -n "$WIN_ARCHS" ] && [ "$WIN_PACKER" = nsis ]; then
     warn "================================================================"
     warn "${s%%=*} '${s#*=}' $why - Windows agents"
     warn "are NOT built with makensis. Windows endpoints get no update from"
-    warn "this server until a build with ULRMM_WIN_PACKER=inno succeeds; that"
-    warn "keeps the identity of installed agents. Changing the setting gives"
-    warn "new installs another identity and is only for servers without"
-    warn "Windows agents under that name."
+    warn "this server. Changing the setting gives new installs another"
+    warn "identity and is only for servers without Windows agents under"
+    warn "that name."
     warn "================================================================"
     break
   done
@@ -386,28 +377,22 @@ PYVI
   bits=-64
   if [ "$a" = 386 ]; then bits=""; fi
   # shellcheck disable=SC2086
-  ( cd "$SRC" && goversioninfo $bits -o resource_windows.syso ) || warn "goversioninfo $a failed"
+  ( cd "$SRC" && goversioninfo $bits -o resource_windows.syso ) ||
+    die "goversioninfo $a failed - no Windows agent is built without the manifest"
   ( cd "$SRC" && env GOOS=windows GOARCH="$a" "$GO" build -trimpath -buildvcs=false -ldflags "-s -w" -o agent.exe . ) \
     || die "Windows build $a failed"
+  sha256sum "$SRC/agent.exe" | cut -d' ' -f1 >"$TMP/$f.agent.presign.sha256"
   # the program inside the installer gets the same signature as the installer
   sign_win "$SRC/agent.exe"
   # sha256 of the program inside the installer; installed agents check
   # themselves against it (deploy/integrity.py); published with the installer
   sha256sum "$SRC/agent.exe" | cut -d' ' -f1 >"$TMP/$f.agent.sha256"
 
-  if [ "$WIN_PACKER" = nsis ]; then
-    # -WX: a warning (an unknown "$" variable, a missing file) fails the build;
-    # the UTF-8 locale lets makensis read non-ASCII brand values from argv
-    out="$TMP/$f"
-    ( cd "$SRC" && LC_ALL=C.UTF-8 makensis -V2 -WX -INPUTCHARSET UTF8 "-DOutFile=${out//\$/\$\$}" \
-      "${nsis_defs[@]}" build/setup.nsi ) || die "makensis ($a) failed"
-  else
-    ( cd "$SRC" && iscc build/setup.iss "/Fwin-$a" \
-      "/DMyAppName=$ISCC_APP_NAME" "/DMyAppPublisher=$ISCC_PUBLISHER" "/DMyAppURL=$ISCC_URL" \
-      "/DMyAppVersion=$AGENT_VER" "/DMyAppNumVersion=$AGENT_NUMVER" "/DMyAppId=$ISCC_APP_ID" "/DMyAppExeName=$ISCC_EXE_NAME" \
-      "/DMyAppSvcName=$ISCC_SVC_NAME" "/DMyAppProgDir=$ISCC_PROG_DIR" "/DMyAppRegKey=$ISCC_REG_KEY" >/dev/null ) || die "ISCC ($a) failed"
-    mv "$SRC/build/Output/win-$a.exe" "$TMP/$f"
-  fi
+  # -WX: a warning (an unknown "$" variable, a missing file) fails the build;
+  # the UTF-8 locale lets makensis read non-ASCII brand values from argv
+  out="$TMP/$f"
+  ( cd "$SRC" && LC_ALL=C.UTF-8 makensis -V2 -WX -INPUTCHARSET UTF8 "-DOutFile=${out//\$/\$\$}" \
+    "${nsis_defs[@]}" build/setup.nsi ) || die "makensis ($a) failed"
   printf '  %-46s %s (self-built)\n' "$f" "$(du -h "$TMP/$f" | cut -f1)"
 done
 rm -f "$SRC/agent.exe" "$SRC/resource_windows.syso"
@@ -441,18 +426,45 @@ done
 
 # A version is published once. Rebuilding it with other code would give the
 # installed agents a manifest entry they do not match (integrity_mismatch);
-# only a branding or key change (brand.go, brand.env) may replace it, or
-# ULRMM_AGENT_REPLACE=1. The Windows setups themselves are not compared,
-# their bytes depend on the packer and its version (Inno Setup also stamps
-# the build time); their agent exes are, through the .agent.sha256.
-inputs=$(cat "$SRC/agent/brand.go" "$SRC/build/brand.env" | sha256sum | cut -d' ' -f1)
+# only a branding or key change (brand.go, brand.env, brand.ico) may replace
+# it, or ULRMM_AGENT_REPLACE=1. The Windows setups themselves are not
+# compared, their bytes depend on the packer and its version; their agent
+# exes are, through the .agent.sha256. If only the signature changed, keep
+# the published executable (and its setup on Windows).
+ico="$SRC/build/brand.ico"
+[ -f "$ico" ] || ico=/dev/null
+legacy_inputs=$(cat "$SRC/agent/brand.go" "$SRC/build/brand.env" | sha256sum | cut -d' ' -f1)
+icon_inputs=$(cat "$SRC/agent/brand.go" "$SRC/build/brand.env" "$ico" | sha256sum | cut -d' ' -f1)
+# Without an icon both digests are equal. Mark stamps that account for icons.
+inputs="v2:$icon_inputs"
 stamp="$DIST/.inputs-v$AGENT_VER"
-if [ "${ULRMM_AGENT_REPLACE:-}" != 1 ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$inputs" ]; then
+published_inputs=''
+[ ! -f "$stamp" ] || published_inputs=$(cat "$stamp")
+case "$published_inputs" in
+  "$inputs" | "$legacy_inputs") same_inputs=yes ;;
+  *) same_inputs=no ;;
+esac
+if [ "${ULRMM_AGENT_REPLACE:-}" != 1 ]; then
   differ=()
+  kept=()
   for f in "$TMP/$ARTIFACT"-*; do
     b=$(basename "$f")
-    case "$b" in *-windows-*.exe) continue ;; esac
-    if [ -f "$DIST/$b" ] && ! cmp -s "$f" "$DIST/$b"; then
+    case "$b" in *-windows-*.exe | *.presign.sha256) continue ;; esac
+    [ -f "$DIST/$b" ] || continue
+    ! cmp -s "$f" "$DIST/$b" || continue
+    p=${b%.sha256}.presign.sha256
+    bin=${b%.agent.sha256}
+    # only macOS and Windows builds are signed; another icon rebuilds the setup
+    case "$b" in
+      *-darwin-*) signed=yes ;;
+      *-windows-*) signed=$same_inputs ;;
+      *) signed=no ;;
+    esac
+    if [ "$signed" = yes ] && [ -f "$DIST/$p" ] && [ -f "$TMP/$p" ] &&
+      cmp -s "$TMP/$p" "$DIST/$p" && [ -s "$DIST/$bin" ]; then
+      rm -f "$TMP/$bin" "$f" "$TMP/$p"
+      kept+=("$bin")
+    elif [ "$same_inputs" = yes ]; then
       differ+=("$b")
     fi
   done
@@ -466,11 +478,26 @@ if [ "${ULRMM_AGENT_REPLACE:-}" != 1 ] && [ -f "$stamp" ] && [ "$(cat "$stamp")"
     warn "================================================================"
     exit 0
   fi
+  if [ ${#kept[@]} -gt 0 ]; then
+    # every rebuild of a signed version ends here: a note, not a warning
+    echo "  only the signature differs, the published files stay:" >&2
+    for b in "${kept[@]}"; do echo "    $b" >&2; done
+    echo "  ULRMM_AGENT_REPLACE=1 replaces them (new signing certificate)." >&2
+  fi
+fi
+# A run without Windows cannot verify which icon or code the existing setups carry.
+win_files=$(cd "$DIST" 2>/dev/null && compgen -G "$ARTIFACT-v$AGENT_VER-windows-*" | tr '\n' ' ') || true
+if [ -z "$WIN_ARCHS" ] && [ -n "$win_files" ]; then
+  if [ "$same_inputs" != yes ] || [ "${ULRMM_AGENT_REPLACE:-}" = 1 ]; then
+    die "v$AGENT_VER has Windows setups in $DIST that this run cannot replace, it builds none - $DIST stays unchanged. Install nsis (makensis) and run again, or delete these files of v$AGENT_VER from $DIST: ${win_files% }"
+  fi
+  inputs=$published_inputs
 fi
 
 echo "=== Publish to $DIST ==="
 mkdir -p "$DIST"
 for f in "$TMP/$ARTIFACT"-*; do
+  [ -f "$f" ] || continue
   b=$(basename "$f")
   # unique staging name: two parallel runs must not slip each other a
   # half-written file
@@ -479,7 +506,8 @@ for f in "$TMP/$ARTIFACT"-*; do
   mv -f "$stage" "$DIST/$b"
 done
 echo "  all $(wc -w <<<"$expected") artifacts present"
-printf '%s\n' "$inputs" >"$stamp"
+printf '%s\n' "$inputs" >"$stamp.$$.new"
+mv -f "$stamp.$$.new" "$stamp"
 # The server hands out installers only if this file matches ENROLL_SIGNING_KEY
 # (deploy/signing.py dist_pubkey_ok), otherwise the agents carry another key
 printf '%s\n' "$ENROLL_PUBKEY" >"$TMP/enroll-pubkey.txt"

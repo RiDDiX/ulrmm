@@ -115,9 +115,21 @@ class TestIntegrityManifest(ULRMMTestCase):
         write = 'sha256sum "$SRC/agent.exe" | cut -d\' \' -f1 >"$TMP/$f.agent.sha256"'
         self.assertEqual(integrity.WINDOWS_SUM_SUFFIX, ".agent.sha256")
         self.assertLess(build.index('sign_win "$SRC/agent.exe"'), build.index(write))
-        for packer in ("build/setup.nsi )", "iscc build/setup.iss"):
-            self.assertLess(build.index(write), build.index(packer))
+        self.assertLess(build.index(write), build.index("build/setup.nsi )"))
         self.assertIn(' windows/$a.exe windows/$a.exe.agent.sha256"', build)
+        # the sums the publish guard takes before signing are not builds
+        self.assertLess(
+            build.index('"$TMP/$f.agent.presign.sha256"'),
+            build.index('sign_win "$SRC/agent.exe"'),
+        )
+        self.assertLess(
+            build.index('"$out.presign.sha256"'), build.index('sign_mac "$out"')
+        )
+        name = f"{settings.AGENT_ARTIFACT_NAME}-v1.0"
+        for side in ("-linux-amd64", "-windows-amd64.exe.agent"):
+            self.assertIsNone(
+                integrity._artifact_re().fullmatch(name + side + ".presign.sha256")
+            )
 
     def test_view_serves_signed_manifest(self):
         with override_settings(AGENTS_DIST_DIR=str(self.dist)):

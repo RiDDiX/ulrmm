@@ -558,7 +558,14 @@ def test_brand_agent_name_matches_the_build():
     spec = spec_from_file_location("write_brand", path)
     write_brand = module_from_spec(spec)
     spec.loader.exec_module(write_brand)
-    for product in ("UniversalLocal RMM", "", "  Acme\tRMM  ", 'Acme "Ops"', None):
+    for product in (
+        "UniversalLocal RMM",
+        "",
+        "  Acme\tRMM  ",
+        'Acme "Ops"',
+        "\ufeffAcme RMM",
+        None,
+    ):
         with patch("core.utils.get_branding") as branding:
             branding.return_value.product_name = product
             assert brand_agent_name() == (

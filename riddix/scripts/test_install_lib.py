@@ -329,11 +329,6 @@ class TestBuildAgentsStep(Base):
         self.assertIn("ERROR: makensis is missing", r.stderr)
         self.assertNotIn("ULRMM_WIN_PACKER", r.stderr)
         self.assertNotIn("BUILD", r.stdout)
-        # the fallback packer is named where it is already installed
-        r = self.step(windows_in_dist=True, have="iscc")
-        self.assertEqual(r.returncode, 1, r.stderr)
-        self.assertIn('ULRMM_WIN_PACKER = "inno" in local_settings.py', r.stderr)
-        self.assertNotIn("BUILD", r.stdout)
 
     def test_missing_makensis_warns_on_a_host_without_windows_agents(self):
         r = self.step()
@@ -341,12 +336,12 @@ class TestBuildAgentsStep(Base):
         self.assertIn("WARNING: makensis is missing", r.stderr)
         self.assertIn("BUILD", r.stdout)
 
-    def test_inno_fallback_installs_nothing(self):
+    def test_old_packer_setting_still_installs_nsis(self):
         for env in ({"ULRMM_WIN_PACKER": "inno"}, {"LS_PACKER": "inno"}):
             with self.subTest(**env):
-                r = self.step(windows_in_dist=True, **env)
+                r = self.step(windows_in_dist=True, apt_ok=True, **env)
                 self.assertEqual(r.returncode, 0, r.stderr)
-                self.assertNotIn("APT", r.stdout)
+                self.assertIn(f"{self.APT} install -y -qq nsis\n", r.stdout)
                 self.assertIn("BUILD", r.stdout)
 
 

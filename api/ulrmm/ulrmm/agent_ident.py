@@ -50,7 +50,8 @@ def brand_agent_name() -> str:
     """BrandAgentName of agents built from the current branding."""
     from core.utils import get_branding
 
-    product = " ".join(_CTRL.sub(" ", str(get_branding().product_name or "")).split())
+    product = str(get_branding().product_name or "").replace("\ufeff", "")
+    product = " ".join(_CTRL.sub(" ", product).split())
     if not product or product == DEFAULT_PRODUCT:
         return f"{DEFAULT_PRODUCT} Agent"
     return f"{product} Agent"

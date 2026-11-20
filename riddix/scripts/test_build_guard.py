@@ -2,18 +2,19 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 """Parts of riddix/agents/build_agents.sh, run on their own: the republish
-guard and the Windows packer."""
+guard and the Windows setup."""
 
 import os
 import shutil
 import subprocess
 import tempfile
 import unittest
+from hashlib import sha256
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "agents" / "build_agents.sh"
 START = "# A version is published once."
-END = 'echo "=== Publish to $DIST ==="'
+END = "# The server hands out installers only if"
 
 
 def part(start: str, end: str) -> str:
@@ -39,9 +40,9 @@ class TestBuildGuard(unittest.TestCase):
 
     def run_guard(self, **env):
         script = (
-            'warn() { echo "WARNING: $*" >&2; }\n'
-            + guard()
-            + 'echo PUBLISH\nprintf "%s\\n" "$inputs" >"$stamp"\n'
+            "set -euo pipefail\n"
+            'die() { echo "ERROR: $*" >&2; exit 1; }\n'
+            'warn() { echo "WARNING: $*" >&2; }\n' + guard() + "echo PUBLISH\n"
         )
         base = {k: v for k, v in os.environ.items() if k != "ULRMM_AGENT_REPLACE"}
         e = dict(
@@ -51,28 +52,31 @@ class TestBuildGuard(unittest.TestCase):
             DIST=str(self.dist),
             ARTIFACT="ulrmm-agent",
             AGENT_VER="1.0",
-            **env,
+            expected="linux/amd64 windows/amd64.exe windows/amd64.exe.agent.sha256",
+            **dict({"WIN_ARCHS": "amd64"}, **env),
         )
         r = subprocess.run(
             ["bash", "-c", script], env=e, capture_output=True, text=True
         )
         return "PUBLISH" in r.stdout, r.stderr
 
-    def build(self, linux: bytes, exe_sum: str):
-        (self.new / "ulrmm-agent-v1.0-linux-amd64").write_bytes(linux)
+    def build(self, linux: bytes, exe_sum: str, presign=None, posix="linux-amd64"):
+        (self.new / f"ulrmm-agent-v1.0-{posix}").write_bytes(linux)
         (self.new / "ulrmm-agent-v1.0-windows-amd64.exe").write_bytes(os.urandom(8))
         (self.new / "ulrmm-agent-v1.0-windows-amd64.exe.agent.sha256").write_text(
             exe_sum
         )
-
-    def publish(self):
-        for f in self.new.iterdir():
-            (self.dist / f.name).write_bytes(f.read_bytes())
+        if presign:
+            (self.new / f"ulrmm-agent-v1.0-{posix}.presign.sha256").write_text(
+                presign[0]
+            )
+            (
+                self.new / "ulrmm-agent-v1.0-windows-amd64.exe.agent.presign.sha256"
+            ).write_text(presign[1])
 
     def test_first_and_identical_builds_publish(self):
         self.build(b"linux", "aa")
         self.assertTrue(self.run_guard()[0])
-        self.publish()
         # same code: only the setup bytes differ
         self.build(b"linux", "aa")
         self.assertTrue(self.run_guard()[0])
@@ -80,7 +84,6 @@ class TestBuildGuard(unittest.TestCase):
     def test_changed_code_same_version_keeps_the_published_builds(self):
         self.build(b"linux", "aa")
         self.run_guard()
-        self.publish()
         self.build(b"linux v2", "aa")
         published, err = self.run_guard()
         self.assertFalse(published)
@@ -93,11 +96,147 @@ class TestBuildGuard(unittest.TestCase):
     def test_branding_change_or_override_replaces(self):
         self.build(b"linux", "aa")
         self.run_guard()
-        self.publish()
         self.build(b"linux v2", "aa")
         self.assertTrue(self.run_guard(ULRMM_AGENT_REPLACE="1")[0])
+        self.build(b"linux v3", "bb")
         (self.src / "agent" / "brand.go").write_text("brand B")
         self.assertTrue(self.run_guard()[0])
+
+    def test_icon_change_publishes(self):
+        self.build(b"linux", "aa")
+        self.run_guard()
+        self.build(b"linux v2", "bb")
+        (self.src / "build" / "brand.ico").write_bytes(b"ico")
+        self.assertTrue(self.run_guard()[0])
+        self.build(b"linux v3", "cc")
+        self.assertFalse(self.run_guard()[0])
+
+    def test_legacy_stamp_keeps_protecting_builds_until_verified(self):
+        (self.src / "build" / "brand.ico").write_bytes(b"ico")
+        self.build(b"linux", "aa")
+        self.assertTrue(self.run_guard()[0])
+        stamp = self.dist / ".inputs-v1.0"
+        current = stamp.read_text()
+        legacy = sha256(b"brand Aenv A").hexdigest() + "\n"
+        self.assertNotEqual(current, legacy)
+        stamp.write_text(legacy)
+
+        self.build(b"changed", "bb")
+        self.assertFalse(self.run_guard()[0])
+        self.assertEqual(stamp.read_text(), legacy)
+
+        self.build(b"linux", "aa")
+        for f in self.new.glob("*-windows-*"):
+            f.unlink()
+        self.assertTrue(self.run_guard(WIN_ARCHS="")[0])
+        self.assertEqual(stamp.read_text(), legacy)
+
+        self.build(b"linux", "aa")
+        self.assertTrue(self.run_guard()[0])
+        self.assertEqual(stamp.read_text(), current)
+
+    def test_signed_builds_keep_the_published_artifacts_on_resigning(self):
+        mac = "darwin-arm64"
+        self.build(b"signed 1", "aa", ("l1", "w1"), mac)
+        self.assertTrue(self.run_guard()[0])
+        original = {f.name: f.read_bytes() for f in self.dist.iterdir()}
+        self.assertEqual(len(original), 6)
+        # signed again: other bytes, same build
+        self.build(b"signed 2", "bb", ("l1", "w1"), mac)
+        published, err = self.run_guard()
+        self.assertTrue(published)
+        self.assertIn("ulrmm-agent-v1.0-darwin-arm64\n", err)
+        self.assertIn("ulrmm-agent-v1.0-windows-amd64.exe\n", err)
+        self.assertIn("ULRMM_AGENT_REPLACE=1 replaces them", err)
+        self.assertEqual(
+            {f.name: f.read_bytes() for f in self.dist.iterdir()}, original
+        )
+        # a new target can still be published alongside the preserved artifacts
+        self.build(b"signed 2", "bb", ("l1", "w1"), mac)
+        name = "ulrmm-agent-v1.0-linux-arm64"
+        (self.new / name).write_bytes(b"arm64")
+        self.assertTrue(self.run_guard()[0])
+        self.assertEqual(
+            {f.name: f.read_bytes() for f in self.dist.iterdir()},
+            {**original, name: b"arm64"},
+        )
+        for presign, name in (
+            (("l2", "w1"), "ulrmm-agent-v1.0-darwin-arm64\n"),
+            (("l1", "w2"), "windows-amd64.exe.agent.sha256\n"),
+        ):
+            with self.subTest(presign=presign):
+                self.build(b"signed 3", "cc", presign, mac)
+                published, err = self.run_guard()
+                self.assertFalse(published)
+                self.assertIn(name, err)
+
+    def test_icon_change_keeps_resigned_mac_builds(self):
+        mac = "ulrmm-agent-v1.0-darwin-arm64"
+        self.build(b"signed 1", "aa", ("m1", "w1"), "darwin-arm64")
+        self.assertTrue(self.run_guard()[0])
+        (self.src / "build" / "brand.ico").write_bytes(b"ico")
+        self.build(b"signed 2", "bb", ("m1", "w2"), "darwin-arm64")
+        published, err = self.run_guard()
+        self.assertTrue(published)
+        self.assertIn(mac + "\n", err)
+        self.assertEqual((self.dist / mac).read_bytes(), b"signed 1")
+        sums = self.dist / "ulrmm-agent-v1.0-windows-amd64.exe.agent.sha256"
+        self.assertEqual(sums.read_text(), "bb")
+
+    def test_unsigned_builds_are_compared_byte_for_byte(self):
+        self.build(b"linux 1", "aa", ("l1", "w1"))
+        self.assertTrue(self.run_guard()[0])
+        self.build(b"linux 2", "aa", ("l1", "w1"))
+        published, err = self.run_guard()
+        self.assertFalse(published)
+        self.assertIn("ulrmm-agent-v1.0-linux-amd64\n", err)
+
+    def test_replace_without_windows_keeps_nothing_half_replaced(self):
+        self.build(b"linux", "aa")
+        self.assertTrue(self.run_guard()[0])
+        for f in self.new.glob("*-windows-*"):
+            f.unlink()
+        (self.new / "ulrmm-agent-v1.0-linux-amd64").write_bytes(b"linux v2")
+        published, err = self.run_guard(WIN_ARCHS="", ULRMM_AGENT_REPLACE="1")
+        self.assertFalse(published)
+        self.assertIn("Install nsis (makensis) and run again", err)
+        self.assertIn("ulrmm-agent-v1.0-windows-amd64.exe ", err)
+        self.assertEqual(
+            (self.dist / "ulrmm-agent-v1.0-linux-amd64").read_bytes(), b"linux"
+        )
+
+    def test_missing_setup_still_protects_the_installed_exe_checksum(self):
+        self.build(b"linux", "aa", ("l1", "w1"))
+        self.assertTrue(self.run_guard()[0])
+        (self.dist / "ulrmm-agent-v1.0-windows-amd64.exe").unlink()
+        self.build(b"linux", "bb", ("l1", "w1"))
+        published, err = self.run_guard()
+        self.assertFalse(published)
+        self.assertIn("windows-amd64.exe.agent.sha256", err)
+
+    def test_run_without_windows_keeps_other_windows_setups(self):
+        self.build(b"linux", "aa")
+        self.run_guard()
+        for f in self.new.glob("*-windows-*"):
+            f.unlink()
+        stamp = self.dist / ".inputs-v1.0"
+        original = stamp.read_text()
+        (self.src / "agent" / "brand.go").write_text("brand B")
+        published, err = self.run_guard(WIN_ARCHS="")
+        self.assertFalse(published)
+        self.assertIn("ERROR: v1.0 has Windows setups in", err)
+        self.assertEqual(stamp.read_text(), original)
+        for env in ({"ULRMM_AGENT_REPLACE": "1"}, {}):
+            stamp.unlink(missing_ok=True)
+            self.assertFalse(self.run_guard(WIN_ARCHS="", **env)[0])
+        # same branding, or no Windows setup of this version: publish
+        stamp.write_text(original)
+        (self.src / "agent" / "brand.go").write_text("brand A")
+        self.assertTrue(self.run_guard(WIN_ARCHS="")[0])
+        for f in self.dist.glob("*-windows-*"):
+            f.unlink()
+        (self.src / "agent" / "brand.go").write_text("brand C")
+        self.assertTrue(self.run_guard(WIN_ARCHS="")[0])
 
 
 DEFINES = (
@@ -127,54 +266,47 @@ class TestWindowsPacker(unittest.TestCase):
         )
         base = {k: v for k, v in os.environ.items() if not k.startswith("ULRMM_")}
         return subprocess.run(
-            ["bash", "-c", script],
+            [shutil.which("bash"), "-c", script],
             env=dict(base, **env),
             capture_output=True,
             text=True,
         )
 
-    def packer(self, **env):
-        return self.run_part(
-            "# Windows setup: makensis with build/setup.nsi",
-            'echo "=== Configuration ==="',
-            'echo "PACKER $WIN_PACKER $WIN_PACKER_BIN"\n',
-            'py_setting() { printf %s "$LS_PACKER"; }\n',
-            **env,
-        )
-
-    def test_packer_choice(self):
-        for env, want in (
-            ({}, "PACKER nsis makensis"),
-            ({"LS_PACKER": "inno"}, "PACKER inno iscc"),
-            ({"ULRMM_WIN_PACKER": "nsis", "LS_PACKER": "inno"}, "PACKER nsis makensis"),
-            ({"ULRMM_WIN_PACKER": "inno"}, "PACKER inno iscc"),
-        ):
+    def test_packer_setting_only_warns(self):
+        for env in ({"ULRMM_WIN_PACKER": "inno"}, {"LS_PACKER": "wix"}, {}):
             with self.subTest(**env):
-                r = self.packer(**env)
-                self.assertEqual(r.returncode, 0, r.stderr)
-                self.assertEqual(r.stdout.strip(), want)
-        for bad in ("NSIS", "wix", "inno "):
-            with self.subTest(bad=bad):
-                r = self.packer(ULRMM_WIN_PACKER=bad)
-                self.assertEqual(r.returncode, 1)
-                self.assertIn("is neither nsis nor inno", r.stderr)
-                self.assertNotIn("PACKER", r.stdout)
+                r = self.run_part(
+                    "WIN_PACKER=${ULRMM_WIN_PACKER",
+                    'echo "=== Configuration ==="',
+                    "echo GO\n",
+                    'py_setting() { printf %s "$LS_PACKER"; }\n',
+                    **env,
+                )
+                self.assertEqual((r.returncode, r.stdout), (0, "GO\n"), r.stderr)
+                if env:
+                    self.assertEqual(r.stderr.count("WARNING"), 1, r.stderr)
+                    self.assertIn(
+                        "is ignored, the Windows setup is built with makensis", r.stderr
+                    )
+                else:
+                    self.assertEqual(r.stderr, "")
 
-    def runtime(self, version, package, packer_bin="makensis"):
-        stubs = (
-            'makensis() { [ "$1" = -VERSION ] && [ -n "$NSIS_VER" ] && echo "$NSIS_VER"; }\n'
-            'dpkg-query() { [ -n "$NSIS_PKG" ] && printf %s "$NSIS_PKG"; }\n'
-        )
+    def runtime(self, version, package, makensis=True, **env):
+        stubs = 'dpkg-query() { [ -n "$NSIS_PKG" ] && printf %s "$NSIS_PKG"; }\n'
+        if makensis:
+            stubs += (
+                'makensis() { [ "$1" = -VERSION ] && [ -n "$NSIS_VER" ]'
+                ' && echo "$NSIS_VER"; }\n'
+            )
         return self.run_part(
             'echo "=== Windows ==="',
             "# shellcheck disable=SC1091",
             'echo "ARCHS=$WIN_ARCHS"\n',
             stubs,
-            WIN_PACKER="nsis",
-            WIN_PACKER_BIN=packer_bin,
             WIN_ARCHS="amd64 386",
             NSIS_VER=version,
             NSIS_PKG=package,
+            **env,
         )
 
     @unittest.skipUnless(shutil.which("dpkg"), "needs dpkg --compare-versions")
@@ -203,16 +335,14 @@ class TestWindowsPacker(unittest.TestCase):
                     self.assertEqual(r.stderr, "")
 
     def test_missing_packer_builds_no_windows_agents(self):
-        r = self.runtime("v3.09", "", packer_bin="no-such-packer")
+        r = self.runtime("v3.09", "", makensis=False, PATH=str(self.root))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("ARCHS=\n", r.stdout)
-        self.assertIn("no no-such-packer found", r.stderr)
+        self.assertIn("no makensis found", r.stderr)
         self.assertIn("(apt-get install nsis)", r.stderr)
-        self.assertNotIn("x86_64", r.stderr)
 
     def path_check(
         self,
-        packer,
         prog_dir,
         exe="ulrmm-agent.exe",
         archs="amd64 386",
@@ -223,7 +353,6 @@ class TestWindowsPacker(unittest.TestCase):
             "# setup.nsi builds one path element below Program Files",
             "# The .syso holds version strings",
             'echo "ARCHS=$WIN_ARCHS"\n',
-            WIN_PACKER=packer,
             WIN_ARCHS=archs,
             ISCC_PROG_DIR=prog_dir,
             ISCC_EXE_NAME=exe,
@@ -235,7 +364,7 @@ class TestWindowsPacker(unittest.TestCase):
         for name in ("Acme Inc.", " Acme", "Acme..Inc", "a$b", "Grüße", "a[b]"):
             for prog_dir, exe in ((name, "ulrmm-agent.exe"), ("ULRMM Agent", name)):
                 with self.subTest(prog_dir=prog_dir, exe=exe):
-                    r = self.path_check("nsis", prog_dir, exe)
+                    r = self.path_check(prog_dir, exe)
                     self.assertEqual(r.returncode, 0, r.stderr)
                     self.assertEqual((r.stdout, r.stderr), ("ARCHS=amd64 386\n", ""))
         for bad in ("a\\b", "a/b", "a:b", "a*b", "a?b", "a<b", "a>b", "a|b"):
@@ -244,16 +373,15 @@ class TestWindowsPacker(unittest.TestCase):
                 ("AGENT_WIN_EXE", "ULRMM Agent", bad),
             ):
                 with self.subTest(prog_dir=prog_dir, exe=exe):
-                    r = self.path_check("nsis", prog_dir, exe)
+                    r = self.path_check(prog_dir, exe)
                     self.assertEqual(r.returncode, 0, r.stderr)
                     self.assertEqual(r.stdout, "ARCHS=\n")
                     self.assertIn(f"WARNING: {setting} '{bad}' holds one of", r.stderr)
                     self.assertIn("are NOT built with makensis", r.stderr)
-                    self.assertIn("ULRMM_WIN_PACKER=inno succeeds; that", r.stderr)
-                    # with Inno and without Windows targets nothing changes
-                    for packer, archs in (("inno", "amd64 386"), ("nsis", "")):
-                        r = self.path_check(packer, prog_dir, exe, archs)
-                        self.assertEqual((r.stdout, r.stderr), (f"ARCHS={archs}\n", ""))
+                    self.assertNotIn("inno", r.stderr.lower())
+                    # without Windows targets nothing changes
+                    r = self.path_check(prog_dir, exe, "")
+                    self.assertEqual((r.stdout, r.stderr), ("ARCHS=\n", ""))
 
     def test_identity_makensis_would_change_skips_windows_only(self):
         # a backtick, or a backslash after "$", in any of the four values
@@ -266,19 +394,18 @@ class TestWindowsPacker(unittest.TestCase):
             ):
                 vals = {"prog_dir": "ULRMM Agent", key: bad}
                 with self.subTest(setting=setting, bad=bad):
-                    r = self.path_check("nsis", **vals)
+                    r = self.path_check(**vals)
                     self.assertEqual(r.returncode, 0, r.stderr)
                     self.assertEqual(r.stdout, "ARCHS=\n")
                     # one warning block
-                    self.assertEqual(r.stderr.count("WARNING"), 8, r.stderr)
+                    self.assertEqual(r.stderr.count("WARNING"), 7, r.stderr)
                     self.assertIn(
                         f"WARNING: {setting} '{bad}' holds a ` or a \\ after a $",
                         r.stderr,
                     )
-                    self.assertIn("ULRMM_WIN_PACKER=inno succeeds; that", r.stderr)
-                    for packer, archs in (("inno", "amd64 386"), ("nsis", "")):
-                        r = self.path_check(packer, archs=archs, **vals)
-                        self.assertEqual((r.stdout, r.stderr), (f"ARCHS={archs}\n", ""))
+                    self.assertNotIn("inno", r.stderr.lower())
+                    r = self.path_check(archs="", **vals)
+                    self.assertEqual((r.stdout, r.stderr), ("ARCHS=\n", ""))
         # "$" alone and a backslash elsewhere stay: a nested registry key
         for key, ok in (
             ("svc", "s$ x$"),
@@ -286,19 +413,16 @@ class TestWindowsPacker(unittest.TestCase):
             ("reg_key", "Ca$h\\Agent$"),
         ):
             with self.subTest(key=key, ok=ok):
-                r = self.path_check("nsis", "ULRMM Agent", **{key: ok})
+                r = self.path_check("ULRMM Agent", **{key: ok})
                 self.assertEqual((r.stdout, r.stderr), ("ARCHS=amd64 386\n", ""))
 
-    def pack(self, packer, fail=False):
+    def pack(self, fail=False):
         src, tmp = self.root / "src", self.root / "o$1ut"
         (src / "build").mkdir(parents=True, exist_ok=True)
         tmp.mkdir(exist_ok=True)
         stubs = (
             'makensis() { echo "LC=$LC_ALL PWD=$PWD"; printf "ARG %s\\n" "$@";'
             ' [ "$FAIL" != 1 ]; }\n'
-            # the script sends iscc's stdout to /dev/null
-            'iscc() { printf "ARG %s\\n" "$@" >&2; mkdir -p build/Output;'
-            ' echo setup >"build/Output/win-$a.exe"; }\n'
         )
         # brand values as brand.env carries them: "$" may appear anywhere
         brand = {
@@ -312,7 +436,7 @@ class TestWindowsPacker(unittest.TestCase):
             "ISCC_REG_KEY": "K${R}",
         }
         call = part(
-            'if [ "$WIN_PACKER" = nsis ]; then\n    # -WX',
+            "  # -WX: a warning",
             "  printf '  %-46s %s (self-built)",
         )
         r = self.run_part(
@@ -322,7 +446,6 @@ class TestWindowsPacker(unittest.TestCase):
             + call
             + 'echo "DONE"\n',
             stubs,
-            WIN_PACKER=packer,
             SRC=str(src),
             TMP=str(tmp),
             AGENT_VER="1.13.11.2026",
@@ -333,7 +456,7 @@ class TestWindowsPacker(unittest.TestCase):
         return r, src, tmp
 
     def test_makensis_gets_every_define_with_dollar_doubled(self):
-        r, src, tmp = self.pack("nsis")
+        r, src, tmp = self.pack()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"LC=C.UTF-8 PWD={src}\n", r.stdout)
         args = [ln[4:] for ln in r.stdout.splitlines() if ln.startswith("ARG ")]
@@ -369,21 +492,23 @@ class TestWindowsPacker(unittest.TestCase):
         self.assertIn("DONE", r.stdout)
 
     def test_failed_makensis_stops_the_build(self):
-        r, _, _ = self.pack("nsis", fail=True)
+        r, _, _ = self.pack(fail=True)
         self.assertEqual(r.returncode, 1)
         self.assertIn("ERROR: makensis (amd64) failed", r.stderr)
         self.assertNotIn("DONE", r.stdout)
 
-    def test_inno_fallback_runs_iscc_unchanged(self):
-        r, _, tmp = self.pack("inno")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        args = [ln[4:] for ln in r.stderr.splitlines() if ln.startswith("ARG ")]
-        self.assertEqual(args[:2], ["build/setup.iss", "/Fwin-amd64"])
-        self.assertIn("/DMyAppName=A$b Agent", args)
-        self.assertEqual([a[2:].split("=", 1)[0] for a in args[2:]], list(DEFINES))
-        self.assertEqual(
-            (tmp / "ulrmm-agent-v1.13.11.2026-windows-amd64.exe").read_text(), "setup\n"
+    def test_failed_goversioninfo_stops_the_build(self):
+        r = self.run_part(
+            '  ( cd "$SRC" && goversioninfo',
+            '  ( cd "$SRC" && env GOOS=windows',
+            "echo DONE\n",
+            "goversioninfo() { return 1; }\n",
+            SRC=str(self.root),
+            a="amd64",
         )
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("ERROR: goversioninfo amd64 failed - no Windows agent", r.stderr)
+        self.assertNotIn("DONE", r.stdout)
 
 
 if __name__ == "__main__":

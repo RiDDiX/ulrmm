@@ -1162,18 +1162,14 @@ natsapi_summary() {
 }
 
 # Windows installer: makensis (NSIS), packaged on every architecture.
-# Without it, build_agents.sh still builds Linux and macOS. ULRMM_WIN_PACKER=inno
-# (environment or local_settings.py) uses iscc instead, set up by hand with
-# riddix/agents/install-innosetup.sh.
+# Without it, build_agents.sh still builds Linux and macOS.
 build_agents_step() {
-  local packer=${ULRMM_WIN_PACKER:-$(ls_get ULRMM_WIN_PACKER)}
   local pfx=${ULRMM_SIGN_WIN_PFX:-$(ls_get ULRMM_SIGN_WIN_PFX)}
   sudo mkdir -p "$AGENT_ROOT"
   sudo chown "${USER}:${USER}" "$AGENT_ROOT"
   # osslsigncode alone is looked for only where signing is configured, so an
   # update without signing does not run apt each time
-  if [ "${packer:-nsis}" != inno ] &&
-    { ! command -v makensis || { [ -n "$pfx" ] && ! command -v osslsigncode; }; } >/dev/null; then
+  if { ! command -v makensis || { [ -n "$pfx" ] && ! command -v osslsigncode; }; } >/dev/null; then
     local tools=nsis
     command -v makensis >/dev/null && tools=''
     command -v osslsigncode >/dev/null || tools="${tools:+$tools and }osslsigncode"
@@ -1195,8 +1191,6 @@ build_agents_step() {
         lib_warn "ERROR: makensis is missing, but ${AGENT_ROOT}/dist holds Windows agents."
         lib_warn "No agents are built: Windows endpoints would get no further updates."
         lib_warn "Install it (sudo apt-get install nsis), then run bash /rmm/riddix/agents/build_agents.sh"
-        command -v iscc >/dev/null &&
-          lib_warn "Meanwhile ULRMM_WIN_PACKER = \"inno\" in local_settings.py builds them with Inno Setup."
         return 1
       fi
       lib_warn "WARNING: makensis is missing, no Windows agents are built."
