@@ -133,7 +133,7 @@ def setup_appid(value: str) -> str:
     the setup installs next to the old copy instead of updating it. Check only.
     Empty -> the default, with a warning.
     """
-    out = clean(value)
+    out = check_raw("AGENT_INNO_APPID", value)
     if not out:
         warn_default("AGENT_INNO_APPID", value, IDENT_DEFAULTS["AppId"])
         return IDENT_DEFAULTS["AppId"]
@@ -159,6 +159,29 @@ _SETTING = {
 # Windows drops trailing dots and spaces from a file name: "." or ". ." as the
 # program directory would be Program Files itself
 _PATH_KEYS = ("IdentWinExe", "IdentWinProgDir")
+_IDENT_SETTING = {
+    **_SETTING,
+    "IdentNixBin": "AGENT_NIX_BIN",
+    "IdentNixDir": "AGENT_NIX_DIR",
+    "IdentNixConf": "AGENT_NIX_CONF",
+    "IdentNixSvc": "AGENT_NIX_SVC",
+    "IdentMacPlistLabel": "AGENT_MAC_PLIST_LABEL",
+    "IdentTaskPrefix": "AGENT_TASK_PREFIX",
+    "IdentArtifact": "AGENT_ARTIFACT_NAME",
+}
+
+
+def check_raw(setting: str, value: str) -> str:
+    """clean(value). The server uses the setting as it is (agent_ident.py),
+    so a value clean would change raises ValueError, also one it would empty;
+    only the empty string stays empty."""
+    out = clean(value)
+    if value and out != str(value):
+        raise ValueError(
+            f"{setting} {str(value)!r} holds control characters, U+FEFF or"
+            " extra spaces, which the agent build would drop"
+        )
+    return out
 
 
 def warn_default(name: str, value: str, default: str) -> None:
@@ -175,16 +198,17 @@ def setup_ident(ident: dict) -> dict:
     raises ValueError: brand.go and the setup would carry other identities.
     Every other value stays as configured: an installed agent must keep its
     identity through an update. build_agents.sh skips the Windows setups for
-    a value the script refuses."""
+    a value the script refuses. Any identity value check_raw refuses stops
+    the build as well."""
     out = dict(ident)
+    for key, setting in _IDENT_SETTING.items():
+        if key in ident:
+            check_raw(setting, ident[key])
     for key, setting in _SETTING.items():
         if key not in ident:
             continue
         value = ident_str(ident[key])
         value = value.rstrip(". ") if key in _PATH_KEYS else value.strip()
-        # the server compares the raw setting, the build would drop U+FEFF
-        if "\ufeff" in str(ident[key]):
-            raise ValueError(f"{setting} '{clean(ident[key])}' holds U+FEFF")
         if not value:
             warn_default(setting, ident[key], IDENT_DEFAULTS[key])
             out[key] = IDENT_DEFAULTS[key]
@@ -432,10 +456,13 @@ def demo() -> None:
     # AppId: check only. setup_str would delete exactly those braces
     app_id = "{{61D095D9-C6CE-4D60-B192-4C6699822C40}"
     assert setup_appid(app_id) == app_id
-    assert setup_appid(" {{61d095d9-c6ce-4d60-b192-4c6699822c40} ").startswith("{{6")
+    assert setup_appid("{{61d095d9-c6ce-4d60-b192-4c6699822c40}").startswith("{{6")
     assert quiet(setup_appid, "") == (app_id, 1)
-    assert quiet(setup_appid, " \t") == (app_id, 1)
     for bad in (
+        " \t",
+        f" {app_id}",
+        f"{app_id} ",
+        f"\ufeff{app_id}",
         "61D095D9-C6CE-4D60-B192-4C6699822C40",
         setup_str(app_id),
         # one brace: not the form setup.nsi takes
@@ -474,16 +501,17 @@ def demo() -> None:
     # Windows identity: only a value that leaves nothing for the setup gets
     # the default, with one warning; everything else stays as configured
     assert quiet(setup_ident, ident) == (ident, 0)
+    assert all(check_raw(k, v) == v for k, v in IDENT_DEFAULTS.items())
     win_keys = ("IdentWinSvcName", "IdentWinExe", "IdentWinProgDir", "IdentWinRegKey")
     for key in win_keys:
-        for bad in ("", " ", '""', "{}", "%", '" "', "{ }", "% %", "' '"):
+        for bad in ("", '""', "{}", "%", '" "', "{ }", "% %", "' '"):
             out, warned = quiet(setup_ident, {**ident, key: bad})
             assert (out[key], warned) == (IDENT_DEFAULTS[key], 1), (key, bad)
             assert {k: v for k, v in out.items() if k != key} == {
                 k: v for k, v in ident.items() if k != key
             }
         for odd in (
-            "Acme Inc.", "Acme..Inc", " Acme", "Acme\\Agent", ".a", "a.",
+            "Acme Inc.", "Acme..Inc", "Acme\\Agent", ".a", "a.",
             "a$b", "a*b", "a\\b", "a/b", "a:b", "` `", "Ac`me", "a$\\b",
         ):
             assert quiet(setup_ident, {**ident, key: odd}) == ({**ident, key: odd}, 0)
@@ -494,9 +522,17 @@ def demo() -> None:
                 raise AssertionError(f"{key} '{split}' should have been rejected")
             except ValueError as e:
                 assert _SETTING[key] in str(e), e
+    # the server uses every identity setting as it is: the build must not clean one
+    for key in _IDENT_SETTING:
+        for raw in (" Acme", "Acme ", "Ac  me", "Ac\tme", "Ac\ufeffme", " . ", "\t", "\ufeff", "   "):
+            try:
+                quiet(setup_ident, {**ident, key: raw})
+                raise AssertionError(f"{key} {raw!r} should have been rejected")
+            except ValueError as e:
+                assert _IDENT_SETTING[key] in str(e), e
     # Windows drops trailing dots and spaces: "." would be Program Files itself
     for key in win_keys:
-        for dots in (".", ". .", "..", " . "):
+        for dots in (".", ". .", ".."):
             out, warned = quiet(setup_ident, {**ident, key: dots})
             want = IDENT_DEFAULTS[key] if key in _PATH_KEYS else dots
             assert (out[key], warned) == (want, int(key in _PATH_KEYS)), (key, dots)
@@ -568,7 +604,7 @@ def demo() -> None:
         odd = {
             **ident,
             "IdentWinExe": "Acme..Inc.exe",
-            "IdentWinSvcName": " Acme",
+            "IdentWinSvcName": "Acme",
             "IdentWinProgDir": "Ac`me Inc.",
             "IdentWinRegKey": "Cash$\\Agent",
         }

@@ -113,7 +113,11 @@ empty once trailing dots and spaces are removed (Windows drops them, `.` would
 be `Program Files` itself). An identity value that holds one of `" ' { } %`
 next to other text stops `write_brand.py` with an error naming the setting,
 and no target is built: `brand.go` and the installer would carry different
-identities. Every other value stays as configured, so installed agents keep
+identities. So does any identity setting (`AGENT_*`, including the Linux,
+macOS, task prefix and artifact names) with a control character, U+FEFF, or
+a leading, trailing or doubled space: the build would drop them, and the
+server, which uses the setting as it is, would not recognize its own agents.
+Every other value stays as configured, so installed agents keep
 their identity. An identity value with a backtick or a `\` right
 after a `$`, and a program directory or exe name with one of
 `\ / : * ? < > |`, is not replaced either: a backtick ends a string in

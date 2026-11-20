@@ -450,7 +450,7 @@ if [ "${ULRMM_AGENT_REPLACE:-}" != 1 ]; then
   for f in "$TMP/$ARTIFACT"-*; do
     b=$(basename "$f")
     case "$b" in *-windows-*.exe | *.presign.sha256) continue ;; esac
-    [ -f "$DIST/$b" ] || continue
+    [ -s "$DIST/$b" ] || continue
     ! cmp -s "$f" "$DIST/$b" || continue
     p=${b%.sha256}.presign.sha256
     bin=${b%.agent.sha256}
@@ -496,6 +496,12 @@ fi
 
 echo "=== Publish to $DIST ==="
 mkdir -p "$DIST"
+# the build lock keeps other runs out: these are left by a killed one
+rm -f "$DIST/.$ARTIFACT"-*.new "$stamp".*.new "$DIST"/.enroll-pubkey.txt.*.new
+# without the stamp a run that stops halfway is not kept by the next one
+if [ "$same_inputs" != yes ] || [ "${ULRMM_AGENT_REPLACE:-}" = 1 ]; then
+  rm -f "$stamp"
+fi
 for f in "$TMP/$ARTIFACT"-*; do
   [ -f "$f" ] || continue
   b=$(basename "$f")

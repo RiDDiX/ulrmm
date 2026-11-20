@@ -38,11 +38,11 @@ class TestBuildGuard(unittest.TestCase):
         (self.src / "agent" / "brand.go").write_text("brand A")
         (self.src / "build" / "brand.env").write_text("env A")
 
-    def run_guard(self, **env):
+    def run_guard(self, stubs="", **env):
         script = (
             "set -euo pipefail\n"
             'die() { echo "ERROR: $*" >&2; exit 1; }\n'
-            'warn() { echo "WARNING: $*" >&2; }\n' + guard() + "echo PUBLISH\n"
+            'warn() { echo "WARNING: $*" >&2; }\n' + stubs + guard() + "echo PUBLISH\n"
         )
         base = {k: v for k, v in os.environ.items() if k != "ULRMM_AGENT_REPLACE"}
         e = dict(
@@ -190,6 +190,47 @@ class TestBuildGuard(unittest.TestCase):
         published, err = self.run_guard()
         self.assertFalse(published)
         self.assertIn("ulrmm-agent-v1.0-linux-amd64\n", err)
+
+    def test_interrupted_replace_is_repaired_by_the_next_run(self):
+        self.build(b"linux", "aa", ("l1", "w1"))
+        self.assertTrue(self.run_guard()[0])
+        # signed again with a new certificate, killed right after the setup
+        self.build(b"linux", "bb", ("l1", "w1"))
+        kill = 'mv() { command mv "$@"; [[ $3 != *.exe ]] || exit 9; }\n'
+        self.assertFalse(self.run_guard(kill, ULRMM_AGENT_REPLACE="1")[0])
+        sums = self.dist / "ulrmm-agent-v1.0-windows-amd64.exe.agent.sha256"
+        self.assertEqual(sums.read_text(), "aa")
+        self.build(b"linux", "cc", ("l1", "w1"))
+        setup = (self.new / "ulrmm-agent-v1.0-windows-amd64.exe").read_bytes()
+        self.assertTrue(self.run_guard()[0])
+        self.assertEqual(sums.read_text(), "cc")
+        self.assertEqual(
+            (self.dist / "ulrmm-agent-v1.0-windows-amd64.exe").read_bytes(), setup
+        )
+
+    def test_empty_published_file_is_replaced(self):
+        self.build(b"linux", "aa")
+        self.assertTrue(self.run_guard()[0])
+        (self.dist / "ulrmm-agent-v1.0-linux-amd64").write_bytes(b"")
+        self.build(b"linux v2", "aa")
+        self.assertTrue(self.run_guard()[0])
+        self.assertEqual(
+            (self.dist / "ulrmm-agent-v1.0-linux-amd64").read_bytes(), b"linux v2"
+        )
+
+    def test_publish_removes_leftover_staging_files(self):
+        left = [
+            self.dist / ".ulrmm-agent-v1.0-linux-amd64.123.new",
+            self.dist / ".inputs-v1.0.123.new",
+            self.dist / ".enroll-pubkey.txt.123.new",
+        ]
+        keep = self.dist / ".keep.new"
+        for f in left + [keep]:
+            f.write_bytes(b"half")
+        self.build(b"linux", "aa")
+        self.assertTrue(self.run_guard()[0])
+        self.assertEqual([f for f in left if f.exists()], [])
+        self.assertEqual(keep.read_bytes(), b"half")
 
     def test_replace_without_windows_keeps_nothing_half_replaced(self):
         self.build(b"linux", "aa")
