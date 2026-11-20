@@ -303,11 +303,14 @@ class IsoRetry(APIView):
         row = BaseIso.objects.filter(pk=pk).first()
         if row is None or not _may_see(request.user, row):
             return Response("not found", status=404)
-        if row.status != BaseIso.Status.ERROR or not row.source_url:
+        # an upload has no URL: its file is inspected again
+        upload = not row.source_url and os.path.isfile(tasks.iso_path(row.filename))
+        if row.status != BaseIso.Status.ERROR or not (row.source_url or upload):
             return notify_error("The image cannot be retried")
-        row.status, row.error = BaseIso.Status.DOWNLOADING, ""
+        St = BaseIso.Status
+        row.status, row.error = St.INSPECTING if upload else St.DOWNLOADING, ""
         row.save(update_fields=["status", "error"])
-        tasks.download_base_iso.delay(pk)
+        (tasks.inspect_base_iso if upload else tasks.download_base_iso).delay(pk)
         return Response(_row(row))
 
 

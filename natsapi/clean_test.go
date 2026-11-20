@@ -36,4 +36,7 @@ func TestDSNQuoting(t *testing.T) {
 	if !strings.Contains(c.dsn(), `password='p w\'\\x sslmode=require'`) {
 		t.Errorf("dsn = %s", c.dsn())
 	}
+	if !strings.HasSuffix(c.dsn(), ` sslmode='disable' statement_timeout=15000 lock_timeout=5000`) {
+		t.Errorf("dsn = %s", c.dsn())
+	}
 }

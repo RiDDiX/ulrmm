@@ -11,6 +11,7 @@ from unittest import mock
 
 import requests
 from django.core.cache import cache
+from model_bakery import baker
 
 from deploy import iso, iso_layout, tasks
 from deploy.models import BaseIso
@@ -233,6 +234,31 @@ class TestIsoDownload(DownloadE2E):
         self.assertFalse(os.path.exists(self.dest))
         row.refresh_from_db()
         self.assertEqual((row.status, row.error), ("error", "cancelled"))
+
+    def test_killed_worker_leaves_a_retryable_row(self):
+        row = self.start()
+        # the worker died mid-download: part on disk, lock and status left behind
+        with open(self.part, "wb") as f:
+            f.write(BODY[: 1024 * 1024])
+        with open(self.part + ".validator", "w") as f:
+            f.write('"%s"' % SHA[:16])
+        self.assertTrue(cache.add(f"iso:dl:lock:{row.pk}", 1, 60))
+        ready = baker.make(BaseIso, filename="other.iso", status="ready")
+        tasks.interrupted_isos(sender=None)
+        row.refresh_from_db()
+        self.assertEqual((row.status, row.error), ("error", "interrupted"))
+        self.assertEqual(BaseIso.objects.get(pk=ready.pk).status, "ready")
+        r = self.client.post(f"/deploy/iso/library/{row.pk}/retry/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(tasks.download_base_iso(row.pk), "ready")
+        self.assertEqual(self.srv.ranges, ["bytes=1048576-"])
+
+    def test_deleted_during_download_leaves_no_file(self):
+        row = self.start()
+        self.hook = lambda i: BaseIso.objects.filter(pk=row.pk).delete()
+        self.assertEqual(tasks.download_base_iso(row.pk), "gone")
+        self.assertFalse(os.path.exists(self.dest))
+        self.assertFalse(os.path.exists(self.part))
 
     def test_then_build_the_full_iso(self):
         for p in (

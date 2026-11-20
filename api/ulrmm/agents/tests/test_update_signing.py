@@ -81,6 +81,21 @@ class TestUpdatePayload(ULRMMTestCase):
         self.assertEqual(get.call_count, 1)
 
     @override_settings(SELF_BUILT_AGENTS_URL=SELF_BUILT)
+    def test_self_built_replaced_file_gets_new_sum(self):
+        with patch("agents.models.requests.get", return_value=response()):
+            self.update()
+        # the build replaced the file of the same version in the served dist dir
+        name = agent_artifact_for(self.agent, self.agent_version())
+        (self.dist / name).write_bytes(b"rebuilt with a new icon")
+        with patch("agents.models.requests.get") as get:
+            result, payload = self.update()
+        get.assert_not_called()
+        self.assertEqual(result, "created")
+        self.assert_signed(
+            payload, hashlib.sha256(b"rebuilt with a new icon").hexdigest()
+        )
+
+    @override_settings(SELF_BUILT_AGENTS_URL=SELF_BUILT)
     def test_self_built_unreachable_refused(self):
         failures = (
             {"side_effect": requests.ConnectionError()},

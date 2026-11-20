@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from django.core.cache import cache
 from django.db import transaction
+from django.db.models import F, Max, Q
 from django.utils import timezone as djangotime
 
 from agents.models import Agent, AgentHistory
@@ -271,7 +272,7 @@ def apply(due: list[tuple[Agent, list[AppUpdate]]], username: str) -> tuple[int,
     mark_applying([a for a, _ in per_agent], len(calls))
     AppUpdate.objects.filter(
         pk__in=[u.pk for *_, items in calls for u in items]
-    ).update(state=State.UPDATING, last_error="")
+    ).exclude(state=State.EXCLUDED).update(state=State.UPDATING, last_error="")
     answers = [
         ret
         for rets in asyncio.run(
@@ -311,7 +312,11 @@ def apply(due: list[tuple[Agent, list[AppUpdate]]], username: str) -> tuple[int,
             else:
                 u.state, u.last_error = State.FAILED, (tail or "Update failed.")[-TAIL:]
                 lines.append(line + f"failed\n{u.last_error}")
-        AppUpdate.objects.bulk_update(items, ["state", "last_error"])
+        for u in items:
+            # an exclusion saved during the run stays
+            AppUpdate.objects.filter(pk=u.pk).exclude(state=State.EXCLUDED).update(
+                state=u.state, last_error=u.last_error
+            )
 
         failures = [u.app_id for u in items if u.state == State.FAILED]
         done += sum(u.state == State.DONE for u in items)
@@ -351,7 +356,13 @@ def due_agents(s: AppUpdateSettings, now) -> list[tuple[Agent, list[AppUpdate]]]
         Agent.objects.defer(*AGENT_DEFER)
         .select_related("site")
         .filter(plat__in=PLATS, pk__in=pending.values("agent_id"))
-        .order_by("pk")
+        # least recently tried first, so failing agents do not keep the slots
+        .annotate(
+            last_try=Max(
+                "history__time", filter=Q(history__type=AgentHistoryType.APP_UPDATE)
+            )
+        )
+        .order_by(F("last_try").asc(nulls_first=True), "pk")
     )
     due = []
     for agent in online(agents):
@@ -382,7 +393,8 @@ def apply_app_updates_task(self, pks: list[int] | None = None, username="system"
     if pks is not None:
         # dashboard run, the view picked and marked the rows
         grouped = defaultdict(list)
-        for u in AppUpdate.objects.select_related("agent").filter(pk__in=pks):
+        rows = AppUpdate.objects.select_related("agent").filter(pk__in=pks)
+        for u in rows.exclude(state=State.EXCLUDED):
             grouped[u.agent].append(u)
         done, failed = apply(list(grouped.items()), username)
         return f"{done} app updates installed, {failed} failed"

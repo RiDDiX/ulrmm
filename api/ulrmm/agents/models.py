@@ -1118,9 +1118,12 @@ class Agent(BaseAuditModel):
         return "invalid", True
 
     def _update_sha256(self, url: str, *, fetch: bool = True) -> str:
+        # the dist file wins: a rebuild of the same version keeps its cached sum
+        if sha256 := get_agent_artifact_sha256(agent=self):
+            return sha256
         if getattr(settings, "SELF_BUILT_AGENTS_URL", ""):
             return self_built_sha256(url, settings.LATEST_AGENT_VER, fetch=fetch)
-        return get_agent_artifact_sha256(agent=self)
+        return ""
 
     def do_update(self, *, force: bool = False) -> str:
         if not self.goarch:

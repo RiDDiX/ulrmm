@@ -366,7 +366,6 @@ SERIES = {
     "vm.total": ("kind",),
     "vm.running": ("kind",),
 }
-MAX_MOUNTS = 32
 MAX_IFACES = 16
 MAX_TEMPS = 16
 MAX_CONTAINERS = 32
@@ -415,7 +414,7 @@ def series(state: dict) -> dict[str, float]:
     mounts = [
         m for m in system.get("mounts", []) if "mount" in m and not m.get("stale")
     ]
-    for mount in mounts[:MAX_MOUNTS]:
+    for mount in mounts:
         labels = {"mount": mount["mount"]}
         put("disk.used_pct", mount.get("used_pct"), labels)
         put("disk.inode_pct", mount.get("inode_pct"), labels)

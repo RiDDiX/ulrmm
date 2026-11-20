@@ -83,7 +83,7 @@ def builds() -> dict:
             for arch in GoArch.values:
                 url = f"{base}/{agent_artifact(ver, plat, arch)}"
                 if sha := self_built_sha256(url, ver, fetch=False):
-                    out.setdefault(ver, {})[f"{plat}-{arch}"] = sha
+                    out.setdefault(ver, {}).setdefault(f"{plat}-{arch}", sha)
     return out
 
 

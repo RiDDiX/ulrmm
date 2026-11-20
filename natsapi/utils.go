@@ -53,7 +53,8 @@ func pqQuote(v string) string {
 }
 
 func (c *config) dsn() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+	// lib/pq sends unknown keys as run-time parameters: no check-in waits forever on a lock
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s statement_timeout=15000 lock_timeout=5000",
 		pqQuote(c.Host), c.Port, pqQuote(c.User), pqQuote(c.Pass), pqQuote(c.DBName), pqQuote(c.SSLMode))
 }
 

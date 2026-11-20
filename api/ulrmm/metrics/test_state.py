@@ -404,8 +404,6 @@ class TestSeries(SimpleTestCase):
 
     def test_caps(self):
         body = doc()
-        mount = DOC["system"]["mounts"][0]
-        body["system"]["mounts"] = [dict(mount, mount=f"/m{i}") for i in range(40)]
         iface = DOC["net"]["ifaces"][0]
         body["net"]["ifaces"] = [dict(iface, name=f"if{i}") for i in range(30)]
         body["system"]["sensors"] = [
@@ -413,7 +411,6 @@ class TestSeries(SimpleTestCase):
         ]
         values = series(clean_state(body))
         names = [parse_key(key)[0] for key in values]
-        self.assertEqual(names.count("disk.used_pct"), 32)
         self.assertEqual(names.count("net.rx_bps"), 16)
         self.assertEqual(names.count("temp.c"), 16)
         self.assertLessEqual(len(values), 256)
@@ -445,14 +442,12 @@ class TestSeries(SimpleTestCase):
             + ["/pool0", "/pool1", "/pool2", "/tank", "/nosize"],
         )
 
-    def test_mounts_past_the_cap_are_dropped(self):
+    def test_schema_keeps_the_first_32_mounts(self):
+        body = doc()
         mount = DOC["system"]["mounts"][0]
-        mounts = [dict(mount, mount=f"/small{i}", size=GB) for i in range(30)]
-        mounts += [dict(mount, mount=f"/pool{i}", size=(10 + i) * GB) for i in range(3)]
-        self.assertEqual(
-            self.mount_series(mounts),
-            [f"/small{i}" for i in range(30)] + ["/pool0", "/pool1"],
-        )
+        body["system"]["mounts"] = [dict(mount, mount=f"/m{i}") for i in range(40)]
+        cleaned = clean_state(body)["system"]["mounts"]
+        self.assertEqual([m["mount"] for m in cleaned], [f"/m{i}" for i in range(32)])
 
     def test_few_mounts_keep_the_received_order(self):
         mount = DOC["system"]["mounts"][0]

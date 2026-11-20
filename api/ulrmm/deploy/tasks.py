@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 import asyncio
+import contextlib
 import datetime as dt
 import glob
 import ipaddress
@@ -12,6 +13,7 @@ import time
 from urllib.parse import urlparse
 
 import requests
+from celery.signals import worker_ready
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone as djangotime
@@ -107,29 +109,46 @@ def iso_uploads_dir() -> str:
     return path
 
 
-def _inspect(row: BaseIso, sha: str | None = None) -> None:
+def _inspect(row: BaseIso, sha: str | None = None) -> str:
+    """Returns "ready", or "gone" when the row was deleted meanwhile."""
     from . import iso
 
-    row.status = BaseIso.Status.INSPECTING
-    row.error = ""
-    row.save(update_fields=["status", "error"])
+    rows = BaseIso.objects.filter(pk=row.pk)
     path = iso_path(row.filename)
-    row.sha256 = sha or iso.sha256_of(path)
-    info = iso.inspect(path)
-    row.size = info.get("size") or os.path.getsize(path)
-    row.label = (info.get("label") or "")[:32]
-    row.os = info.get("os") or ""
-    row.bios = bool(info.get("bios"))
-    row.efi = bool(info.get("efi"))
-    row.udf = bool(info.get("udf"))
-    row.status = BaseIso.Status.READY
-    row.save()
+    if rows.update(status=BaseIso.Status.INSPECTING, error=""):
+        sha = sha or iso.sha256_of(path)
+        info = iso.inspect(path)
+        done = {
+            "sha256": sha,
+            "size": info.get("size") or os.path.getsize(path),
+            "label": (info.get("label") or "")[:32],
+            "os": info.get("os") or "",
+            "bios": bool(info.get("bios")),
+            "efi": bool(info.get("efi")),
+            "udf": bool(info.get("udf")),
+            "status": BaseIso.Status.READY,
+            "error": "",
+        }
+        if rows.update(**done):
+            for name, value in done.items():
+                setattr(row, name, value)
+            return "ready"
+    _drop_orphan(row.filename)
+    return "gone"
+
+
+def _drop_orphan(filename: str) -> None:
+    # nobody else would remove the file of a deleted row; a new row may own it again
+    # shortcut: a row registered between this check and the remove loses its file, lock by file name if that shows
+    if not BaseIso.objects.filter(filename=filename).exists():
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(iso_path(filename))
 
 
 def _fail(row: BaseIso, e: Exception) -> None:
     row.status = BaseIso.Status.ERROR
     row.error = (str(e) or e.__class__.__name__)[:500]
-    row.save(update_fields=["status", "error"])
+    BaseIso.objects.filter(pk=row.pk).update(status=row.status, error=row.error)
 
 
 @app.task
@@ -139,11 +158,10 @@ def inspect_base_iso(pk: int) -> str:
     if row is None:
         return "gone"
     try:
-        _inspect(row)
+        return _inspect(row)
     except Exception as e:
         _fail(row, e)
         return "error"
-    return "ready"
 
 
 def dl_key(pk) -> str:
@@ -162,6 +180,21 @@ def dl_set(pk, **fields) -> None:
 
 def dl_cancel(pk) -> None:
     cache.set(f"iso:dl:cancel:{pk}", 1, 3600)
+
+
+@worker_ready.connect
+def interrupted_isos(**kwargs) -> None:
+    """A killed worker leaves its images live and locked; Retry resumes the part."""
+    # shortcut: assumes one worker node, a starting node would fail another node's running downloads; key the locks by node before adding a second worker host
+    St = BaseIso.Status
+    live = (St.DOWNLOADING, St.VERIFYING, St.INSPECTING)
+    pks = list(BaseIso.objects.filter(status__in=live).values_list("pk", flat=True))
+    BaseIso.objects.filter(pk__in=pks, status__in=live).update(
+        status=St.ERROR, error="interrupted"
+    )
+    for pk in pks:
+        cache.delete(f"iso:dl:lock:{pk}")
+        dl_set(pk, status="error", error="interrupted")
 
 
 def url_host(url: str) -> str | None:
@@ -363,7 +396,9 @@ def download_base_iso(pk: int) -> str:
         _drop_part(part)
         row.status = BaseIso.Status.VERIFYING
         row.error = ""
-        row.save(update_fields=["status", "error"])
+        if not BaseIso.objects.filter(pk=pk).update(status=row.status, error=""):
+            _drop_orphan(row.filename)
+            return "gone"
         dl_set(pk, status="verifying", progressPercent=100.0, etaSeconds=None)
         vlast = [0.0]
 
@@ -375,12 +410,16 @@ def download_base_iso(pk: int) -> str:
 
         sha = iso.sha256_of(dest, progress=verify_cb)
         # a second request may have added the hash while this one downloaded
-        row.refresh_from_db(fields=["expected_sha256"])
-        want = row.expected_sha256.strip().lower()
+        want = BaseIso.objects.filter(pk=pk).values_list("expected_sha256", flat=True)
+        if not want:
+            _drop_orphan(row.filename)
+            return "gone"
+        want = want[0].strip().lower()
         if want and want != sha.lower():
             os.remove(dest)
             raise ValueError("SHA-256 mismatch")
-        _inspect(row, sha)
+        if _inspect(row, sha) == "gone":
+            return "gone"
         dl_set(pk, status="ready", progressPercent=100.0, etaSeconds=None, error="")
     except Exception as e:
         _fail(row, e)

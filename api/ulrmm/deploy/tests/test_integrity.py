@@ -94,6 +94,9 @@ class TestIntegrityManifest(ULRMMTestCase):
             seen.append(fetch)
             if url == "https://dl.example.com/a/ulrmm-agent-v3.25.10.2026-linux-arm64":
                 return "b" * 64
+            # a sum cached before the dist file was rebuilt
+            if url == "https://dl.example.com/a/ulrmm-agent-v3.25.10.2026-linux-amd64":
+                return "c" * 64
             return ""
 
         with override_settings(

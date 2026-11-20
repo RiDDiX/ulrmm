@@ -224,6 +224,22 @@ class TestLibrary(IsoTestCase):
         self.assertEqual((r.data["status"], r.data["error"]), ("downloading", ""))
         tasks.download_base_iso.delay.assert_called_with(row.pk)
 
+    def test_retry_of_an_upload_inspects_its_file(self):
+        row = baker.make(
+            "deploy.BaseIso",
+            name="u",
+            filename="u.iso",
+            status="error",
+            error="interrupted",
+        )
+        url = f"/deploy/iso/library/{row.pk}/retry/"
+        self.assertEqual(self.client.post(url).status_code, 400)
+        self.put("u.iso")
+        r = self.client.post(url)
+        self.assertEqual((r.data["status"], r.data["error"]), ("inspecting", ""))
+        tasks.inspect_base_iso.delay.assert_called_once_with(row.pk)
+        tasks.download_base_iso.delay.assert_not_called()
+
     def test_scan_verify_list_delete(self):
         self.put("a.iso")
         self.put("b.iso")
@@ -269,6 +285,22 @@ class TestLibraryTasks(IsoTestCase):
         self.assertEqual((row.sha256, row.size), ("ab" * 32, 4096))
         self.assertTrue(row.bios and row.efi and row.udf)
 
+    def test_row_deleted_during_inspect_leaves_no_file(self):
+        self.put("w.iso")
+        row = baker.make("deploy.BaseIso", name="w", filename="w.iso")
+
+        def deleted(path):
+            BaseIso.objects.filter(pk=row.pk).delete()
+            return INFO
+
+        with (
+            mock.patch.object(iso, "sha256_of", return_value="ab" * 32),
+            mock.patch.object(iso, "inspect", side_effect=deleted),
+        ):
+            self.assertEqual(tasks.inspect_base_iso(row.pk), "gone")
+        self.assertFalse(BaseIso.objects.filter(pk=row.pk).exists())
+        self.assertEqual(os.listdir(self.dir), [])
+
     def test_inspect_error_is_kept(self):
         row = baker.make("deploy.BaseIso", name="w", filename="w.iso")
         with mock.patch.object(iso, "sha256_of", side_effect=iso.IsoError("not iso")):
@@ -297,6 +329,100 @@ class TestLibraryTasks(IsoTestCase):
         with open(os.path.join(self.dir, "d.iso"), "rb") as f:
             self.assertEqual(f.read(), b"abcd")
         self.assertFalse(os.path.exists(os.path.join(self.dir, "d.iso.part")))
+
+    def test_download_deleted_during_inspect_leaves_no_file(self):
+        row = baker.make(
+            "deploy.BaseIso",
+            name="d",
+            filename="d.iso",
+            source_url="https://x.test/d.iso",
+            status="downloading",
+        )
+        resp = mock.MagicMock(headers={}, history=[], url="https://x.test/d.iso")
+        resp.__enter__.return_value = resp
+        resp.iter_content.return_value = [b"abcd"]
+
+        def deleted(path):
+            BaseIso.objects.filter(pk=row.pk).delete()
+            return INFO
+
+        with (
+            mock.patch.object(tasks, "_check_host"),
+            mock.patch.object(tasks, "_fetch", return_value=resp),
+            mock.patch.object(iso, "sha256_of", return_value="cd" * 32),
+            mock.patch.object(iso, "inspect", side_effect=deleted),
+        ):
+            self.assertEqual(tasks.download_base_iso(row.pk), "gone")
+        self.assertFalse(BaseIso.objects.filter(pk=row.pk).exists())
+        self.assertEqual(os.listdir(self.dir), [])
+
+    def test_download_deleted_during_verify_leaves_no_file(self):
+        row = baker.make(
+            "deploy.BaseIso",
+            name="d",
+            filename="d.iso",
+            source_url="https://x.test/d.iso",
+            status="downloading",
+        )
+        resp = mock.MagicMock(headers={}, history=[], url="https://x.test/d.iso")
+        resp.__enter__.return_value = resp
+        resp.iter_content.return_value = [b"abcd"]
+
+        def deleted(path, progress=None):
+            BaseIso.objects.filter(pk=row.pk).delete()
+            return "cd" * 32
+
+        with (
+            mock.patch.object(tasks, "_check_host"),
+            mock.patch.object(tasks, "_fetch", return_value=resp),
+            mock.patch.object(iso, "sha256_of", side_effect=deleted),
+        ):
+            self.assertEqual(tasks.download_base_iso(row.pk), "gone")
+        self.assertFalse(BaseIso.objects.filter(pk=row.pk).exists())
+        self.assertEqual(os.listdir(self.dir), [])
+
+    def test_api_delete_during_verify_is_gone(self):
+        row = baker.make(
+            "deploy.BaseIso",
+            name="d",
+            filename="d.iso",
+            source_url="https://x.test/d.iso",
+            status="downloading",
+        )
+        resp = mock.MagicMock(headers={}, history=[], url="https://x.test/d.iso")
+        resp.__enter__.return_value = resp
+        resp.iter_content.return_value = [b"abcd"]
+
+        def deleted(path, progress=None):
+            r = self.client.delete(f"/deploy/iso/library/{row.pk}/")
+            self.assertEqual(r.status_code, 200)
+            return "cd" * 32
+
+        with (
+            mock.patch.object(tasks, "_check_host"),
+            mock.patch.object(tasks, "_fetch", return_value=resp),
+            mock.patch.object(iso, "sha256_of", side_effect=deleted),
+        ):
+            self.assertEqual(tasks.download_base_iso(row.pk), "gone")
+        self.assertFalse(BaseIso.objects.filter(pk=row.pk).exists())
+        self.assertEqual(os.listdir(self.dir), [])
+
+    def test_reregistered_file_is_kept(self):
+        self.put("w.iso")
+        row = baker.make("deploy.BaseIso", name="w", filename="w.iso")
+
+        def replaced(path):
+            BaseIso.objects.filter(pk=row.pk).delete()
+            baker.make("deploy.BaseIso", name="w2", filename="w.iso")
+            return INFO
+
+        with (
+            mock.patch.object(iso, "sha256_of", return_value="ab" * 32),
+            mock.patch.object(iso, "inspect", side_effect=replaced),
+        ):
+            self.assertEqual(tasks.inspect_base_iso(row.pk), "gone")
+        self.assertTrue(os.path.isfile(os.path.join(self.dir, "w.iso")))
+        self.assertTrue(BaseIso.objects.filter(filename="w.iso").exists())
 
     def test_download_over_the_cap_removes_the_part_file(self):
         row = baker.make(

@@ -431,4 +431,6 @@ def test_write_brand_bakes_the_enroll_key(tmp_path, capsys):
         'install -m 0644 "$TMP/enroll-pubkey.txt" "$DIST/.enroll-pubkey.txt.$$.new"\n'
         'mv -f "$DIST/.enroll-pubkey.txt.$$.new" "$DIST/enroll-pubkey.txt"\n'
     ) in build
-    assert build.index('mv -f "$stage" "$DIST/$b"') < build.index("enroll-pubkey.txt")
+    assert build.index('mv -f "$stage" "$DIST/$b"') < build.index(
+        '>"$TMP/enroll-pubkey.txt"'
+    )

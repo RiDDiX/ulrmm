@@ -23,6 +23,7 @@ from .tasks import (
     NO_ANSWER,
     TIMED_OUT,
     _outcome,
+    _results as results,
     apply_app_updates_task,
     collect_app_updates_task,
     effective,
@@ -509,6 +510,55 @@ class TestTasks(Base):
         self.assertEqual(calls[0][1]["payload"]["ids"], "Google.Chrome")
         self.assertEqual(AppUpdate.objects.get(pk=pk).state, "done")
         self.assertEqual(AgentHistory.objects.get(agent=self.win).username, "john")
+
+    def test_exclusion_during_a_run_stays(self):
+        rows = {
+            ("winget", f"App{i}.Id"): {"name": f"App {i}", "available": "2"}
+            for i in range(4)
+        }
+        store(self.win, rows)
+        self.enable()
+        tails = ["", "exit 1", "winget: time limit reached", "not started: x"]
+
+        answer = {
+            "results": [
+                {"id": f"App{i}.Id", "ok": i == 0, "output_tail": t}
+                for i, t in enumerate(tails)
+            ]
+        }
+
+        def excluded_meanwhile(ret):
+            # the operator excludes while the agent installs
+            AppUpdate.objects.filter(agent=self.win).update(state="excluded")
+            return results(ret)
+
+        with fake_nats({self.win.agent_id: answer}, []), patch(
+            "appupdates.tasks._results", excluded_meanwhile
+        ):
+            apply_app_updates_task()
+        states = {u.state for u in self.rows(self.win).values()}
+        self.assertEqual(states, {"excluded"})
+
+        # a queued dashboard run leaves out a row excluded before it started
+        pk = self.rows(self.win)["App0.Id"].pk
+        calls = []
+        with fake_nats({self.win.agent_id: answer}, calls):
+            apply_app_updates_task(pks=[pk], username="john")
+        self.assertEqual(calls, [])
+        self.assertEqual(AppUpdate.objects.get(pk=pk).state, "excluded")
+
+    def test_failing_agent_does_not_keep_the_slot(self):
+        store(self.win, parse_list(WINGET_LIST))
+        store(self.mac, parse_list(BREW_LIST))
+        self.enable(max_per_run=1)
+        answers = {self.win.agent_id: upgraded([]), self.mac.agent_id: upgraded([])}
+        days = []
+        for _ in range(2):
+            calls = []
+            with fake_nats(answers, calls):
+                apply_app_updates_task()
+            days.append({c[0] for c in calls})
+        self.assertEqual(days, [{self.win.agent_id}, {self.mac.agent_id}])
 
     def test_scheduled_run_picks_up_rows_left_updating(self):
         store(self.win, parse_list(WINGET_LIST))
