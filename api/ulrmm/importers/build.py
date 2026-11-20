@@ -56,14 +56,23 @@ def save(serializer, **extra):
         return None, "it does not fit into this installation"
 
 
+def repeated(scripts) -> set:
+    """Name and shell of the snapshot scripts that repeat over there."""
+    count = Counter(key(s["name"], s["shell"]) for s in scripts)
+    return {k for k, n in count.items() if n > 1}
+
+
 class Refs:
     """Scripts and agent custom fields here, by name; loaded once per run,
-    after the scripts part has written."""
+    after the scripts part has written. A name that repeats over there
+    resolves to none of them."""
 
-    def __init__(self):
+    def __init__(self, scripts=()):
+        left_out = repeated(scripts)
         self.scripts = {
             key(n, s): pk
             for pk, n, s in Script.objects.values_list("pk", "name", "shell")
+            if key(n, s) not in left_out
         }
         self.fields = {
             n.lower(): pk
@@ -92,11 +101,17 @@ def missing(row, kind: str, available) -> str:
             return _no_script(action["script"])
     if not row["actions"]:
         return "it has no actions"
-    if row["fields"].get("task_type") == TaskType.RUN_ONCE and _past(
-        row["fields"].get("run_time_date")
-    ):
+    if ran_once(row):
         return "it runs once at a time that has passed"
     return ""
+
+
+def ran_once(task) -> bool:
+    """A run-once task whose time has passed."""
+    fields = task["fields"]
+    return fields.get("task_type") == TaskType.RUN_ONCE and _past(
+        fields.get("run_time_date")
+    )
 
 
 def _past(value) -> bool:

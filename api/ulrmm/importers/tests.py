@@ -129,7 +129,9 @@ class TestValidate(ULRMMTestCase):
         self.assertEqual(data["devices"][0]["plat"], "")
         self.assertEqual(data["scripts"][0]["shell"], "powershell")
         self.assertEqual(data["scripts"][0]["timeout"], 90)
-        self.assertEqual(data["keystore"][0], {"name": "k" * 25, "value": "5"})
+        self.assertEqual(
+            data["keystore"][0], {"name": "k" * 25, "value": "5", "too_long": False}
+        )
 
     def test_rejects_non_lists(self):
         with self.assertRaises(SourceError):
@@ -459,6 +461,10 @@ class TestViews(ULRMMTestCase):
         r = self.client.post(f"{base}/import/", {"parts": ["roles"]}, format="json")
         self.assertEqual((r.status_code, r.data), (400, OLD_SNAPSHOT))
         self.assertEqual(validate({})["version"], SNAPSHOT_VERSION)
+        # values were cut at 10,000 characters before version 5
+        ImportSource.objects.filter(pk=src.pk).update(snapshot={"version": 4})
+        r = self.client.get(f"{base}/plan/")
+        self.assertEqual((r.status_code, r.data), (400, OLD_SNAPSHOT))
 
     def test_tasks_tell_when_busy(self):
         src = _source()
@@ -486,6 +492,24 @@ class TestViews(ULRMMTestCase):
         self.assertEqual(r.status_code, 200)
         src.refresh_from_db()
         self.assertEqual((src.created, src.snapshot, src.last_fetch), ({}, {}, None))
+
+    def test_source_with_devices_keeps_its_address(self):
+        for kind, old in (
+            ("upstream", "https://old.example.com"),
+            ("ninjaone", "https://eu.ninjarmm.com"),
+        ):
+            with self.subTest(kind):
+                src = baker.make(ImportSource, kind=kind, name=kind, url=old)
+                ImportedDevice.objects.create(source=src, ref="1", hostname="ws01")
+                url = f"{BASE}/{src.pk}/"
+                body = {"url": "https://new.example.com", "secrets": {}}
+                r = self.client.put(url, body, format="json")
+                self.assertEqual(r.status_code, 400)
+                self.assertIn("add a new source", str(r.data["url"]))
+                r = self.client.put(url, {"name": "renamed", "url": old}, format="json")
+                self.assertEqual(r.status_code, 200, r.data)
+                src.refresh_from_db()
+                self.assertEqual((src.url, src.name), (old, "renamed"))
 
     def test_busy_source_and_old_errors(self):
         src = _source(last_error="old")

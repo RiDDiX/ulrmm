@@ -418,6 +418,42 @@ class TestNinjaOne(SimpleTestCase):
             NinjaOne("https://eu.ninjarmm.com", True, {}, {}).fetch()
 
 
+class TestValidateCaps(SimpleTestCase):
+    def test_long_values_are_whole_or_named(self):
+        long, over = "a" * 20_000, "b" * (base.MAX_BODY + 1)
+        fields = {"Long": long, "Over": over}
+        data = validate(
+            {
+                "clients": [{"name": "Acme", "custom_fields": fields}],
+                "keystore": [
+                    {"name": "LONG", "value": long},
+                    {"name": "OVER", "value": over},
+                ],
+                "devices": [
+                    {
+                        "ref": "1",
+                        "hostname": "h",
+                        "custom_fields": fields,
+                        "notes": [long, over] + ["n"] * 103,
+                    }
+                ],
+            }
+        )
+        client, device = data["clients"][0], data["devices"][0]
+        self.assertEqual(client["custom_fields"], {"Long": long})
+        self.assertEqual(client["too_long"], ["custom field Over"])
+        self.assertEqual(
+            [(k["value"] == long, k["too_long"]) for k in data["keystore"]],
+            [(True, False), (False, True)],
+        )
+        self.assertEqual(device["custom_fields"], {"Long": long})
+        self.assertEqual(device["notes"], [long] + ["n"] * 98)
+        self.assertEqual(
+            device["too_long"],
+            ["custom field Over", "note 2", "notes after the first 100 (5)"],
+        )
+
+
 class TestCall(SimpleTestCase):
     def response(self, status, body=b"", headers=None):
         r = requests.Response()

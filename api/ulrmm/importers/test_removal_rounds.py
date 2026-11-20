@@ -186,6 +186,28 @@ class TestRemovalRounds(ULRMMTestCase):
             self.assertEqual(removal.step(self.row(), client), "removed")
         self.assertEqual(self.row().recovery, "pending")
 
+    def test_server_error_then_listed_then_gone_is_not_removed(self):
+        client = Upstream("https://o", True, {}, {"api_key": "k"})
+        offline = {**self.detail, "status": "offline"}
+        gets = iter(
+            [
+                _response(200, json.dumps(self.detail).encode()),
+                _response(200, json.dumps(offline).encode()),
+                _response(404),
+            ]
+        )
+
+        def answer(method, url, **kw):
+            return _response(502) if method == "DELETE" else next(gets)
+
+        with patch.object(client.session, "request", side_effect=answer):
+            self.assertEqual(removal.step(self.row(), client), "waiting_there")
+            self.assertEqual(removal.step(self.row(), client), "waiting_there")
+            self.assertIsNone(self.row().remove_tried_at)
+            # deleted by hand over there, the old agent may still run
+            self.assertEqual(removal.step(self.row(), client), "not_removed")
+        self.assertEqual(self.row().recovery, "")
+
     def test_a_stale_row_sees_the_other_rounds_call(self):
         stale = self.row()
         self.remote.answer_error = NoAnswer("/agents/AGENT1/: ReadTimeout")

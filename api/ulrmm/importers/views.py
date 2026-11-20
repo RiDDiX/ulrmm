@@ -148,6 +148,14 @@ class SourceSerializer(serializers.ModelSerializer):
         if unknown:
             raise ValidationError({"secrets": f"unknown: {', '.join(sorted(unknown))}"})
         if inst and "url" in attrs and attrs["url"].rstrip("/") != inst.url.rstrip("/"):
+            # its device rows hold ids of the old server
+            if inst.devices.exists():
+                raise ValidationError(
+                    {
+                        "url": "This source holds devices of its server. For "
+                        "another server add a new source."
+                    }
+                )
             # stored secrets never follow the address to another host
             kept = [k for k in names if stored.get(k) and not given.get(k)]
             if kept:

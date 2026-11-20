@@ -294,6 +294,9 @@ def _send(device, client, now, expired: bool) -> str:
         return RemoveState.NOT_REMOVED
     except SourceError as e:
         return wait(str(e))
+    if tried:
+        # still listed: the earlier call did not take effect
+        ImportedDevice.objects.filter(pk=device.pk).update(remove_tried_at=None)
     if expired:
         return wait(f"not removed within {REMOVE_DAYS} days")
     if here:

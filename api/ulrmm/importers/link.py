@@ -8,7 +8,9 @@ in its site. When its site has none, an agent of that host name elsewhere is
 taken only with the same real serial number. Without a site, a single agent
 with that host name anywhere is taken; several are told apart by serial
 number. Of several rows with one host name and site, only the one with the
-agent's serial number links.
+agent's serial number links. A device and an agent with two different real
+serial numbers never link (a replacement machine); the row says so. At
+enrollment the agent has not reported its serial number yet.
 Linking copies the description (if the agent has none), the notes and the
 custom field values that are still empty on the agent. From a source that
 reads them it also takes the device's own checks and tasks, its policy, its
@@ -37,6 +39,14 @@ DEVICE_KEYS = (
     "excluded_policies",
     "excluded_templates",
     "lost",
+    "too_long",
+)
+
+
+# shown on the row: a replacement machine must not inherit the old one's data
+OTHER_SERIAL = (
+    "Not linked: the agent of this name here has another serial number, "
+    "it is another machine."
 )
 
 
@@ -175,7 +185,7 @@ def _exclusions(agent, data, skip) -> None:
                 obj.excluded_agents.add(agent)
 
 
-def _device_level(agent, data) -> list:
+def _device_level(agent, data, scripts) -> list:
     from autotasks.tasks import create_win_task_schedule
 
     skipped = []
@@ -183,12 +193,14 @@ def _device_level(agent, data) -> list:
     def skip(name: str, why: str) -> None:
         skipped.append({"name": name, "reason": why})
 
+    for name in data.get("too_long") or []:
+        skip(name, build.TOO_LONG)
     # a fresh row: the matched one carries only a few fields
     agent = Agent.objects.get(pk=agent.pk)
     _settings(agent, data, skip)
     if data.get("patch_policy"):
         build.patch_policy(data["patch_policy"], skip, "patch policy", agent=agent)
-    refs, owner = build.Refs(), {"agent": agent.pk}
+    refs, owner = build.Refs(scripts), {"agent": agent.pk}
     # what the agent has already stays single
     checks, tasks, present = build.missing_children(
         agent.agentchecks,
@@ -214,7 +226,9 @@ def apply(device, agent) -> None:
                 Note.objects.create(agent=agent, note=text)
         fill(agent, "agent", data.get("custom_fields") or {})
         if any(data.get(k) for k in DEVICE_KEYS):
-            device.data = {**data, "link_skipped": _device_level(agent, data)}
+            scripts = (device.source.snapshot or {}).get("scripts", [])
+            skipped = _device_level(agent, data, scripts)
+            device.data = {**data, "link_skipped": skipped}
         device.agent = agent
         device.migrate_state = MigrateState.LINKED
         device.migrate_error = ""
@@ -239,8 +253,14 @@ def _group(device) -> tuple:
 
 
 def link_source(source) -> int:
+    # set again below while the serial numbers still differ
+    source.devices.filter(agent=None, migrate_error=OTHER_SERIAL).update(
+        migrate_error=""
+    )
     devices = list(source.devices.filter(agent=None))
-    agents = _agents(d.hostname for d in devices)
+    by_name = defaultdict(list)
+    for a in _agents(d.hostname for d in devices):
+        by_name[short(a.hostname)].append(a)
     current = {d["ref"] for d in (source.snapshot or {}).get("devices", [])}
     groups = defaultdict(list)
     for device in devices:
@@ -253,15 +273,23 @@ def link_source(source) -> int:
         groups[key] = live
         serials[key] = Counter(real_serial(d.serial) for d in live)
     taken, count = set(), 0
+
+    def agents(device) -> list:
+        return by_name.get(short(device.hostname), [])
+
     # unique matches in the site first: a fallback never takes their agent
-    devices.sort(key=lambda d: len(_in_site(d, agents)) != 1)
+    devices.sort(key=lambda d: len(_in_site(d, agents(d))) != 1)
     for device in devices:
-        found = [a for a in _candidates(device, agents) if a.pk not in taken]
+        found = [a for a in _candidates(device, agents(device)) if a.pk not in taken]
         if len(found) != 1 or device.pk in stale:
+            continue
+        serial = real_serial(found[0].serial_number)
+        if serial and real_serial(device.serial) not in ("", serial):
+            device.migrate_error = OTHER_SERIAL
+            device.save(update_fields=["migrate_error"])
             continue
         # rows of one name and site (a stale and a live row of one machine):
         # only the one row with the agent's serial, never a guess
-        serial = real_serial(found[0].serial_number)
         if len(groups[_group(device)]) > 1 and not (
             serial
             and real_serial(device.serial) == serial

@@ -11,12 +11,12 @@ A source turns the other RMM's API into one dict:
     scripts:       [{name, description, shell, category, args, env_vars, body,
                      timeout, platforms, run_as_user, syntax, too_long}]
     snippets:      [{name, desc, code, shell}]
-    keystore:      [{name, value}]
+    keystore:      [{name, value, too_long}]
     devices:       [{ref, site_ref, hostname, serial, plat, goarch,
                      monitoring_type, os_name, description, notes: [str],
                      custom_fields, policy, patch_policy, settings, checks,
                      tasks, excluded_policies, excluded_templates,
-                     lost}]
+                     lost, too_long: [str]}]
 
 Sources that read more also deliver (others leave them out):
 
@@ -41,8 +41,8 @@ Sources that read more also deliver (others leave them out):
     report_html, report_queries, report_templates: the reporting module's rows
 
 Clients and sites name their server_policy, workstation_policy and
-alert_template, and carry block_policy_inheritance and lost (the slots
-whose name repeats over there). Other objects are referenced by name as well: scripts as
+alert_template, and carry block_policy_inheritance, lost (the slots
+whose name repeats over there) and too_long. Other objects are referenced by name as well: scripts as
 {name, shell}, sites as [client, site], devices by ref, a task's check by the
 check's ref. A check is {ref, desc, script, fields}, a task {ref, name,
 fields, actions, assigned_check, custom_field, too_long}; fields holds the model
@@ -50,8 +50,10 @@ fields both sides share.
 
 validate() is the trust boundary: the answer comes from another server, so
 every value is type checked and cut to the column sizes before it is stored.
-Task actions and scripts whose values exceed the caps here are marked
-too_long instead and left out by the import."""
+Task actions, scripts and key store entries whose values exceed the caps
+here are marked too_long instead and left out by the import. Custom field
+values and notes over the caps, and notes beyond 100, are named in the
+too_long list of their client, site or device and listed as left out."""
 
 import json
 import math
@@ -86,7 +88,7 @@ TIMEOUT = 30
 # the address of a source; an export file names its server the same way
 URL_RE = r"^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$"
 # raised when the snapshot format changes; an older snapshot is read again
-SNAPSHOT_VERSION = 4
+SNAPSHOT_VERSION = 5
 # a whole fetch ends well before the source's lock (2 h) runs out
 FETCH_SECONDS = 90 * 60
 # more than any fleet this importer is meant for; a bigger answer is refused
@@ -298,9 +300,20 @@ def _fields(value) -> dict:
             ret[key] = v
         elif isinstance(v, list):
             ret[key] = _strings(v, 255)
-        else:
-            ret[key] = _str(v, 10_000)
+        elif not _too_long(v, MAX_BODY):
+            ret[key] = _str(v, MAX_BODY)
     return ret
+
+
+def _long_fields(value) -> list[str]:
+    # the custom field values _fields leaves out
+    if not isinstance(value, dict):
+        return []
+    return [
+        f"custom field {_name(k, 100)}"
+        for k, v in list(value.items())[:200]
+        if _too_long(v, MAX_BODY) and not isinstance(v, list)
+    ]
 
 
 def _choice(value, choices, default: str) -> str:
@@ -665,6 +678,7 @@ def validate(data) -> dict:
                     "ref": _str(s.get("ref"), 255),
                     "name": sname,
                     "custom_fields": _fields(s.get("custom_fields")),
+                    "too_long": _long_fields(s.get("custom_fields")),
                     **_assigned(s),
                 }
             )
@@ -673,6 +687,7 @@ def validate(data) -> dict:
                 "ref": _str(c.get("ref"), 255),
                 "name": name,
                 "custom_fields": _fields(c.get("custom_fields")),
+                "too_long": _long_fields(c.get("custom_fields")),
                 "sites": sites,
                 **_assigned(c),
             }
@@ -742,7 +757,13 @@ def validate(data) -> dict:
     for k in _list(data.get("keystore"), "keystore entries"):
         name = _name(k.get("name"), 25)
         if name:
-            keystore.append({"name": name, "value": _str(k.get("value"), 10_000)})
+            keystore.append(
+                {
+                    "name": name,
+                    "value": _str(k.get("value"), MAX_BODY),
+                    "too_long": _too_long(k.get("value"), MAX_BODY),
+                }
+            )
 
     devices, refs = [], set()
     for d in _list(data.get("devices"), "devices"):
@@ -751,6 +772,12 @@ def validate(data) -> dict:
         if not ref or not hostname or ref in refs:
             continue
         refs.add(ref)
+        notes = d.get("notes") if isinstance(d.get("notes"), list) else []
+        too_long = _long_fields(d.get("custom_fields")) + [
+            f"note {i}" for i, n in enumerate(notes[:100], 1) if _too_long(n, MAX_BODY)
+        ]
+        if len(notes) > 100:
+            too_long.append(f"notes after the first 100 ({len(notes) - 100})")
         devices.append(
             {
                 "ref": ref,
@@ -764,7 +791,14 @@ def validate(data) -> dict:
                 ),
                 "os_name": _name(d.get("os_name"), 255),
                 "description": _str(d.get("description"), 255),
-                "notes": [n for n in _strings(d.get("notes"), 10_000) if n.strip()],
+                "notes": [
+                    n
+                    for n in _strings(
+                        [n for n in notes[:100] if not _too_long(n, MAX_BODY)],
+                        MAX_BODY,
+                    )
+                    if n.strip()
+                ],
                 "custom_fields": _fields(d.get("custom_fields")),
                 "policy": _name(d.get("policy"), 255),
                 "patch_policy": _patch(d.get("patch_policy")),
@@ -775,6 +809,7 @@ def validate(data) -> dict:
                 "excluded_templates": _names(d.get("excluded_templates"), 100),
                 # its policy over there, whose name repeats there
                 "lost": [s for s in _strings(d.get("lost"), 40) if s == "policy"],
+                "too_long": too_long,
             }
         )
 

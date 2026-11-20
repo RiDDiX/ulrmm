@@ -711,7 +711,13 @@ run adds one entry with the parts, how many were added and how many left out.
    device. For a device whose site is here, **Link enrolled agents** takes an
    agent of another site or client only when both report the same real serial
    number; a device whose site is not here takes a single agent of that host
-   name anywhere. When the other server lists one machine twice in a site (a
+   name anywhere. A device and an agent that report two different real serial
+   numbers never link there, with the import or with **Link enrolled
+   agents**: the agent is a replacement machine of the same name and does not
+   inherit the old one's configuration; the device row says so. At enrollment
+   the agent has not reported its serial number yet, so this check cannot
+   happen then: a replacement machine that enrolls in the device's site links
+   right away. When the other server lists one machine twice in a site (a
    stale and a live row), only the row with the agent's serial number links;
    or delete the stale device over there, read the source again and run
    **Link enrolled agents**: the row the last read still lists links. No
@@ -757,7 +763,8 @@ and devices:
   or site is not here yet is left out until a run that imports the clients.
   Scripts (by name and shell), URL actions and alert templates whose name
   repeats over there cannot be told apart: what points at them is listed as
-  left out, and only the first of two scripts is taken.
+  left out, and none of the scripts of that name is taken until they are
+  renamed there and the source is read again.
 - **Policies**: name, description, active and enforced, all their checks and
   tasks (actions, schedules, alert settings), the patch policy and the alert
   template. A client or site gets its server or workstation policy only where
