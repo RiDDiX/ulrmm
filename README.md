@@ -473,7 +473,7 @@ or named: in the dashboard (`v1.01.10.2026`), in artifact names
 | | Version | Where it lives |
 |---|---|---|
 | Server and dashboard | one shared version | `VERSION` in this repository (the only source), `version` in `ulrmm-web/package.json` and the root of its `package-lock.json` |
-| Agent | its own version, bumped only when the agent changes | `LATEST_AGENT_VER` in `api/ulrmm/ulrmm/settings.py`, `version` in the agent's `main.go`, `MyAppVersion` in its `build/setup.nsi` (and in `build/setup.iss` while it exists) |
+| Agent | its own version, bumped only when the agent changes | `LATEST_AGENT_VER` in `api/ulrmm/ulrmm/settings.py`, `version` in the agent's `main.go`, `MyAppVersion` in its `build/setup.nsi` |
 
 `python3 riddix/scripts/check_versions.py --next` prints the next server
 version, `--next agent` the next agent version. The gates below fail when the
@@ -708,7 +708,16 @@ run adds one entry with the parts, how many were added and how many left out.
    agents** for agents that were already there; linking copies the description,
    the notes and the custom field values, and from a compatible RMM server the
    device-level data below. What the link could not take is listed with the
-   device.
+   device. For a device whose site is here, **Link enrolled agents** takes an
+   agent of another site or client only when both report the same real serial
+   number; a device whose site is not here takes a single agent of that host
+   name anywhere. When the other server lists one machine twice in a site (a
+   stale and a live row), only the row with the agent's serial number links;
+   or delete the stale device over there, read the source again and run
+   **Link enrolled agents**: the row the last read still lists links. No
+   import deletes a device row.
+   What the agent has already (notes, checks, tasks of that name) is not added
+   again.
 5. **Send installer** runs the ulrmm agent installer on the selected devices
    through the other RMM. Windows and Linux get a deployment link made for this
    run (valid for 3 days, as many enrollments as devices), macOS an install
@@ -744,12 +753,21 @@ and devices:
   one here. A client or site gets the template it had over there only when it
   has none here, and the default template is set only when this installation
   has none. Excluded clients and sites come along by name; excluded devices
-  are applied when they link.
+  are applied when they link. A new template or policy whose excluded client
+  or site is not here yet is left out until a run that imports the clients.
+  Scripts (by name and shell), URL actions and alert templates whose name
+  repeats over there cannot be told apart: what points at them is listed as
+  left out, and only the first of two scripts is taken.
 - **Policies**: name, description, active and enforced, all their checks and
   tasks (actions, schedules, alert settings), the patch policy and the alert
   template. A client or site gets its server or workstation policy only where
   that slot is empty here. The default server and workstation policies of the
-  other server are global settings and are not set.
+  other server are global settings and are not set. A client or site the
+  import creates blocks policy inheritance when it did over there; an existing
+  one that does not is listed instead. A run-once task whose
+  start lies more than a day in the past is left out. A task or script whose
+  arguments, variables, command or body exceed what the import takes is left
+  out, never cut.
 - **Roles** with every permission both sides know (the preview counts the
   others, they are ignored) and the clients and sites they are limited to. A
   role limited to a client or site that is not here is left out, so it never
@@ -882,7 +900,8 @@ for good. So the removal is sent only when all of this holds:
 - both sides show the same machine: the same short host name and platform,
   and either the same serial number that no other agent here and no other
   device of the source has, or the same public IP address and the same set
-  of local IPv4 addresses. Placeholder serial numbers ("To be filled by
+  of local IPv4 addresses (two different real serial numbers refuse even
+  then). Placeholder serial numbers ("To be filled by
   O.E.M.", "Default string", very short or one repeated character) count as
   none.
 
@@ -1311,8 +1330,7 @@ bash /rmm/riddix/agents/build_agents.sh     # as the install user, no sudo
   agents, the agent build step stops with an error instead and builds no
   agents; the update or install itself still finishes. On Ubuntu 22.04 the
   packaged NSIS 3.08 builds them with a warning: its uninstaller lacks the fix
-  for CVE-2023-37378. Inno Setup under Wine (`ULRMM_WIN_PACKER=inno`, see
-  `riddix/agents/README.md`) remains as the fallback for one release.
+  for CVE-2023-37378.
 - Own code signing for Windows (Authenticode) and macOS (Developer ID) is
   optional.
 - Agents -> **Push Current Build to All Agents** rolls out a rebuild under the
@@ -1420,7 +1438,7 @@ hosts for the following purposes:
 |---|---|---|
 | Release checks and signed releases | GitHub; `git.riddix.de`, the developer's own Gitea server, only when `ULRMM_RELEASE_GITEA_TOKEN` is set | Update Center and `update.sh`. Requests to `git.riddix.de` reach the developer's server with your server's IP address and your token. |
 | Repositories | the git URL you install from (default GitHub) | `install.sh`, `update.sh`, the script library sync, and the dashboard's update check (`git ls-remote`, cached 30 minutes) |
-| Installer and build downloads | GitHub releases (NATS, rcodesign, Inno Setup for the fallback packer), go.dev and the Go module proxy (proxy.golang.org, sum.golang.org), python.org, the npm registry, PyPI, the distribution mirrors, nginx.org, apt.postgresql.org, NodeSource, the Chocolatey install script from community.chocolatey.org | install, restore, update, agent builds |
+| Installer and build downloads | GitHub releases (NATS, rcodesign), go.dev and the Go module proxy (proxy.golang.org, sum.golang.org), python.org, the npm registry, PyPI, the distribution mirrors, nginx.org, apt.postgresql.org, NodeSource, the Chocolatey install script from community.chocolatey.org | install, restore, update, agent builds |
 | Container images | Docker Hub, gcr.io and ghcr.io | Docker Compose installs |
 | Code signing | the RFC 3161 timestamp service you set in `ULRMM_SIGN_TIMESTAMP_URL` | optional, when agents are signed |
 | Certificates | Let's Encrypt | when the installer requests the wildcard certificate |
@@ -1456,7 +1474,6 @@ customers.
 | Python, Django and the other Python packages | PSF-2.0, BSD, MIT, Apache-2.0 and others | python.org and PyPI |
 | Go and the Go modules | BSD-3-Clause, MIT, Apache-2.0 and others | toolchain downloaded by the installer, compiled into nats-api and the agents |
 | NSIS | zlib/libpng; the LZMA module CPL-1.0 | builds the Windows agent installers; the NSIS runtime is part of every installer |
-| Inno Setup, run under Wine | Inno Setup License; Wine LGPL-2.1 | optional fallback packer (`ULRMM_WIN_PACKER=inno`); its runtime is then part of the installer |
 | Python embeddable packages | PSF-2.0, plus the licenses of the libraries inside (see LICENSE.txt in each package) | served to the Windows agents |
 | Snappy Driver Installer Origin driver packs | the drivers' vendors' terms | the agents download them from the SDIO web seed; no SDIO program code is used |
 

@@ -1,5 +1,30 @@
 # Server changelog
 
+## 1.20.11.2026 (2026-11-20)
+
+- agents update to 1.20.11.2026
+- import: a device row with a site links to an agent outside that site only when both report the same real serial number; before, the only agent with that host name anywhere was taken. Matches inside the site link first. Of several rows with one host name in a site, the row the other server still lists links, or the one with the agent's serial number; otherwise none
+- import: clients and sites the import creates keep "block policy inheritance" from the other server; for existing ones it is listed as left out
+- import: a run-once task whose start lies more than a day in the past is left out and listed
+- import: scripts, URL actions, alert templates and policies whose name repeats on the other server are no longer mixed up: what refers to them is listed as left out, and of two scripts with one name and shell only the first is imported
+- import: a new policy or alert template that excludes a client or site not yet here is left out until that client or site exists, instead of arriving without the exclusion
+- import: values over the size limits are no longer cut; such tasks and scripts are left out and listed. Task arguments and environment variables may hold 10,000 characters
+- import: a multiple-choice custom field keeps options that contain a comma, and a value of another type no longer stops the clients part
+- import: a new run no longer adds a policy task again whose name holds double spaces; a source that was deleted and added again no longer adds notes, checks and tasks to its devices a second time
+- import: each source has to be read again once after this update before it imports (a source read from a file: upload the file again). Import the devices part afterwards, so stored device rows get the uncut values
+- import: secrets of a source take plain ASCII characters only, and unexpected errors are logged by their type, so a key cannot end up in the debug log
+- import: an import or upload that was killed frees its source after about five minutes instead of two hours
+- old agent removal: one round runs at a time; a server error (5xx) or an unexpected answer of the other server counts as no answer, so a removal that took effect is no longer recorded as not removed; a device whose serial numbers differ on the two servers is not removed
+- NinjaOne: an error while reading custom field values ends the read instead of leaving the values empty
+- metrics: every reported mount has a series (up to 32, before the 16 largest), so a disk check with mount `*` also sees a small full mount on a host with many mounts
+- check results: when queueing mail, SMS or a notification fails (Redis down), the stored result no longer answers with an error and is not sent again by the agent; the failure is written to django_debug.log
+- RustDesk client update on Windows: a malformed uninstall entry of another program no longer stops the update
+- agent build: the Inno Setup fallback is gone: `ULRMM_WIN_PACKER` is ignored with a note, `riddix/agents/install-innosetup.sh` is removed
+- agent build: a changed icon counts as a branding change and publishes the current version again (a version published before this release needs a new agent version or `ULRMM_AGENT_REPLACE=1`); a rebuild whose signed macOS or Windows files differ only in the signature keeps the published files and names them, without the "source changed" warning
+- agent build: a run that builds no Windows setup stops when the branding or key changed and Windows setups of that version exist, instead of leaving them beside new files
+- agent build: an identity setting (registry key, program directory, exe name, service name) holding one of `" ' { } %` or U+FEFF stops the build with a message; before, agent and installer got different names. U+FEFF in the product or company name is removed
+- agent build: a failing goversioninfo stops the build
+
 ## 1.18.11.2026 (2026-11-18)
 
 - import: a compatible RMM server can be read from an export file, for moves where the old server is shut down before the import (README: "Importing from a file")
