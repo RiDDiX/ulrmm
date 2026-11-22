@@ -1,5 +1,19 @@
 # Server changelog
 
+## 1.22.11.2026 (2026-11-22)
+
+- agents update to 1.22.11.2026
+- client imaging (new, off until `ULRMM_IMAGING_ROOT` is set, see docs/CLIENT_IMAGING.md): a device's More → System images shows what it supports natively and why, its points with time, size, new bytes, status and check result, and backs it up now, on an imaging policy schedule in an IANA time zone, restores or deletes a point
+- client imaging: points are stored on the server in 2 MiB blocks that later points of the device reuse; an upload becomes a point only after the server checked every block; `keep_last` removes the oldest verified points, never the newest one or one with an unfinished restore
+- client imaging: each policy sets its network mode; internal-only transfers go through a separate VPN-only nginx listener and wait with a visible reason while the device cannot reach it; a changed mode ends the capture access issued under the old one
+- client imaging: new permissions to view, manage and restore images; a restore needs the restore permission, a two-factor step-up and confirmation of point, device and disk; a Windows restore also needs the target disk size and sector size from the recovery preflight, and a smaller disk or another sector size is refused before anything is written
+- client imaging: transfer access renews while data moves, and a stopped capture or restore continues where it stopped
+- nginx: install and update render `location ^~ /imaging/transfers/`, which takes 4 MiB request bodies buffered by nginx
+- tasks: Automation Manager → Task assignments assigns a task to several devices and to policies in one save; a device's and a policy's Tasks tab show where each assignment comes from, and deleting names the sources
+- tasks: a task a device gets directly and through several policies runs once per device and due time; removing the last source stops its runs and removes its Windows scheduled task; a device that joins a policy later gets the policy's tasks on the next sync
+- tasks: the migration keeps existing assignments and schedules
+- tasks: a task definition shared with policies is changed only with the policy permission as well; a role with task permission alone still creates, edits and deletes a policy's own tasks as before (intended difference)
+
 ## 2.20.11.2026 (2026-11-20)
 
 - agents update to 2.20.11.2026
