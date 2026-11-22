@@ -14,7 +14,8 @@ if [[ $(readlink /proc/self/ns/net) == $(readlink /proc/1/ns/net) ]]; then
     exit 1
 fi
 umask 077
-workdir=$(mktemp -d)
+# Ubuntu's AppArmor profile for wg reads key files only below /etc/wireguard.
+workdir=$(mkdir -p /etc/wireguard && mktemp -d /etc/wireguard/imaging-test.XXXXXX)
 cleanup() {
     if [[ -n ${http_pid:-} ]]; then kill "$http_pid" 2>/dev/null || true; fi
     if [[ -n ${server_pid:-} ]]; then kill "$server_pid" 2>/dev/null || true; fi
