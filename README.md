@@ -244,6 +244,7 @@ also as PDF in [English](docs/UniversalLocal-RMM-Showcase-EN.pdf) and
 | Remote access | Take control through MeshCentral, VNC or RustDesk, or work in the background with a web terminal, process manager, services, event/system logs and registry editor. ([terminal](docs/showcase/remote-terminal.png), [processes](docs/showcase/remote-processes.png), [services](docs/showcase/remote-services.png), [logs](docs/showcase/remote-logs.png)) |
 | Scripts and script library | 216 ready-made scripts (109 Windows, 74 Linux, 33 macOS) plus own scripts with a Monaco editor, typed variables, snippets and test runs, on one device or in bulk. ([manager](docs/showcase/script-manager.png), [run](docs/showcase/run-script.png), [bulk](docs/showcase/bulk-script.png)) |
 | Checks, tasks and policies | Checks watch CPU, memory, disk, ping, script, service, event log, systemd, container and metric; tasks act on schedules or failures; automation policies roll both out to clients or sites. ([checks](docs/showcase/device-checks.png), [tasks](docs/showcase/device-tasks.png), [automation](docs/showcase/automation-manager.png)) |
+| Client imaging | Review native device capabilities, assign a backup policy, request or schedule backups and authorize recovery of a selected point. [Setup and recovery](docs/CLIENT_IMAGING.md) |
 | Alerts and notifications | Alert templates and exclusions collect what needs attention; notification channels and routes deliver it to the right target. ([alerts](docs/showcase/alerts-overview.png), [templates](docs/showcase/alert-templates.png), [notifications](docs/showcase/settings-notifications.png)) |
 | Patch management and app updates | Windows Update with severity approvals and reboot rules; apt, dnf, yum, zypper, pacman, apk, flatpak, snap, Homebrew and softwareupdate; third-party app updates via winget, Homebrew and the Mac App Store; maintenance windows. ([Windows](docs/showcase/device-patches.png), [Linux](docs/showcase/device-patches-linux.png), [winget](docs/showcase/device-patches-winget.png), [macOS apps](docs/showcase/device-apps-macos.png), [settings](docs/showcase/settings-app-updates.png)) |
 | Software inventory and packages | Installed software with uninstall; a package catalog rolls out own installers (exe, msi, archives with setup command, detection rules) with resumable chunked uploads and software baselines per policy or deployment. ([inventory](docs/showcase/device-software.png), [packages](docs/showcase/software-packages.png)) |
@@ -264,6 +265,12 @@ also as PDF in [English](docs/UniversalLocal-RMM-Showcase-EN.pdf) and
 | RustDesk | Self-hosted RustDesk server with optional automatic server and client updates, configured from Global Settings. ([screenshot](docs/showcase/settings-rustdesk.png)) |
 | Agent builds | Agents built and optionally signed on the own server for Windows, macOS, Linux and FreeBSD (TrueNAS SCALE detected); installers per client/site deployment link. ([screenshot](docs/showcase/install-agent.png)) |
 | About panel | Versions and changelogs of server, web and agent, parsed from each repository's `CHANGELOG.md`, and a link to GitHub Sponsors. |
+
+In **Automation Manager → Task assignments**, select a task to change its direct device assignments and distributing policies in one save. Use **Assign existing task** in a policy's Tasks tab or a device's Tasks tab to change an individual assignment. The device lists its active sources. For example, a task assigned directly and by the site and client policies has three sources and one schedule. Removing the direct assignment leaves the two policy sources. Removing the last source stops future scheduled runs.
+
+Policy membership follows the existing device, site, client and global rules for workstations and servers, including inheritance blocks, exclusions and platform compatibility. Devices subsequently enrolled in a policy pick up its tasks on sync. The definition owns the trigger. Two separately created tasks with different times keep their schedules, including when they have the same display name. Device rows show the effective schedule in the device's time zone. Windows uses its native Task Scheduler. The POSIX scheduler evaluates wall-clock minutes and records each due occurrence before dispatch. A repeated scheduler evaluation in the same due minute cannot publish a second command. A publish interrupted after dispatch has an uncertain outcome. Check-failure actions remain tied to their originating check. The existing agent protocol supplies no event ID for deduplicating retransmitted check reports.
+
+To repeat the assignment acceptance tests, run `pytest -q autotasks/tests/test_assignments.py` from `api/ulrmm` in the backend's PostgreSQL test environment. For a rollout check in the dashboard, use a disposable device covered by two policies and add the same scheduled task through both policies and directly. Its three sources should produce one scheduled command. Remove each source and check the remaining source names on the device. Enroll a second device under the remaining policy before removing the last source.
 
 ### Two-factor step-up
 
@@ -1113,6 +1120,10 @@ unit, `render` prints the ruleset, `apply`, `check` and `confirm TOKEN` are the
 steps of the update.
 
 ## Backups
+
+For a managed **device**, open **More → System images** on its detail page. Native Windows, Linux and macOS prerequisites, daily scheduling, storage and platform recovery are described in the [client imaging guide](docs/CLIENT_IMAGING.md).
+
+### Server backups
 
 As the install user:
 
