@@ -95,7 +95,15 @@ jobs:
       - name: Run maintenance script tests
         working-directory: riddix/scripts
         run: |
-          sudo python3 -m unittest -v test_install_lib test_maint_runner test_backup_iso test_build_guard test_check_versions test_docs_site
+          sudo python3 -m unittest -v test_install_lib test_maint_runner test_backup_iso test_build_guard test_check_versions test_docs_site test_ulrmm_image_recovery test_ulrmm_windows_image_stage
+
+      # recovery uploads bound to a real WireGuard tunnel, in its own network namespace
+      - name: Run imaging network test
+        working-directory: riddix/scripts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends wireguard-tools
+          sudo ./test_imaging_network.sh
 
       - name: Run django tests
         env:

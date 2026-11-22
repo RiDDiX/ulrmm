@@ -268,6 +268,20 @@ for t in $POSIX_TARGETS; do
   fi
 done
 
+# Recovery media carry the agent and first-party validator from the same build.
+if [ -f "$SRC/agent/imaging_linux.go" ]; then
+  rescue="$TMP/.linux-recovery"
+  mkdir -p "$rescue/usr/bin" "$rescue/usr/lib/ulrmm"
+  install -m 0755 "$TMP/$ARTIFACT-v$AGENT_VER-linux-amd64" "$rescue/usr/bin/ulrmm-agent"
+  install -m 0644 "$SELF_DIR/../scripts/ulrmm_image_recovery.py" "$rescue/usr/lib/ulrmm/"
+  (
+    cd "$rescue"
+    sha256sum usr/bin/ulrmm-agent usr/lib/ulrmm/ulrmm_image_recovery.py >SHA256SUMS
+    tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+      -cf - SHA256SUMS usr
+  ) | gzip -n >"$TMP/$ARTIFACT-v$AGENT_VER-linux-recovery-amd64.tar.gz"
+fi
+
 # The file name says v$AGENT_VER - the binary must report the same. Otherwise
 # the server updates the agent again every hour because the reported version
 # never reaches the target.
@@ -449,7 +463,9 @@ if [ "${ULRMM_AGENT_REPLACE:-}" != 1 ]; then
   kept=()
   for f in "$TMP/$ARTIFACT"-*; do
     b=$(basename "$f")
-    case "$b" in *-windows-*.exe | *.presign.sha256) continue ;; esac
+    # the recovery tarball carries the server's helper script, its agent is
+    # compared as linux-amd64
+    case "$b" in *-windows-*.exe | *.presign.sha256 | *-linux-recovery-*) continue ;; esac
     [ -s "$DIST/$b" ] || continue
     ! cmp -s "$f" "$DIST/$b" || continue
     p=${b%.sha256}.presign.sha256

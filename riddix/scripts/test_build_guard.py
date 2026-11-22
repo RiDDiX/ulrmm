@@ -93,6 +93,16 @@ class TestBuildGuard(unittest.TestCase):
         self.assertFalse(published)
         self.assertIn("windows-amd64.exe.agent.sha256", err)
 
+    def test_changed_recovery_helper_is_published(self):
+        tarball = self.new / "ulrmm-agent-v1.0-linux-recovery-amd64.tar.gz"
+        self.build(b"linux", "aa")
+        tarball.write_bytes(b"helper 1")
+        self.assertTrue(self.run_guard()[0])
+        self.build(b"linux", "aa")
+        tarball.write_bytes(b"helper 2")
+        self.assertTrue(self.run_guard()[0])
+        self.assertEqual((self.dist / tarball.name).read_bytes(), b"helper 2")
+
     def test_branding_change_or_override_replaces(self):
         self.build(b"linux", "aa")
         self.run_guard()

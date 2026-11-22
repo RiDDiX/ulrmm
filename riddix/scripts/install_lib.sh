@@ -673,6 +673,16 @@ $(nginx_uwsgi_api)
         uwsgi_read_timeout 300s;
     }
 
+    # Recovery sends one bounded chunk per request. Internal deployments use
+    # a separate VPN-only listener to attest the ingress in a uWSGI parameter.
+    # nginx reads each chunk into memory first, so a slow link does not hold a
+    # uWSGI worker and the image row lock for the whole upload.
+    location ^~ /imaging/transfers/ {
+        client_max_body_size 4m;
+        client_body_buffer_size 4m;
+$(nginx_uwsgi_api)
+    }
+
     # anonymous requests: logins, the monitoring status, agent token and
     # recovery (a CSR of at most 8 KiB). 300M is for reports, scripts and imports.
     location ~ ^/(v2/(login|checkcreds)/|_allauth/|accounts/oidc/|core/(v2/)?status/|api/v3/[^/]+/(token|recover)/) {

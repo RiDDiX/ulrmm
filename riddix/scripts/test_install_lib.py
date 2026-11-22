@@ -419,6 +419,14 @@ class TestTexts(Base):
         ):
             self.assertFalse(re.search(pattern, uri), uri)
 
+    def test_imaging_chunks_are_buffered_before_uwsgi(self):
+        conf = self.render(
+            "rmm_nginx_conf api.example.com rmm.example.com /c/cert.pem /c/key.pem"
+        )
+        body = conf.split("location ^~ /imaging/transfers/ {\n", 1)[1].split("    }")[0]
+        self.assertIn("client_body_buffer_size 4m;", body)
+        self.assertNotIn("uwsgi_request_buffering", conf)
+
     def test_logrotate_takes_the_django_debug_logs(self):
         text = self.render("logrotate_text")
         m = re.search(
