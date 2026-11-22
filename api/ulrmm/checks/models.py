@@ -286,7 +286,7 @@ class Check(BaseAuditModel):
             **{field: getattr(self, field) for field in POLICY_CHECK_FIELDS_TO_COPY},
         )
         copy.save()
-        for task in self.assignedtasks.order_by("pk"):  # type: ignore
+        for task in self.assignedtasks.filter(owner_assigned=True).order_by("pk"):  # type: ignore
             task.create_policy_task(policy=policy, assigned_check=copy)
 
     def should_create_alert(

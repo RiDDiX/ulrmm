@@ -150,7 +150,7 @@ def _check_cmd_action(action: dict, position: int = 1) -> None:
 class TaskResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskResult
-        fields = "__all__"
+        exclude = ("last_scheduled_at",)
         read_only_fields = ("agent", "task")
 
 
@@ -174,7 +174,8 @@ class TaskResultAgentSerializer(serializers.ModelSerializer):
 
 class TaskSerializer(serializers.ModelSerializer):
     check_name = serializers.ReadOnlyField(source="assigned_check.readable_desc")
-    schedule = serializers.ReadOnlyField()
+    schedule = serializers.SerializerMethodField()
+    assignment_sources = serializers.ReadOnlyField(source="effective_sources")
     alert_template = serializers.SerializerMethodField()
     task_result = serializers.SerializerMethodField()
     run_time_date = serializers.DateTimeField(required=False)
@@ -182,7 +183,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AutomatedTask
-        fields = "__all__"
+        exclude = ("additional_agents", "additional_policies", "owner_assigned")
         # stamped by the server; the scheduled task name is always generated
         read_only_fields = (
             "created_by",
@@ -202,6 +203,10 @@ class TaskSerializer(serializers.ModelSerializer):
             "always_text": template.task_always_text,
             "always_alert": template.task_always_alert,
         }
+
+    def get_schedule(self, obj: AutomatedTask) -> Optional[str]:
+        agent = self.context.get("agent")
+        return obj.schedule_for(agent) if agent is not None else obj.schedule
 
     def get_task_result(self, obj: AutomatedTask) -> dict[str, Any]:
         if isinstance(obj.task_result, TaskResult):
@@ -457,7 +462,7 @@ class TaskGOGetSerializer(serializers.ModelSerializer):
 class TaskAuditSerializer(serializers.ModelSerializer):
     class Meta:
         model = AutomatedTask
-        fields = "__all__"
+        exclude = ("additional_agents", "additional_policies", "owner_assigned")
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

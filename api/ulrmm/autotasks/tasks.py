@@ -7,7 +7,7 @@ from typing import Optional, Union
 
 import msgpack
 import nats
-from django.db.models import Q
+from asgiref.sync import sync_to_async
 
 from agents.models import Agent
 from alerts.models import Alert
@@ -15,7 +15,7 @@ from alerts.tasks import notify_once
 from deploy import envelope
 from ulrmm.agent_ident import agent_task_prefix
 from ulrmm.celery import app
-from ulrmm.constants import ORPHANED_WIN_TASK_LOCK
+from ulrmm.constants import ORPHANED_WIN_TASK_LOCK, TaskSyncStatus
 from ulrmm.helpers import setup_nats_options
 from ulrmm.logger import logger
 from ulrmm.utils import redis_lock
@@ -91,11 +91,26 @@ async def _remove_orphans(known: dict[str, set[str]]) -> None:
                 or name in names
             ):
                 continue
+
             # created after the snapshot was taken
-            if await AutomatedTask.objects.filter(
-                Q(agent__agent_id=agent_id) | Q(policy__isnull=False),
-                win_task_name=name,
-            ).aexists():
+            def still_assigned():
+                task = AutomatedTask.objects.filter(win_task_name=name).first()
+                agent = Agent.objects.filter(agent_id=agent_id).first()
+                # The sync job removes recorded copies and resets their state.
+                return (
+                    task is not None
+                    and agent is not None
+                    and (
+                        task.applies_to(agent)
+                        or task.taskresults.filter(agent=agent)
+                        .exclude(sync_status=TaskSyncStatus.INITIAL)
+                        .exists()
+                    )
+                )
+
+            if await AutomatedTask.objects.filter(win_task_name=name).aexists() and (
+                await sync_to_async(still_assigned)()
+            ):
                 continue
             logger.info(f"Deleting orphaned task: {name} on agent {agent_id}")
             with suppress(envelope.Refused):

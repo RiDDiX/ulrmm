@@ -285,11 +285,7 @@ def _owns_check(agent: Agent, check: Optional[Check]) -> bool:
 
 
 def _owns_task(agent: Agent, task: Optional[AutomatedTask]) -> bool:
-    if task is None:
-        return False
-    if task.agent_id:
-        return task.agent_id == agent.pk
-    return task.pk in {t.pk for t in agent.get_tasks_with_policies()}
+    return task is not None and task.applies_to(agent)
 
 
 def _mesh_device_id(core, agent: Optional[Agent] = None):

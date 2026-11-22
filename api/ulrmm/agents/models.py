@@ -21,7 +21,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models, transaction
-from django.db.models import Count, F, Prefetch
+from django.db.models import Count, F, Prefetch, Q
 from django.utils import timezone as djangotime
 from nats.errors import NoRespondersError
 from nats.errors import TimeoutError as NatsTimeoutError
@@ -48,6 +48,7 @@ from ulrmm.agent_ident import (
     nix_rc_name,
 )
 from ulrmm.constants import (
+    AGENT_DEFER,
     AGENT_STATUS_OFFLINE,
     AGENT_STATUS_ONLINE,
     AGENT_STATUS_OVERDUE,
@@ -111,6 +112,15 @@ _KB_VERSION_RE = re.compile(r"\((?:Version|Versão)\s+([^)]+)\)")
 _SHELL_TOKENS = frozenset({"cmd", "powershell", "bash", "sh"})
 _TEMPLATE_KEYS = ("site_policy", "client_policy")
 _MIN_RUN_INTERVAL = 15
+# what get_agent_policies reads, for querysets that resolve many agents
+AGENT_POLICY_PATHS = (
+    "policy",
+    *(
+        f"{owner}{kind}_policy"
+        for owner in ("site__", "site__client__")
+        for kind in ("server", "workstation")
+    ),
+)
 # the cap of the web edit form
 _MAX_CHECK_INTERVAL = 86400
 _SHA256_HEX = re.compile(r"[0-9a-f]{64}")
@@ -626,8 +636,9 @@ class Agent(BaseAuditModel):
 
     # policies
 
-    def get_agent_policies(self) -> "dict[str, Optional[Policy]]":
-        from autotasks.models import AutomatedTask
+    def get_agent_policies(
+        self, *, include_checks=False
+    ) -> "dict[str, Optional[Policy]]":
         from checks.models import Check
 
         mon_type = self.monitoring_type
@@ -644,13 +655,16 @@ class Agent(BaseAuditModel):
                 Prefetch("excluded_agents", queryset=Agent.objects.only("pk")),
                 "excluded_sites",
                 "excluded_clients",
-                # pk order: get_policy_checks keeps the first of equal checks
-                Prefetch(
-                    "policychecks",
-                    queryset=Check.objects.select_related("script").order_by("pk"),
-                ),
-                Prefetch("autotasks", queryset=AutomatedTask.objects.order_by("pk")),
             )
+            if include_checks:
+                # pk order: get_policy_checks keeps the first of equal checks
+                models.prefetch_related_objects(
+                    found,
+                    Prefetch(
+                        "policychecks",
+                        queryset=Check.objects.select_related("script").order_by("pk"),
+                    ),
+                )
 
         def applies(policy) -> bool:
             return bool(policy) and not policy.is_agent_excluded(self)
@@ -695,18 +709,6 @@ class Agent(BaseAuditModel):
         cache.set(key, strip_relation_caches_for_cache(checks), 600)
         return checks
 
-    def get_tasks_from_policies(self) -> "list[AutomatedTask]":
-        from automation.models import Policy
-
-        key = self._policy_cache_key("tasks")
-        cached = cache.get(key)
-        if isinstance(cached, list):
-            return cached
-
-        tasks = Policy.get_policy_tasks(self)
-        cache.set(key, strip_relation_caches_for_cache(tasks), 600)
-        return tasks
-
     def add_check_results(self, checks: "list[Check]") -> "list[Check]":
         results = {r.assigned_check_id: r for r in self.checkresults.all()}
         for check in checks:
@@ -732,9 +734,36 @@ class Agent(BaseAuditModel):
         return self.add_check_results(list(own) + list(from_policies))
 
     def get_tasks_with_policies(self) -> "list[AutomatedTask]":
-        from_policies = self.get_tasks_from_policies()
-        own = list(self.autotasks.order_by("pk"))
-        return self.add_task_results(own + list(from_policies))
+        from automation.models import Policy
+        from autotasks.models import AutomatedTask
+
+        policies = Policy._active_policies(self)
+        policy_ids = [p.pk for p in policies]
+        linked_to_policy = AutomatedTask.objects.filter(
+            additional_policies__in=policy_ids
+        ).values("pk")
+        candidates = (
+            AutomatedTask.objects.filter(
+                Q(agent=self, owner_assigned=True)
+                | Q(pk__in=self.additional_autotasks.values("pk"))
+                | Q(policy_id__in=policy_ids, owner_assigned=True)
+                | Q(pk__in=linked_to_policy)
+            )
+            .select_related("agent__alert_template", "assigned_check", "policy")
+            .defer(*(f"agent__{field}" for field in AGENT_DEFER))
+            .prefetch_related(
+                Prefetch("additional_agents", queryset=Agent.objects.only("pk")),
+                Prefetch("additional_policies", queryset=Policy.objects.only("pk")),
+            )
+            .order_by("pk")
+        )
+        effective = []
+        for task in candidates:
+            sources = task.assignment_sources(self, policies=policies)
+            if any(sources.values()):
+                task.effective_sources = sources
+                effective.append(task)
+        return self.add_task_results(effective)
 
     def check_run_interval(self, checks: "Optional[list[Check]]" = None) -> int:
         # rows saved before the edit form had a lower bound may hold 0

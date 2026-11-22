@@ -3,10 +3,11 @@
 
 import asyncio
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.db import DatabaseError, transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Exists, OuterRef, Prefetch, Q
 from django.utils import timezone as djangotime
 
 from core.mesh_utils import (
@@ -44,6 +45,7 @@ from ulrmm.constants import (
     TaskType,
 )
 from ulrmm.helpers import agent_ver, make_random_password, setup_nats_options
+from ulrmm.exceptions import NatsDown
 from ulrmm.logger import logger
 from ulrmm.nats_utils import a_nats_cmd, abulk_nats_command
 from ulrmm.permissions import agent_perm_check
@@ -51,22 +53,13 @@ from ulrmm.utils import redis_lock, reload_nats
 
 
 def _get_agent_qs():
-    from django.db.models import Prefetch
-
-    from agents.models import Agent
+    from agents.models import AGENT_POLICY_PATHS, Agent
     from autotasks.models import TaskResult
     from checks.models import Check, CheckResult
 
-    policy_paths = [
-        f"{owner}{kind}_policy"
-        for owner in ("site__", "site__client__")
-        for kind in ("server", "workstation")
-    ]
     return (
         Agent.objects.defer(*AGENT_DEFER)
-        .select_related(
-            *policy_paths, "policy", "policy__alert_template", "alert_template"
-        )
+        .select_related(*AGENT_POLICY_PATHS, "policy__alert_template", "alert_template")
         .prefetch_related(
             Prefetch("agentchecks", queryset=Check.objects.select_related("script")),
             Prefetch(
@@ -74,7 +67,6 @@ def _get_agent_qs():
                 queryset=CheckResult.objects.select_related("assigned_check"),
             ),
             Prefetch("taskresults", queryset=TaskResult.objects.select_related("task")),
-            "autotasks",
         )
         .order_by("pk")
     )
@@ -226,7 +218,7 @@ def resolve_alerts_task(self):
         return "completed"
 
 
-async def _run_win_task_sync(creates, modifies, deletes):
+async def _run_win_task_sync(creates, modifies, deletes, unlinks):
     import nats
 
     try:
@@ -235,13 +227,19 @@ async def _run_win_task_sync(creates, modifies, deletes):
         logger.error("sync_scheduled_tasks: NATS connection failed: %s", e)
         return []
 
-    async def one(agent, payload):
-        return await a_nats_cmd(nc=nc, sub=agent.agent_id, data=payload, timeout=10)
+    async def one(agent, task, payload):
+        async def send(data):
+            return await a_nats_cmd(nc=nc, sub=agent.agent_id, data=data, timeout=10)
+
+        if payload["func"] == "schedtask":
+            return await task.send_windows_schedule(send, payload)
+        return await send(payload)
 
     items = (
-        [("create", a, t, one(a, p)) for a, t, p in creates]
-        + [("modify", a, t, one(a, p)) for a, t, p in modifies]
-        + [("delete", a, t, one(a, p)) for a, t, p in deletes]
+        [("create", a, t, one(a, t, p)) for a, t, p in creates]
+        + [("modify", a, t, one(a, t, p)) for a, t, p in modifies]
+        + [("delete", a, t, one(a, t, p)) for a, t, p in deletes]
+        + [("unlink", a, t, one(a, t, p)) for a, t, p in unlinks]
     )
     try:
         replies = await asyncio.gather(*(coro for *_, coro in items))
@@ -261,7 +259,7 @@ def sync_scheduled_tasks(self):
 
         from autotasks.models import TaskResult
 
-        creates, modifies, deletes = [], [], []
+        creates, modifies, deletes, unlinks = [], [], [], []
         floor = agent_ver("1.6.0")
         onboarding_floor = agent_ver("2.6.0")
 
@@ -279,7 +277,31 @@ def sync_scheduled_tasks(self):
             if not agent.is_online or agent_ver(agent.version) < floor:
                 continue
 
-            for task in agent.get_tasks_with_policies():
+            effective = {task.pk: task for task in agent.get_tasks_with_policies()}
+            for result in agent.taskresults.all():
+                if (
+                    result.task_id not in effective
+                    and result.sync_status != TaskSyncStatus.INITIAL
+                    and result.task.has_own_task_name()
+                ):
+                    removals = (
+                        deletes
+                        if result.sync_status == TaskSyncStatus.PENDING_DELETION
+                        and result.task.agent_id == agent.pk
+                        else unlinks
+                    )
+                    removals.append(
+                        (
+                            agent,
+                            result.task,
+                            {
+                                "func": "delschedtask",
+                                "schedtaskpayload": {"name": result.task.win_task_name},
+                            },
+                        )
+                    )
+
+            for task in effective.values():
                 if (
                     task.task_type == TaskType.ONBOARDING
                     and agent_ver(agent.version) < onboarding_floor
@@ -294,6 +316,25 @@ def sync_scheduled_tasks(self):
                     if isinstance(task.task_result, TaskResult)
                     else None
                 )
+                # a single run already happened; a run by hand before the
+                # scheduled time does not replace the scheduled one
+                if (
+                    tr is not None
+                    and tr.sync_status == TaskSyncStatus.INITIAL
+                    and tr.last_run
+                    and (
+                        task.task_type == TaskType.ONBOARDING
+                        or (
+                            task.task_type == TaskType.RUN_ONCE
+                            and task.run_time_date
+                            and tr.last_run
+                            >= task.run_time_date.replace(
+                                tzinfo=ZoneInfo(agent.timezone)
+                            )
+                        )
+                    )
+                ):
+                    continue
                 if tr is None or tr.sync_status == TaskSyncStatus.INITIAL:
                     creates.append(
                         (
@@ -301,7 +342,9 @@ def sync_scheduled_tasks(self):
                             task,
                             {
                                 "func": "schedtask",
-                                "schedtaskpayload": task.generate_nats_task_payload(),
+                                "schedtaskpayload": task.generate_nats_task_payload(
+                                    initial=True
+                                ),
                             },
                         )
                     )
@@ -328,10 +371,10 @@ def sync_scheduled_tasks(self):
                         )
                     )
 
-        if not (creates or modifies or deletes):
+        if not (creates or modifies or deletes or unlinks):
             return "ok"
 
-        replies = asyncio.run(_run_win_task_sync(creates, modifies, deletes))
+        replies = asyncio.run(_run_win_task_sync(creates, modifies, deletes, unlinks))
         for action, agent, task, reply in replies:
             _apply_win_task_reply(action, agent, task, reply)
         return "ok"
@@ -340,9 +383,14 @@ def sync_scheduled_tasks(self):
 def _apply_win_task_reply(action, agent, task, reply):
     from autotasks.models import TaskResult
 
-    # a policy task has no agent of its own, the result is per target agent
-    tr, _ = TaskResult.objects.get_or_create(agent=agent, task=task)
     if action in ("create", "modify"):
+        # The result is per target, including policy copies.
+        try:
+            tr, _ = TaskResult.objects.get_or_create(agent=agent, task=task)
+        except DatabaseError:
+            if not type(task).objects.filter(pk=task.pk).exists():
+                return
+            raise
         if reply == "ok":
             tr.sync_status = TaskSyncStatus.SYNCED
         else:
@@ -352,15 +400,27 @@ def _apply_win_task_reply(action, agent, task, reply):
                 else TaskSyncStatus.NOT_SYNCED
             )
             logger.error("win task %s failed on %s: %s", action, task.pk, reply)
-        tr.save(update_fields=["sync_status"])
+        TaskResult.objects.filter(pk=tr.pk).exclude(
+            sync_status=TaskSyncStatus.PENDING_DELETION
+        ).update(sync_status=tr.sync_status)
         return
 
+    tr = TaskResult.objects.filter(agent=agent, task=task).first()
+    if tr is None:
+        return
     # delete
     if reply == "ok" or (
         isinstance(reply, str) and "The system cannot find the file specified" in reply
     ):
-        task.delete()
+        if action == "delete":
+            task.delete()
+        else:
+            tr.sync_status = TaskSyncStatus.INITIAL
+            tr.save(update_fields=["sync_status"])
     else:
+        if action == "unlink":
+            logger.error("win task unlink failed on %s: %s", task.pk, reply)
+            return
         try:
             tr.sync_status = TaskSyncStatus.PENDING_DELETION
             tr.save(update_fields=["sync_status"])
@@ -383,12 +443,16 @@ def _add_failing(data: dict, agent, checks: dict) -> None:
         if checks["failing"]:
             data["error"] = True
         return
-    for result in agent.taskresults.all():
-        if result.status == TaskStatus.FAILING:
-            if result.task.alert_severity == AlertSeverity.ERROR:
-                data["error"] = True
-            elif result.task.alert_severity == AlertSeverity.WARNING:
-                data["warning"] = True
+    failing = [r for r in agent.taskresults.all() if r.status == TaskStatus.FAILING]
+    # a result outlives the assignment it came from
+    assigned = {t.pk for t in agent.get_tasks_with_policies()} if failing else set()
+    for result in failing:
+        if result.task_id not in assigned:
+            continue
+        if result.task.alert_severity == AlertSeverity.ERROR:
+            data["error"] = True
+        elif result.task.alert_severity == AlertSeverity.WARNING:
+            data["warning"] = True
 
 
 @app.task(bind=True)
@@ -669,10 +733,13 @@ def scheduled_task_runner(self):
         if not acquired:
             return f"{self.app.oid} still running"
 
-        from autotasks.models import TaskResult
+        from agents.models import AGENT_POLICY_PATHS, Agent
+        from automation.models import Policy
+        from autotasks.models import AutomatedTask, TaskResult
         from ulrmm import scheduler
 
         now = djangotime.now()
+        occurrence = now.replace(second=0, microsecond=0)
         runners = {
             TaskType.DAILY: scheduler.should_run_daily_task,
             TaskType.WEEKLY: scheduler.should_run_weekly_task,
@@ -680,12 +747,16 @@ def scheduled_task_runner(self):
             TaskType.MONTHLY_DOW: scheduler.should_run_monthly_dow_task,
         }
 
-        due = []
-        due_pks = []
+        candidates = []
         results = (
-            TaskResult.objects.filter(task__enabled=True)
+            TaskResult.objects.filter(
+                task__enabled=True,
+                task__task_type__in=(*runners, TaskType.RUN_ONCE, TaskType.ONBOARDING),
+            )
             .exclude(agent__plat=AgentPlat.WINDOWS)
-            .select_related("agent", "task")
+            .exclude(last_scheduled_at=occurrence)
+            .select_related("task", *(f"agent__{path}" for path in AGENT_POLICY_PATHS))
+            .defer(*(f"agent__{field}" for field in AGENT_DEFER))
         )
         for result in results:
             if result.locked_at and (now - result.locked_at) < timedelta(seconds=55):
@@ -700,9 +771,9 @@ def scheduled_task_runner(self):
             if tt in runners:
                 run = runners[tt](task, agent, now)
             elif tt == TaskType.RUN_ONCE:
-                run = not result.last_run and scheduler.should_run_once_task(
-                    task, agent, now
-                )
+                run = not (
+                    result.last_run or result.last_scheduled_at
+                ) and scheduler.should_run_once_task(task, agent, now)
             elif tt == TaskType.ONBOARDING:
                 run = not result.last_run and result.run_status not in (
                     TaskRunStatus.RUNNING,
@@ -712,10 +783,9 @@ def scheduled_task_runner(self):
                 run = False
 
             if run:
-                due.append((agent.agent_id, {"func": "runtask", "taskpk": task.pk}))
-                due_pks.append(result.pk)
+                candidates.append(result)
 
-        if not due:
+        if not candidates:
             return []
 
         # send only the rows this run claims; others are still locked by a run
@@ -723,16 +793,49 @@ def scheduled_task_runner(self):
         stale = now - timedelta(seconds=55)
         free = Q(locked_at__isnull=True) | Q(locked_at__lt=stale)
         with transaction.atomic():
+            # Assignment changes take the same task lock before modifying the sources.
+            tasks = {
+                task.pk: task
+                for task in AutomatedTask.objects.select_for_update()
+                .filter(pk__in={r.task_id for r in candidates}, enabled=True)
+                .prefetch_related(
+                    Prefetch("additional_agents", queryset=Agent.objects.only("pk")),
+                    Prefetch("additional_policies", queryset=Policy.objects.only("pk")),
+                )
+                .order_by("pk")
+            }
+            agents = {r.agent_id: r.agent for r in candidates}
+            active = {pk: Policy._active_policies(a) for pk, a in agents.items()}
+            eligible = [
+                r
+                for r in candidates
+                if r.task_id in tasks
+                and tasks[r.task_id].applies_to(r.agent, policies=active[r.agent_id])
+            ]
             claimed = set(
                 TaskResult.objects.select_for_update()
-                .filter(free, pk__in=due_pks)
+                .filter(free, pk__in=[r.pk for r in eligible])
+                .exclude(last_scheduled_at__gte=occurrence)
                 .values_list("pk", flat=True)
             )
             TaskResult.objects.filter(pk__in=claimed).update(
-                run_status=TaskRunStatus.RUNNING, locked_at=now
+                run_status=TaskRunStatus.RUNNING,
+                locked_at=now,
+                last_scheduled_at=occurrence,
             )
-            due = [item for pk, item in zip(due_pks, due) if pk in claimed]
-            if due:
+            due = [
+                (r.agent.agent_id, {"func": "runtask", "taskpk": r.task_id})
+                for r in eligible
+                if r.pk in claimed
+            ]
+        if due:
+            try:
                 asyncio.run(abulk_nats_command(items=due))
+            except NatsDown:
+                # Connection failed before any event was published.
+                TaskResult.objects.filter(
+                    pk__in=claimed, last_scheduled_at=occurrence, locked_at=now
+                ).update(last_scheduled_at=None, locked_at=None, run_status=None)
+                raise
 
         return due

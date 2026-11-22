@@ -8,7 +8,6 @@ import string
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from django.contrib.postgres.fields import ArrayField
-from django.core.cache import cache
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import DatabaseError, IntegrityError, models, transaction
 from django.utils import timezone as djangotime
@@ -49,6 +48,7 @@ _ON_DEMAND_TYPES = {
 }
 # task types the Windows Task Scheduler runs on a calendar
 CALENDAR_TYPES = tuple(kind for kind in TaskType if kind not in _ON_DEMAND_TYPES)
+WINDOWS_SINGLE_RUN_TYPES = (TaskType.RUN_ONCE, TaskType.ONBOARDING)
 
 LAST_DAY_OF_MONTH = 0x80000000
 NATS_TIMEOUT = 10
@@ -69,6 +69,17 @@ def default_task_supported_platforms() -> list[str]:
     return [AgentPlat.WINDOWS]
 
 
+def delete_task_owner(collector, field, tasks, using) -> None:
+    # A shared definition survives its original owner. Private tasks retain cascading deletion.
+    private = tasks.filter(
+        additional_agents__isnull=True, additional_policies__isnull=True
+    )
+    models.CASCADE(collector, field, private, using)
+    # evaluated now: the through rows are gone when a lazy update would run
+    shared = list(tasks.exclude(pk__in=private.values("pk")))
+    models.SET_NULL(collector, field, shared, using)
+
+
 def _calendar_fields(prefix: str, moment) -> dict[str, int]:
     return {
         f"{prefix}_year": moment.year,
@@ -85,17 +96,24 @@ class AutomatedTask(BaseAuditModel):
     agent = models.ForeignKey(
         "agents.Agent",
         related_name="autotasks",
-        on_delete=models.CASCADE,
+        on_delete=delete_task_owner,
         null=True,
         blank=True,
     )
     policy = models.ForeignKey(
         "automation.Policy",
         related_name="autotasks",
-        on_delete=models.CASCADE,
+        on_delete=delete_task_owner,
         null=True,
         blank=True,
     )
+    additional_agents = models.ManyToManyField(
+        "agents.Agent", related_name="additional_autotasks", blank=True
+    )
+    additional_policies = models.ManyToManyField(
+        "automation.Policy", related_name="additional_autotasks", blank=True
+    )
+    owner_assigned = models.BooleanField(default=True)
     custom_field = models.ForeignKey(
         "core.CustomField",
         related_name="autotasks",
@@ -172,6 +190,39 @@ class AutomatedTask(BaseAuditModel):
     def __str__(self) -> str:
         return self.name
 
+    def assignment_sources(self, agent: "Agent", *, policies=None) -> dict:
+        from automation.models import Policy
+
+        supported = agent.plat in self.task_supported_platforms
+        direct = (self.owner_assigned and self.agent_id == agent.pk) or (
+            supported and self.additional_agents.contains(agent)
+        )
+        inherited = []
+        if supported:
+            linked = {p.pk for p in self.additional_policies.all()}
+            if self.owner_assigned and self.policy_id:
+                linked.add(self.policy_id)
+            active = Policy._active_policies(agent) if policies is None else policies
+            inherited = [{"id": p.pk, "name": p.name} for p in active if p.pk in linked]
+        return {"direct": direct, "policies": inherited}
+
+    def applies_to(self, agent: "Agent", *, policies=None) -> bool:
+        return any(self.assignment_sources(agent, policies=policies).values())
+
+    def assigned_to_policy(self, policy_id: int) -> bool:
+        return (
+            self.owner_assigned and self.policy_id == policy_id
+        ) or self.additional_policies.filter(pk=policy_id).exists()
+
+    def schedule_for(self, agent: "Agent") -> Optional[str]:
+        if agent.is_posix and self.run_time_date:
+            at = self.run_time_date.strftime("%H:%M")
+            if self.task_type == TaskType.DAILY:
+                return f"Daily at {at}"
+            if self.task_type == TaskType.WEEKLY and self.run_time_bit_weekdays:
+                return f"{bitdays_to_string(self.run_time_bit_weekdays)} at {at}"
+        return self.schedule
+
     @property
     def schedule(self) -> Optional[str]:
         try:
@@ -223,25 +274,12 @@ class AutomatedTask(BaseAuditModel):
 
         return serializers.TaskAuditSerializer(task).data
 
-    def _forget_policy_task_cache(self) -> None:
-        # Agent.get_tasks_from_policies() caches policy tasks per site and agent
-        if not self.policy_id:
-            return
-
-        def forget() -> None:
-            cache.delete_many_pattern("agent_*_tasks")
-
-        forget()
-        # again once committed, a reader may have cached the old rows meanwhile
-        transaction.on_commit(forget)
-
     def save(self, *args, **kwargs) -> None:
         before = None
         if self.pk:
             before = type(self).objects.filter(pk=self.pk).first()
 
         super().save(old_model=before, *args, **kwargs)
-        self._forget_policy_task_cache()
 
         if before and any(
             getattr(self, field) != getattr(before, field)
@@ -253,15 +291,11 @@ class AutomatedTask(BaseAuditModel):
         # posix agents are scheduled by the server and hold no copy; actions are
         # fetched fresh on every run and never need a resync
         stale = TaskResult.objects.filter(task=self, agent__plat=AgentPlat.WINDOWS)
-        if self.policy_id:
-            # not created on that agent yet, the sync job must create, not modify
-            stale = stale.exclude(sync_status=TaskSyncStatus.INITIAL)
-        stale.update(sync_status=TaskSyncStatus.NOT_SYNCED)
-
-    def delete(self, *args, **kwargs):
-        deleted = super().delete(*args, **kwargs)
-        self._forget_policy_task_cache()
-        return deleted
+        # initial: no copy on that agent, the sync job creates it; a pending
+        # deletion must stay one, or the sync job only unlinks the copy
+        stale.exclude(
+            sync_status__in=(TaskSyncStatus.INITIAL, TaskSyncStatus.PENDING_DELETION)
+        ).update(sync_status=TaskSyncStatus.NOT_SYNCED)
 
     def create_policy_task(
         self, policy: "Policy", assigned_check: "Optional[Check]" = None
@@ -288,7 +322,7 @@ class AutomatedTask(BaseAuditModel):
             return True
         return GENERATED_TASK_NAME.fullmatch(name) is not None
 
-    def generate_nats_task_payload(self) -> dict[str, Any]:
+    def generate_nats_task_payload(self, *, initial: bool = False) -> dict[str, Any]:
         kind = self.task_type
         if kind == TaskType.MANUAL:
             start_when_available = False
@@ -304,7 +338,7 @@ class AutomatedTask(BaseAuditModel):
             "trigger": TaskType.MANUAL if kind == TaskType.CHECK_FAILURE else kind,
             "type": "rmm",
             "enabled": self.enabled,
-            "overwrite_task": True,
+            "overwrite_task": not (initial and kind in WINDOWS_SINGLE_RUN_TYPES),
             "multiple_instances": self.task_instance_policy or 0,
             "delete_expired_task_after": (
                 self.remove_if_not_scheduled if self.expire_date else False
@@ -350,8 +384,21 @@ class AutomatedTask(BaseAuditModel):
 
     # --- endpoint sync --------------------------------------------------------
 
+    async def send_windows_schedule(self, send, payload):
+        reply = await send(payload)
+        if (
+            reply == "Something went wrong"
+            and not payload["schedtaskpayload"]["overwrite_task"]
+        ):
+            # Older agents give the same generic response when an existing task
+            # blocked a create. Verify the server-generated name before syncing.
+            listed = await send({"func": "listschedtasks"})
+            if isinstance(listed, list) and self.win_task_name in listed:
+                return "ok"
+        return reply
+
     def _target_agent(self, agent: "Optional[Agent]") -> "Optional[Agent]":
-        return agent if self.policy_id else self.agent
+        return agent if agent is not None else self.agent
 
     def _result_on(self, agent: "Agent") -> "TaskResult":
         # the sync job may insert the same pair at the same moment
@@ -368,12 +415,15 @@ class AutomatedTask(BaseAuditModel):
         return "task has no agent"
 
     def _set_sync(self, result: "TaskResult", status: str) -> None:
+        rows = TaskResult.objects.filter(pk=result.pk)
+        if status != TaskSyncStatus.PENDING_DELETION:
+            rows = rows.exclude(sync_status=TaskSyncStatus.PENDING_DELETION)
+        rows.update(sync_status=status)
         result.sync_status = status
-        result.save(update_fields=["sync_status"])
 
     def _push_schedule(self, agent: "Optional[Agent]", failed_status: str) -> str:
         target = self._target_agent(agent)
-        if target is None:
+        if target is None or not self.applies_to(target):
             return self._no_target()
 
         result = self._result_on(target)
@@ -391,9 +441,15 @@ class AutomatedTask(BaseAuditModel):
 
         message = {
             "func": "schedtask",
-            "schedtaskpayload": self.generate_nats_task_payload(),
+            "schedtaskpayload": self.generate_nats_task_payload(
+                initial=failed_status == TaskSyncStatus.INITIAL
+            ),
         }
-        reply = asyncio.run(target.nats_cmd(message, timeout=NATS_TIMEOUT))
+
+        async def send(payload):
+            return await target.nats_cmd(payload, timeout=NATS_TIMEOUT)
+
+        reply = asyncio.run(self.send_windows_schedule(send, message))
         if reply == "ok":
             self._set_sync(result, TaskSyncStatus.SYNCED)
             return "ok"
@@ -449,7 +505,7 @@ class AutomatedTask(BaseAuditModel):
 
     def run_win_task(self, agent: "Optional[Agent]" = None) -> str:
         target = self._target_agent(agent)
-        if target is None:
+        if target is None or not self.enabled or not self.applies_to(target):
             return self._no_target()
 
         self._result_on(target)
@@ -499,6 +555,7 @@ class TaskResult(models.Model):
     )
     # set by the posix scheduler so a slow minute does not start a run twice
     locked_at = models.DateTimeField(null=True, blank=True)
+    last_scheduled_at = models.DateTimeField(null=True, blank=True)
     run_status = models.CharField(
         max_length=30, choices=TaskRunStatus.choices, null=True, blank=True
     )

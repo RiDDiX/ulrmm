@@ -5,13 +5,14 @@ from typing import Any, NamedTuple, Optional
 
 from django.db import transaction
 from django.db.models import Prefetch, Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from agents.models import Agent
+from agents.models import AGENT_POLICY_PATHS, Agent
 from autotasks.models import AutomatedTask, TaskResult
 from checks.models import Check, CheckResult
 from clients.models import Client, Site
@@ -214,9 +215,25 @@ class GetAddPolicies(APIView):
                 for check in source.policychecks.order_by("pk"):
                     check.create_policy_check(policy=policy)
                 # tasks of a check came along with it
-                for task in source.autotasks.filter(
-                    assigned_check__isnull=True
-                ).order_by("pk"):
+                for task in (
+                    AutomatedTask.objects.filter(
+                        Q(policy=source, owner_assigned=True)
+                        | Q(additional_policies=source),
+                        assigned_check__isnull=True,
+                    )
+                    .distinct()
+                    .order_by("pk")
+                ):
+                    if task.policy_id != source.pk:
+                        from autotasks.views import (
+                            _require_action_perms,
+                            _require_item_scope,
+                        )
+
+                        if not _has_perm(request, "can_manage_autotasks"):
+                            raise PermissionDenied()
+                        _require_item_scope(request, task, manage=True)
+                        _require_action_perms(request, task.actions)
                     task.create_policy_task(policy)
 
         return Response("ok")
@@ -296,7 +313,7 @@ class OverviewPolicy(APIView):
         )
 
 
-def _not_run_rows(request, item, results, own) -> list[dict]:
+def _not_run_rows(request, item, results, own, *, policy=None) -> list[dict]:
     """A row per agent the policy check or task applies to that has no result
     yet, so the dialog lists them before their first run. own(agent) is the
     agent's policy checks or tasks: the same answer as its own list."""
@@ -304,14 +321,15 @@ def _not_run_rows(request, item, results, own) -> list[dict]:
         return []
     have = {r.agent_id for r in results}
     agents = (
-        item.policy.related_agents()
+        (policy or item.policy)
+        .related_agents()
         .filter_by_role(request.user)
         .defer(*AGENT_DEFER)
-        .select_related("site__client")
+        .select_related(*AGENT_POLICY_PATHS)
         .exclude(pk__in=have)
         .order_by("hostname")
     )
-    # one policy lookup per agent, cached per agent like its own check list
+    # one policy lookup per agent
     return [
         {
             "id": f"agent-{agent.pk}",
@@ -358,21 +376,49 @@ class PolicyCheck(APIView):
 class PolicyAutoTask(APIView):
     permission_classes = [IsAuthenticated, AutomationPolicyPerms]
 
+    @staticmethod
+    def _assignment(request, task, policy_id):
+        items = AutomatedTask.objects.select_related("policy").prefetch_related(
+            Prefetch("additional_agents", queryset=Agent.objects.only("pk")),
+            Prefetch("additional_policies", queryset=Policy.objects.only("pk")),
+        )
+        if policy_id is None:
+            items = items.filter(policy__isnull=False)
+        item = get_object_or_404(items, pk=task)
+        selected = item.policy_id if policy_id is None else _pk(policy_id)
+        if selected is None or not item.assigned_to_policy(selected):
+            raise Http404
+        policy = get_object_or_404(Policy, pk=selected)
+        _require_readable(policy, _scope(request.user))
+        return item, policy
+
     def get(self, request, task):
+        policy_id = request.query_params.get("policy")
+        try:
+            item, policy = self._assignment(request, task, policy_id)
+        except (Http404, PermissionDenied):
+            if policy_id is None:
+                return Response([])
+            raise
         # a scoped role sees the results of its own agents only
         results = (
             TaskResult.objects.filter_by_role(request.user)
-            .filter(task=task, task__policy__isnull=False)
+            .filter(task=item, agent__in=policy.related_agents())
             .select_related("agent")
             .order_by("pk")
         )
-        item = (
-            AutomatedTask.objects.select_related("policy")
-            .filter(pk=task, policy__isnull=False)
-            .first()
-        )
         rows = _not_run_rows(
-            request, item, results, lambda a: a.get_tasks_from_policies()
+            request,
+            item,
+            results,
+            lambda a: (
+                [item]
+                if any(
+                    p["id"] == policy.pk for p in item.assignment_sources(a)["policies"]
+                )
+                else []
+            ),
+            policy=policy,
         )
         return Response(PolicyTaskStatusSerializer(results, many=True).data + rows)
 
@@ -382,15 +428,17 @@ class PolicyAutoTask(APIView):
         # the same flag that runs a task on a single agent
         if not _has_perm(request, "can_run_autotasks"):
             raise PermissionDenied()
-        policy_task = get_object_or_404(
-            AutomatedTask.objects.select_related("policy"),
-            pk=task,
-            policy__isnull=False,
-        )
+        item, policy = self._assignment(request, task, _body(request).get("policy"))
         # the run reaches every agent of the policy
-        _require_writable(policy_task.policy, _scope(request.user))
+        _require_writable(policy, _scope(request.user))
+        if not item.enabled:
+            return notify_error(f"{item.name} is disabled")
 
-        run_win_policy_autotasks_task.delay(task=policy_task.pk)
+        run_win_policy_autotasks_task.delay(
+            task=item.pk,
+            policy_id=policy.pk,
+            agent_pks=list(policy.related_agents().values_list("pk", flat=True)),
+        )
         return Response("Affected agent tasks will run shortly")
 
 

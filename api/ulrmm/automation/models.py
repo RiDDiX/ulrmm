@@ -111,7 +111,7 @@ class Policy(BaseAuditModel):
 
     @staticmethod
     def forget_cached_policies() -> None:
-        """Drop the per-agent merges of policy checks and tasks."""
+        """Drop per-agent policy check merges and cached default policies."""
         cache.delete(CORESETTINGS_CACHE_KEY)
         cache.delete_many_pattern("agent_*")
 
@@ -167,9 +167,9 @@ class Policy(BaseAuditModel):
         return serializers.PolicyAuditSerializer(policy).data
 
     @staticmethod
-    def _active_policies(agent: "Agent") -> "list[Policy]":
+    def _active_policies(agent: "Agent", *, include_checks=False) -> "list[Policy]":
         found: dict[int, Policy] = {}
-        for policy in agent.get_agent_policies().values():
+        for policy in agent.get_agent_policies(include_checks=include_checks).values():
             if policy and policy.active:
                 found.setdefault(policy.pk, policy)
         return list(found.values())
@@ -178,9 +178,8 @@ class Policy(BaseAuditModel):
     def get_policy_tasks(agent: "Agent") -> "list[AutomatedTask]":
         return [
             task
-            for policy in Policy._active_policies(agent)
-            for task in policy.autotasks.all()
-            if agent.plat in task.task_supported_platforms
+            for task in agent.get_tasks_with_policies()
+            if task.effective_sources["policies"]
         ]
 
     @staticmethod
@@ -191,7 +190,7 @@ class Policy(BaseAuditModel):
         agent_checks = list(agent.agentchecks.order_by("pk"))
         enforced: list[Check] = []
         others: list[Check] = []
-        for policy in Policy._active_policies(agent):
+        for policy in Policy._active_policies(agent, include_checks=True):
             (enforced if policy.enforced else others).extend(policy.policychecks.all())
         if not enforced and not others:
             return []

@@ -144,7 +144,7 @@ class PolicyTaskStatusSerializer(ModelSerializer):
 
     class Meta:
         model = TaskResult
-        fields = "__all__"
+        exclude = ("last_scheduled_at",)
 
 
 class PolicyAuditSerializer(ModelSerializer):
