@@ -79,6 +79,7 @@ BEAT_TABLE = (
     ),
     ("resolve-alerts-task", "core.tasks.resolve_alerts_task", timedelta(seconds=80.0)),
     ("ulrmm-scheduler", "core.tasks.scheduled_task_runner", every_minute),
+    ("imaging-tick", "imaging.tasks.imaging_tick", every_minute),
     ("metrics-sample", "metrics.tasks.sample_metrics_task", every_five_minutes),
     ("metrics-prune", "metrics.tasks.prune_metrics_task", crontab(minute=40, hour=2)),
     (

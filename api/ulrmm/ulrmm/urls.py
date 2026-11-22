@@ -24,6 +24,7 @@ register_converter(AgentIDConverter, "agent")
 _APP_ROUTES = (
     ("clients/", "clients.urls"),
     ("deploy/", "deploy.urls"),
+    ("imaging/", "imaging.urls"),
     ("agents/", "agents.urls"),
     ("checks/", "checks.urls"),
     ("services/", "services.urls"),

@@ -235,6 +235,15 @@ CORS_ORIGIN_WHITELIST = []
 CORS_ALLOW_HEADERS = (*default_headers, "content-range")
 CORS_EXPOSE_HEADERS = ("X-Sha256", "X-Volume-Label")
 
+# Client imaging uses a service-owned server directory and explicit HTTPS ingress.
+ULRMM_IMAGING_ROOT = ""
+ULRMM_IMAGING_PUBLIC_ORIGIN = ""
+ULRMM_IMAGING_INTERNAL_ORIGIN = ""
+ULRMM_IMAGING_INTERNAL_CIDRS = ()
+ULRMM_IMAGING_INTERNAL_STORAGE_CONFIRMED = False
+ULRMM_IMAGING_ENCRYPTED_DESTINATIONS = ()
+ULRMM_IMAGING_MAX_BYTES = 16 * 1024**4
+
 from sso.settings import *  # noqa
 
 with suppress(ImportError):
@@ -341,7 +350,7 @@ project_apps = """
     patches remote netmon metrics groups timeline discovery vulns vault
     encryption nix dashboard laps integrations notify assets appupdates
     packages deploy automation autotasks logs scripts alerts sso reporting
-    importers
+    importers imaging
 """.split()
 INSTALLED_APPS = [
     *django_apps,
@@ -405,7 +414,17 @@ MIDDLEWARE = [
 if SWAGGER_ENABLED:
     INSTALLED_APPS.append("drf_spectacular")
 
+
+def _profile_request(request):
+    # Recovery grants are returned once as bearer secrets.
+    return not (
+        request.path.startswith("/imaging/")
+        or (request.path.startswith("/api/v3/") and request.path.endswith("/imaging/"))
+    )
+
+
 if DEBUG:
+    SILKY_INTERCEPT_FUNC = _profile_request
     # daphne must come first so runserver serves ASGI
     INSTALLED_APPS = ["daphne", *INSTALLED_APPS, "django_extensions", "silk"]
     MIDDLEWARE = ["silk.middleware.SilkyMiddleware", *MIDDLEWARE]

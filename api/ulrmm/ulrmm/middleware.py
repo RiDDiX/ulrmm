@@ -19,6 +19,7 @@ EXCLUDE_PATHS = (
     *(f"/_allauth/browser/v1/{part}" for part in ("config", "auth/provider/redirect")),
     "/accounts/ssoproviders/token",
     "/agents/installer",
+    "/imaging/transfers/",
     "/logout",
     "/logs/audit",
     *((f"/{_admin_url}",) if _admin_url else ()),

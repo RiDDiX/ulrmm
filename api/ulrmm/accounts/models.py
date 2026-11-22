@@ -150,6 +150,9 @@ class Role(BaseAuditModel):
     can_send_wol = _flag()
     can_use_registry = _flag()
     can_use_terminal = _flag()
+    can_view_images = _flag()
+    can_manage_images = _flag()
+    can_restore_images = _flag()
 
     # core
     can_list_notes = _flag()

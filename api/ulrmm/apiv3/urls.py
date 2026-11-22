@@ -4,6 +4,7 @@
 from django.urls import path
 
 from deploy.integrity import Integrity
+from imaging.native import NativePoll
 
 from . import views
 
@@ -31,6 +32,7 @@ PER_AGENT = {
     "checkinterval": views.CheckRunnerInterval,
     "state": views.State,
     "drivers": views.Drivers,
+    "imaging": NativePoll,
     "security-event": views.SecurityEventReport,
     "cert": views.AgentCert,
     "identity": views.AgentIdentityView,
