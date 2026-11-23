@@ -595,6 +595,7 @@ ensure_redis_password || lib_die "could not set the redis password."
 ensure_enroll_key
 ensure_field_keys
 ensure_token_pepper
+ensure_imaging_root
 GIT_TOKEN=''
 install_natsapi
 

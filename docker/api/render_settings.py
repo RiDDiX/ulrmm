@@ -79,6 +79,9 @@ def entries() -> list[tuple[str, str]]:
         ("ULRMM_SCRIPTS_GIT_URL", s(env("ULRMM_SCRIPTS_REPO"))),
         ("ULRMM_AGENT_GIT_URL", s(env("ULRMM_AGENT_REPO"))),
         ("ULRMM_AGENT_PUBIP_URL", s(f"https://{api}/pubip")),
+        # IMAGING_VOLUME in .env picks what compose mounts there
+        ("ULRMM_IMAGING_ROOT", s("/rmmimages")),
+        ("ULRMM_DOCKER", "True"),
         ("CERT_FILE", s("/certs/fullchain.pem")),
         ("KEY_FILE", s("/certs/privkey.pem")),
     ]

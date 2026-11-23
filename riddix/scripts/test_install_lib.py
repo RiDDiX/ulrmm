@@ -6,6 +6,7 @@ that runs the command."""
 
 import grp
 import os
+import pwd
 import re
 import shutil
 import stat
@@ -192,6 +193,63 @@ class TestPgCreateDb(Base):
             sql,
         )
         self.assertIn("ALTER USER role1 WITH PASSWORD 'pw1';", sql)
+
+
+class TestEnsureImagingRoot(Base):
+    def run_step(self, settings, sudo='sudo() { "$@"; }\n'):
+        ls = self.root / "local_settings.py"
+        ls.write_text(settings)
+        r = self.bash(
+            sudo
+            + 'lib_warn() { echo "$*" >&2; }\n'
+            + function(LIB, "ls_get")
+            + function(LIB, "ls_set")
+            + function(LIB, "ensure_imaging_root")
+            + "ensure_imaging_root",
+            local_settings=str(ls),
+            USER=pwd.getpwuid(os.getuid()).pw_name,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r, ls.read_text()
+
+    @unittest.skipIf(os.path.lexists("/rmmimages"), "/rmmimages exists here")
+    def test_missing_key_gets_the_default_folder(self):
+        r, text = self.run_step('DEBUG = False\n', sudo='sudo() { echo "SUDO $*"; }\n')
+        self.assertIn('\nULRMM_IMAGING_ROOT = "/rmmimages"\n', text)
+        self.assertIn("SUDO install -d -m 0700 -o ", r.stdout)
+        self.assertIn(" /rmmimages\n", r.stdout)
+        self.assertIn(" /dev/null /rmmimages/.ulrmm-images\n", r.stdout)
+
+    def test_own_value_is_kept_and_a_missing_folder_only_warns(self):
+        mine = self.root / "disk" / "images"
+        line = f'ULRMM_IMAGING_ROOT = "{mine}"\n'
+        r, text = self.run_step(line)
+        self.assertEqual(text, line)
+        # the disk may only be unmounted: creating the folder would hide that
+        self.assertFalse(mine.exists())
+        self.assertIn("is missing", r.stderr)
+        mine.mkdir(parents=True, mode=0o700)
+        r, _ = self.run_step(line)
+        self.assertEqual(r.stderr, "")
+        # empty: imaging turned off by the admin, nothing is created
+        r, text = self.run_step('ULRMM_IMAGING_ROOT = ""\n')
+        self.assertEqual(text, 'ULRMM_IMAGING_ROOT = ""\n')
+        self.assertEqual(r.stderr, "")
+
+    def test_open_folder_only_warns(self):
+        mine = self.root / "images"
+        mine.mkdir(mode=0o755)
+        mine.chmod(0o755)
+        r, _ = self.run_step(f'ULRMM_IMAGING_ROOT = "{mine}"\n')
+        self.assertIn(f"sudo chmod 0700 {mine}", r.stderr)
+        self.assertEqual(stat.S_IMODE(os.stat(mine).st_mode), 0o755)
+        # an existing folder gets no marker, only the server writes one there
+        self.assertFalse((mine / ".ulrmm-images").exists())
+        mine.chmod(0o700)
+        link = self.root / "link"
+        link.symlink_to(mine)
+        r, _ = self.run_step(f'ULRMM_IMAGING_ROOT = "{link}"\n')
+        self.assertIn("is not a directory", r.stderr)
 
 
 class TestBuildAgentsStep(Base):

@@ -49,6 +49,16 @@ wait_for "MeshCentral first start" 300 test -f /mesh-data/ulrmm-initialized
 log "rendering ${LS}"
 python /rmm/docker/api/render_settings.py
 
+# client system images; imaging/storage.py refuses a folder that is not
+# this uid's with mode 0700, .ulrmm-images marks it as an image store
+imaging_root=$(sed -nE 's/^ULRMM_IMAGING_ROOT[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/p' "$LS" | tail -1)
+if [ -n "$imaging_root" ]; then
+  log "imaging storage ${imaging_root}"
+  { mkdir -p "$imaging_root" && chmod 0700 "$imaging_root" &&
+    { [ -e "${imaging_root}/.ulrmm-images" ] || install -m 0600 /dev/null "${imaging_root}/.ulrmm-images"; }; } ||
+    log "WARNING: ${imaging_root} must belong to uid $(id -u), client imaging cannot use it"
+fi
+
 trap 'set_admin False' EXIT
 set_admin True
 log "migrate"

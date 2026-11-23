@@ -424,7 +424,7 @@ and the other services wait for it. Back up before that: the database with
 `docker compose exec db pg_dump -U meshcentral meshcentral | gzip > mesh.psql.gz`,
 and the volumes `settings` (every key the server has, including the agent
 token peppers and the field encryption keys), `agent-ca`, `mesh-data`,
-`private` and `certs`, for example with
+`private`, `certs` and `images` (client system images), for example with
 `docker run --rm -v ulrmm_settings:/v:ro -v "$PWD":/b alpine tar czf /b/settings.tgz -C /v .`
 (the volume prefix is the compose project name, `docker volume ls` shows it).
 
@@ -1122,6 +1122,8 @@ steps of the update.
 ## Backups
 
 For a managed **device**, open **More → System images** on its detail page. Native Windows, Linux and macOS prerequisites, daily scheduling, storage and platform recovery are described in the [client imaging guide](docs/CLIENT_IMAGING.md).
+
+The images go to `/rmmimages` on the server (the `images` volume in Docker), which `install.sh` and `update.sh` set up; the server keeps 10 GiB free there. Global Settings -> **System Images** moves them to another folder, Docker uses `IMAGING_VOLUME` in `.env` for that ([guide](docs/CLIENT_IMAGING.md#change-the-storage-folder)). Server backups do not include them.
 
 ### Server backups
 

@@ -145,6 +145,7 @@ services:
       - settings:/settings
       - conf:/conf
       - private:/rmm/api/ulrmm/ulrmm/private
+      - ${IMAGING_VOLUME:-images}:/rmmimages
       - agent-ca:/etc/ulrmm/agent-ca
       - scripts-lib:/opt/ulrmm-community-scripts
       - static:/rmm/api/ulrmm/static
@@ -170,6 +171,7 @@ services:
       - settings:/settings:ro
       - conf:/conf
       - private:/rmm/api/ulrmm/ulrmm/private
+      - ${IMAGING_VOLUME:-images}:/rmmimages
       - agent-ca:/etc/ulrmm/agent-ca
       - agents-dist:/opt/ulrmm-agents:ro
       - scripts-lib:/opt/ulrmm-community-scripts
@@ -201,6 +203,7 @@ services:
       - settings:/settings:ro
       - conf:/conf
       - private:/rmm/api/ulrmm/ulrmm/private
+      - ${IMAGING_VOLUME:-images}:/rmmimages
       - agent-ca:/etc/ulrmm/agent-ca
       - agents-dist:/opt/ulrmm-agents:ro
       - scripts-lib:/opt/ulrmm-community-scripts
@@ -216,6 +219,7 @@ services:
     volumes:
       - settings:/settings:ro
       - conf:/conf:ro
+      - ${IMAGING_VOLUME:-images}:/rmmimages
     depends_on: *api-depends
 
   # docker compose run --rm agents: Linux, macOS, FreeBSD and Windows agents
@@ -301,3 +305,4 @@ volumes:
   pgdata:
   redis-data:
   static:
+  images:

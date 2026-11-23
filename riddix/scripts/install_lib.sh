@@ -328,6 +328,39 @@ ensure_token_pepper() {
     printf '\nAGENT_TOKEN_PEPPERS = ["%s"]\n' "$(openssl rand -base64 32)" >>"$local_settings"
 }
 
+# client system images (ULRMM_IMAGING_ROOT, the server default that Global
+# Settings > System Images can replace). Without the key they go to
+# /rmmimages. A folder that is already there is only checked, never changed:
+# imaging/storage.py refuses one the service user does not own with mode 0700.
+ensure_imaging_root() {
+  local root uid mode defaulted=false
+  if ! grep -q '^ULRMM_IMAGING_ROOT' "$local_settings" 2>/dev/null; then
+    ls_set ULRMM_IMAGING_ROOT /rmmimages
+    defaulted=true
+  fi
+  root=$(ls_get ULRMM_IMAGING_ROOT)
+  # empty or not a plain string: the admin's choice
+  [ -n "$root" ] || return 0
+  if [ ! -e "$root" ] && [ ! -L "$root" ]; then
+    # a configured folder that is gone is an unmounted disk, not a new one
+    if [ "$defaulted" != true ]; then
+      lib_warn "WARNING: ${root} (ULRMM_IMAGING_ROOT) is missing, client imaging waits for it. Mount the disk that holds the system images there, or choose another folder in Global Settings > System Images."
+      return 0
+    fi
+    # .ulrmm-images marks the folder as an image store for the storage check
+    { sudo install -d -m 0700 -o "$USER" -g "$(id -gn)" "$root" &&
+      sudo install -m 0600 -o "$USER" -g "$(id -gn)" /dev/null "${root}/.ulrmm-images"; } ||
+      lib_warn "WARNING: could not create ${root}, client imaging cannot use it."
+    return 0
+  fi
+  read -r uid mode < <(stat -c '%u %a' "$root")
+  if [ -L "$root" ] || [ ! -d "$root" ]; then
+    lib_warn "WARNING: ${root} (ULRMM_IMAGING_ROOT) is not a directory, client imaging cannot use it. Mount the disk there or choose another folder in Global Settings > System Images."
+  elif [ "$uid" != "$(id -u)" ] || ((8#$mode & 8#077)); then
+    lib_warn "WARNING: ${root} (ULRMM_IMAGING_ROOT) must belong to ${USER} with mode 0700, client imaging cannot use it. Fix: sudo chown ${USER}:$(id -gn) ${root} && sudo chmod 0700 ${root}"
+  fi
+}
+
 # age encrypts the backups (backup.conf BACKUP_AGE_RECIPIENTS)
 ensure_age() {
   command -v age >/dev/null || sudo apt install -y age

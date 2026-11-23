@@ -349,6 +349,14 @@ def test_restore_lists_missing_large_packages(tmp_path):
         ("install.sh", "ensure_field_keys\nensure_token_pepper\n", "manage migrate"),
         ("update.sh", "  ensure_field_keys\n  ensure_token_pepper\n", "manage migrate"),
         ("restore.sh", "ensure_field_keys\nensure_token_pepper\n", "manage migrate"),
+        # the image store exists before the services start
+        ("install.sh", "ensure_token_pepper\nensure_imaging_root\n", "manage migrate"),
+        (
+            "update.sh",
+            "  ensure_token_pepper\n  ensure_imaging_root\n",
+            "manage migrate",
+        ),
+        ("restore.sh", "ensure_token_pepper\nensure_imaging_root\n", "manage migrate"),
         # the release window rows exist only after migrate
         ("restore.sh", "manage migrate ||", "manage open_release_window --all-active"),
         # the backup's pepper is in place before a new one could be made

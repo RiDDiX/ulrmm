@@ -13,7 +13,7 @@
 # All code sits in functions and main runs from the last line: the checkout
 # replaces this file while it runs.
 
-SCRIPT_VERSION="190"
+SCRIPT_VERSION="191"
 
 # cron and some sudo setups leave USER unset
 USER=${USER:-$(id -un)}
@@ -1003,6 +1003,7 @@ EOF
   ensure_enroll_key
   ensure_field_keys
   ensure_token_pepper
+  ensure_imaging_root
   sudo chown -R "$ME" /opt/ulrmm-reporting
 
   progress migrate "migrating the database"

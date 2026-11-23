@@ -37,6 +37,7 @@ RUN rm -f /rmm/api/ulrmm/ulrmm/local_settings.py && \
     install -d -o ulrmm -g ulrmm /settings /conf /certs /mesh-data \
       /etc/ulrmm/agent-ca /opt/ulrmm-agents /opt/ulrmm-community-scripts \
       /rmm/api/ulrmm/static /rmm/api/ulrmm/ulrmm/private && \
+    install -d -m 0700 -o ulrmm -g ulrmm /rmmimages && \
     chmod 755 /rmm/docker/api/entrypoint.sh /init.sh
 USER ulrmm
 WORKDIR /rmm/api/ulrmm
