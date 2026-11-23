@@ -981,7 +981,7 @@
  },
  "apiv3-winupdate-services-186": {
   "status": 400,
-  "body_masked": "\"Old installer detected (version 1.26.10.2026 ). Latest version is 1.23.11.2026 Please generate a new installer from the RMM\""
+  "body_masked": "\"Old installer detected (version 1.26.10.2026 ). Latest version is 2.23.11.2026 Please generate a new installer from the RMM\""
  },
  "apiv3-winupdate-services-187": {
   "status": 200,
@@ -989,7 +989,7 @@
  },
  "apiv3-winupdate-services-188": {
   "status": 400,
-  "body_masked": "\"Old installer detected (version 1.0.0 ). Latest version is 1.23.11.2026 Please generate a new installer from the RMM\""
+  "body_masked": "\"Old installer detected (version 1.0.0 ). Latest version is 2.23.11.2026 Please generate a new installer from the RMM\""
  },
  "apiv3-winupdate-services-189": {
   "status": 400,
@@ -1001,11 +1001,11 @@
  },
  "apiv3-winupdate-services-191": {
   "status": 400,
-  "body_masked": "\"Old installer detected (version abc ). Latest version is 1.23.11.2026 Please generate a new installer from the RMM\""
+  "body_masked": "\"Old installer detected (version abc ). Latest version is 2.23.11.2026 Please generate a new installer from the RMM\""
  },
  "apiv3-winupdate-services-192": {
   "status": 400,
-  "body_masked": "\"Old installer detected (version 0.9.1 ). Latest version is 1.23.11.2026 Please generate a new installer from the RMM\""
+  "body_masked": "\"Old installer detected (version 0.9.1 ). Latest version is 2.23.11.2026 Please generate a new installer from the RMM\""
  },
  "apiv3-winupdate-services-193": {
   "status": 405,
@@ -2326,7 +2326,7 @@
  },
  "apiv3-winupdate-services-454": {
   "status": 400,
-  "body_masked": "\"Old installer detected (version 1.26.10.2026 ). Latest version is 1.23.11.2026 Please generate a new installer from the RMM\""
+  "body_masked": "\"Old installer detected (version 1.26.10.2026 ). Latest version is 2.23.11.2026 Please generate a new installer from the RMM\""
  },
  "apiv3-winupdate-services-455": {
   "status": 400,
@@ -2483,7 +2483,7 @@
  },
  "apiv3-winupdate-services-482": {
   "status": 0,
-  "body_masked": "ulrmm-agent-v1.23.11.2026-linux-amd64 2251cb15702a768ba469aee920cc72ff4b1e1f31d26d1520a1aeadec60d9afc5\nulrmm-agent-v1.23.11.2026-linux-arm e7f5f0b9b21e3674d92ef660a3504fdfc909648e67111cdda0a90fa00a6926e4\n200 {\"version\":\"1.23.11.2026\",\"url\":\"https://api.example.com/agentdist/ulrmm-agent-v1.23.11.2026-linux-amd64\",\"sha256\":\"2251cb15702a768ba469aee920cc72ff4b1e1f31d26d1520a1aeadec60d9afc5\",\"update_sig\":\"eyJhbGciOiJFZERTQSIsImtpZCI6IjFjNzI0ODg1OTJjZDcyZjAiLCJ0eXAiOiJ1bHJtbS11cGRhdGUifQ.eyJhZ2VudCI6IkVGS0NiR29hUUNydmNRT09GT1p3TkNzakNxaEl1QU5FS2lKTldlVGEiLCJpYXQiOjE3OTIzMDMyMDAsInNoYTI1NiI6IjIyNTFjYjE1NzAyY\n[]\n200 {\"version\":\"1.23.11.2026\",\"url\":\"https://api.example.com/agentdist/ulrmm-agent-v1.23.11.2026-linux-arm\",\"sha256\":\"e7f5f0b9b21e3674d92ef660a3504fdfc909648e67111cdda0a90fa00a6926e4\",\"update_sig\":\"eyJhbGciOiJFZERTQSIsImtpZCI6IjFjNzI0ODg1OTJjZDcyZjAiLCJ0eXAiOiJ1bHJtbS11cGRhdGUifQ.eyJhZ2VudCI6ImRlbW8wOHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eCIsImlhdCI6MTc5MjMwMzIwMCwic2hhMjU2IjoiZTdmNWYwYjliMjF\n[]\n200 {\"version\":\"1.23.11.2026\",\"url\":\"https://builds.bench.invalid/dist/ulrmm-agent-v1.23.11.2026-linux-amd64\",\"sha256\":\"2251cb15702a768ba469aee920cc72ff4b1e1f31d26d1520a1aeadec60d9afc5\",\"update_sig\":\"eyJhbGciOiJFZERTQSIsImtpZCI6IjFjNzI0ODg1OTJjZDcyZjAiLCJ0eXAiOiJ1bHJtbS11cGRhdGUifQ.eyJhZ2VudCI6IkVGS0NiR29hUUNydmNRT09GT1p3TkNzakNxaEl1QU5FS2lKTldlVGEiLCJpYXQiOjE3OTIzMDMyMDAsInNoYTI1NiI6IjIyNTFjYjE1NzAyY\n[]\n"
+  "body_masked": "ulrmm-agent-v2.23.11.2026-linux-amd64 73f41740fe2755b38adc4cec00eb94fd469aba7f50681c7c5acc54d7b287e48b\nulrmm-agent-v2.23.11.2026-linux-arm a1f5c2700e87d84f5ef653ac25b2ed9c02e8d0332d741139f856a588ba5e63cb\n200 {\"version\":\"2.23.11.2026\",\"url\":\"https://api.example.com/agentdist/ulrmm-agent-v2.23.11.2026-linux-amd64\",\"sha256\":\"73f41740fe2755b38adc4cec00eb94fd469aba7f50681c7c5acc54d7b287e48b\",\"update_sig\":\"eyJhbGciOiJFZERTQSIsImtpZCI6IjFjNzI0ODg1OTJjZDcyZjAiLCJ0eXAiOiJ1bHJtbS11cGRhdGUifQ.eyJhZ2VudCI6IkVGS0NiR29hUUNydmNRT09GT1p3TkNzakNxaEl1QU5FS2lKTldlVGEiLCJpYXQiOjE3OTIzMDMyMDAsInNoYTI1NiI6IjczZjQxNzQwZmUyN\n[]\n200 {\"version\":\"2.23.11.2026\",\"url\":\"https://api.example.com/agentdist/ulrmm-agent-v2.23.11.2026-linux-arm\",\"sha256\":\"a1f5c2700e87d84f5ef653ac25b2ed9c02e8d0332d741139f856a588ba5e63cb\",\"update_sig\":\"eyJhbGciOiJFZERTQSIsImtpZCI6IjFjNzI0ODg1OTJjZDcyZjAiLCJ0eXAiOiJ1bHJtbS11cGRhdGUifQ.eyJhZ2VudCI6ImRlbW8wOHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eCIsImlhdCI6MTc5MjMwMzIwMCwic2hhMjU2IjoiYTFmNWMyNzAwZTg\n[]\n200 {\"version\":\"2.23.11.2026\",\"url\":\"https://builds.bench.invalid/dist/ulrmm-agent-v2.23.11.2026-linux-amd64\",\"sha256\":\"73f41740fe2755b38adc4cec00eb94fd469aba7f50681c7c5acc54d7b287e48b\",\"update_sig\":\"eyJhbGciOiJFZERTQSIsImtpZCI6IjFjNzI0ODg1OTJjZDcyZjAiLCJ0eXAiOiJ1bHJtbS11cGRhdGUifQ.eyJhZ2VudCI6IkVGS0NiR29hUUNydmNRT09GT1p3TkNzakNxaEl1QU5FS2lKTldlVGEiLCJpYXQiOjE3OTIzMDMyMDAsInNoYTI1NiI6IjczZjQxNzQwZmUyN\n[]\n"
  },
  "apiv3-winupdate-services-483": {
   "status": 200,

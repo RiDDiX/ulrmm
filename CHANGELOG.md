@@ -1,5 +1,15 @@
 # Server changelog
 
+## 3.23.11.2026 (2026-11-23)
+
+- agents update to 2.23.11.2026
+- client imaging, Linux: live backup without a reboot. Devices that meet the requirements in `docs/CLIENT_IMAGING_LINUX.md` back up `/`, a separate `/boot` and the EFI partition file by file while they run; unchanged data reuses stored blocks. Other devices keep the offline method
+- client imaging: the device's backup tab lists the volumes the agent reports. System volumes are always included; extra volumes can be ticked per device or set as mount paths in a backup policy. A ticked volume that is missing or not mounted fails the next point with the reason, older points stay
+- client imaging: a verified live Linux point can be checked again with "Check all blocks" in its restore dialog
+- client imaging: while offline capture is paired, a device backup with ticked extra volumes fails with the reason instead of leaving the volumes out
+- client imaging: new live Linux profiles use gzip level 1
+- recovery helper: restores a live Linux backup to a blank disk with the recorded partition table, file system IDs and boot entry. Extra volumes are stored but cannot be restored yet; restore needs x86-64 recovery media. Rebuild recovery media from the new agent bundle
+
 ## 2.23.11.2026 (2026-11-23)
 
 - agents update to 1.23.11.2026
