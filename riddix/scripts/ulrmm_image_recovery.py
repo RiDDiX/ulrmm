@@ -369,6 +369,7 @@ def verify_source(device, boot_mode, *, require_gpt=False):
     root = candidates[0]
     fstab = inspect("debugfs", "-R", "cat /etc/fstab", root["name"])
     mounts = {}
+    excluded = {}
     for line in fstab.splitlines():
         fields = line.partition("#")[0].split()
         if not fields:
@@ -376,6 +377,10 @@ def verify_source(device, boot_mode, *, require_gpt=False):
         if len(fields) < 4:
             raise RecoveryError("Linux system has an unsupported fstab entry")
         source, mount, filesystem, options = fields[:4]
+        # mount and systemd clean the path, so "/boot/" is /boot
+        if mount.startswith("/"):
+            mount = "/" + os.path.normpath(mount).lstrip("/")
+        required = mount in ("/", "/boot", "/boot/efi", "/efi")
         if filesystem in ("proc", "sysfs", "devpts", "tmpfs") and source in (
             filesystem,
             "none",
@@ -390,13 +395,31 @@ def verify_source(device, boot_mode, *, require_gpt=False):
             and not source.startswith("/dev/")
         ):
             continue
+        # bind mounts and pseudo file systems hold no disk of their own, and a
+        # by-* link to a partition of this disk is in the image
+        if not required and (
+            "bind" in opts
+            or "rbind" in opts
+            or not any(c in source for c in "/=")
+            or (
+                source.startswith("/dev/disk/by-")
+                and os.path.realpath(source) in {p["name"] for p in partitions}
+            )
+        ):
+            continue
         kind, sep, value = source.removeprefix("/dev/disk/by-").partition("/")
         if source.startswith("/dev/disk/by-") and sep:
             source = f"{kind.upper()}={value}"
         prefix, sep, value = source.partition("=")
-        part = sources.get(
-            prefix + sep + (value.lower() if prefix.endswith("UUID") else value)
-        )
+        key = prefix + sep + (value.lower() if prefix.endswith("UUID") else value)
+        # Storage off this disk is not in the image and not needed to boot it.
+        # Kernel names of this disk's partitions differ in recovery, so they are
+        # listed here although the agent refuses them on the running system.
+        if key not in sources and not required:
+            point = "swap" if filesystem == "swap" else mount
+            excluded.setdefault(point, fields[0])
+            continue
+        part = sources.get(key)
         if part is None or filesystem != part["fstype"] or mount in mounts:
             raise RecoveryError(
                 "Linux fstab references storage outside the supported source disk or file systems"
@@ -418,6 +441,7 @@ def verify_source(device, boot_mode, *, require_gpt=False):
             raise RecoveryError(
                 "UEFI capture requires the EFI system partition on the selected disk in fstab"
             )
+    return [f"{point} ({source})" for point, source in excluded.items()]
 
 
 def read_chunks(stream, size):
@@ -798,9 +822,11 @@ def main():
             return
         print(f"Capturing device {manifest['agent_id']!r} from disk {args.disk_id!r}.")
         with open_disk(args.disk_id) as (disk, geometry):
-            verify_source(
+            excluded = verify_source(
                 os.readlink(f"/proc/self/fd/{disk.fileno()}"), host["boot_mode"]
             )
+            if excluded:
+                print("Not included: " + ", ".join(excluded))
             capture(transfer, manifest, disk, geometry | host)
         print("Upload accepted. Check image verification in ULRMM.")
     elif manifest["direction"] == "restore" and not args.poll_url:

@@ -275,6 +275,20 @@ class RecoveryTest(unittest.TestCase):
             "/dev/disk/by-uuid/efi /boot/efi vfat umask=0077 0 1\n"
             "/swap.img none swap sw 0 0\n"
         )
+        other_disks = (
+            "UUID=frigate /media/frigate ext4 defaults 0 2\n"
+            "/dev/disk/by-uuid/data /srv/data ext4 defaults 0 2\n"
+            "/dev/sdb1 /mnt/sdb ext4 defaults 0 2\n"
+            "UUID=gone /mnt/gone ext4 defaults,nofail 0 2\n"
+            "nas:/export /mnt/nas nfs4 defaults 0 0\n"
+            "/dev/vdb1 none swap sw 0 0\n"
+            "UUID=frigate /media/frigate ext4 defaults 0 2\n"
+            # no disk of their own, or this disk under another link name
+            "/srv/data /export none bind 0 0\n"
+            "none /sys/fs/cgroup cgroup2 defaults 0 0\n"
+            "overlay /merged overlay defaults 0 0\n"
+            "/dev/disk/by-id/virtio-sys-part3 none swap sw 0 0\n"
+        )
         for fstab, header, error in [
             (root_fstab + efi_fstab, clean, None),
             (installer_fstab, clean, None),
@@ -304,15 +318,16 @@ class RecoveryTest(unittest.TestCase):
                 clean,
                 "outside",
             ),
-            (root_fstab + efi_fstab + "/dev/vdb1 none swap sw 0 0\n", clean, "outside"),
+            (root_fstab + efi_fstab + other_disks, clean, None),
             # systemd automounts these despite noauto
             (
                 root_fstab
                 + efi_fstab
-                + "UUID=otherdisk /home ext4 noauto,x-systemd.automount 0 2\n",
+                + "UUID=otherdisk /boot ext4 noauto,x-systemd.automount 0 2\n",
                 clean,
                 "outside",
             ),
+            ("UUID=frigate / ext4 defaults 0 1\n" + efi_fstab, clean, "outside"),
             (
                 root_fstab
                 + "UUID=EFI /boot/efi vfat noauto,x-systemd.automount,umask=0077 0 2\n",
@@ -328,6 +343,17 @@ class RecoveryTest(unittest.TestCase):
             (root_fstab, clean, "EFI"),
             (
                 root_fstab + "PARTUUID=external /boot ext4 defaults 0 2\n",
+                clean,
+                "outside",
+            ),
+            # mount cleans the path, so these are /boot and the EFI partition
+            (
+                root_fstab + efi_fstab + "UUID=elsewhere /boot/ ext4 defaults 0 2\n",
+                clean,
+                "outside",
+            ),
+            (
+                root_fstab + "UUID=elsewhere /boot/efi/ vfat defaults 0 2\n",
                 clean,
                 "outside",
             ),
@@ -347,6 +373,30 @@ class RecoveryTest(unittest.TestCase):
                         recovery.verify_source("/dev/vda", "uefi")
                 else:
                     recovery.verify_source("/dev/vda", "uefi")
+        link = {"/dev/disk/by-id/virtio-sys-part3": "/dev/vda3"}
+        with mock.patch.object(
+            recovery,
+            "inspect",
+            side_effect=[
+                json.dumps(parts),
+                clean,
+                "ID=debian\n",
+                root_fstab + efi_fstab + other_disks,
+            ],
+        ), mock.patch.object(
+            recovery.os.path, "realpath", side_effect=lambda p: link.get(p, p)
+        ):
+            self.assertEqual(
+                recovery.verify_source("/dev/vda", "uefi"),
+                [
+                    "/media/frigate (UUID=frigate)",
+                    "/srv/data (/dev/disk/by-uuid/data)",
+                    "/mnt/sdb (/dev/sdb1)",
+                    "/mnt/gone (UUID=gone)",
+                    "/mnt/nas (nas:/export)",
+                    "swap (/dev/vdb1)",
+                ],
+            )
 
     def test_wrong_interface_never_creates_socket(self):
         link = [{"linkinfo": {"info_kind": "ether"}, "ifindex": 2, "flags": ["UP"]}]
