@@ -2,10 +2,12 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
-"""Capture or recover a whole offline Linux system disk with a ULRMM transfer."""
+"""Capture or recover a Linux system disk with a ULRMM transfer."""
 
 import argparse
 import contextlib
+import decimal
+import errno
 import fcntl
 import getpass
 import gzip
@@ -14,13 +16,16 @@ import http.client
 import json
 import os
 import platform
+import posixpath
 import re
+import shutil
 import socket
 import ssl
 import stat
 import struct
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.error
@@ -33,6 +38,47 @@ from pathlib import Path
 CHUNK = 4 * 1024 * 1024
 NATIVE_CHUNK = 2 * 1024 * 1024
 NATIVE_METHOD = "linux-offline-disk-v1"
+FILES_METHOD = "linux-files-v1"
+RESTORE_ROOT = "/run/ulrmm-restore"
+RESTORE_TOOLS = (
+    "sfdisk",
+    "blockdev",
+    "udevadm",
+    "lsblk",
+    "wipefs",
+    "blkid",
+    "mount",
+    "umount",
+    "mkfs.ext4",
+    "e2fsck",
+    "mkfs.fat",
+    "fsck.vfat",
+    "mkswap",
+)
+APPROVED = (
+    "agent_id",
+    "image_id",
+    "network_mode",
+    "compression",
+    "sha256",
+    "raw_sha256",
+    "size",
+)
+UUID_TEXT = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
+VOLUME_KEY = re.compile(r"root|boot|esp|[sx]-[0-9a-f-]{1,36}")
+STREAM_META = (".ulrmm/layout.json", ".ulrmm/index.jsonl.gz", ".ulrmm/report.json")
+REGULAR = (tarfile.REGTYPE, tarfile.AREGTYPE)
+MEMBER_TYPES = (
+    *REGULAR,
+    tarfile.DIRTYPE,
+    tarfile.SYMTYPE,
+    tarfile.LNKTYPE,
+    tarfile.CHRTYPE,
+    tarfile.BLKTYPE,
+    tarfile.FIFOTYPE,
+)
+GPT_ATTRS = {0: "RequiredPartition", 1: "NoBlockIOProtocol", 2: "LegacyBIOSBootable"}
+ZERO_PAGE = bytes(4096)
 BY_ID = Path("/dev/disk/by-id")
 # Every transfer request is retried after a network error or a reply from a
 # restarting server, up to 62 s in all.
@@ -407,11 +453,7 @@ def verify_source(device, boot_mode, *, require_gpt=False):
             )
         ):
             continue
-        kind, sep, value = source.removeprefix("/dev/disk/by-").partition("/")
-        if source.startswith("/dev/disk/by-") and sep:
-            source = f"{kind.upper()}={value}"
-        prefix, sep, value = source.partition("=")
-        key = prefix + sep + (value.lower() if prefix.endswith("UUID") else value)
+        key = fstab_key(source)
         # Storage off this disk is not in the image and not needed to boot it.
         # Kernel names of this disk's partitions differ in recovery, so they are
         # listed here although the agent refuses them on the running system.
@@ -442,6 +484,14 @@ def verify_source(device, boot_mode, *, require_gpt=False):
                 "UEFI capture requires the EFI system partition on the selected disk in fstab"
             )
     return [f"{point} ({source})" for point, source in excluded.items()]
+
+
+def fstab_key(source):
+    kind, sep, value = source.removeprefix("/dev/disk/by-").partition("/")
+    if source.startswith("/dev/disk/by-") and sep:
+        source = f"{kind.upper()}={value}"
+    prefix, sep, value = source.partition("=")
+    return prefix + sep + (value.lower() if prefix.endswith("UUID") else value)
 
 
 def read_chunks(stream, size):
@@ -645,16 +695,7 @@ def restore(transfer, manifest, args, host, verify, confirm):
         if not confirm():
             raise RecoveryError("Restore confirmation does not match")
         current = disk_restore_manifest(json.loads(transfer.request("GET")))
-        approved = (
-            "agent_id",
-            "image_id",
-            "network_mode",
-            "compression",
-            "sha256",
-            "raw_sha256",
-            "size",
-        )
-        if any(current[field] != manifest[field] for field in approved):
+        if any(current[field] != manifest[field] for field in APPROVED):
             raise RecoveryError("Restore approval changed during verification")
         with verify(args.disk_id, writable=True) as (disk, geometry):
             verify_target(manifest, geometry | host)
@@ -680,6 +721,685 @@ def restore(transfer, manifest, args, host, verify, confirm):
             raise RecoveryError(
                 f"Disk readback verified, but ULRMM could not record completion. {exc}"
             ) from exc
+
+
+def run(*command, stdin=None):
+    try:
+        result = subprocess.run(
+            command,
+            input=stdin,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=True,
+            env=os.environ | {"LC_ALL": "C"},
+        )
+    except subprocess.CalledProcessError as exc:
+        lines = (exc.stderr or exc.stdout or "").strip().splitlines()
+        detail = lines[-1] if lines else f"exit status {exc.returncode}"
+        raise RecoveryError(f"{command[0]} failed: {detail}") from exc
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RecoveryError(f"Could not run {command[0]}") from exc
+    return result.stdout
+
+
+class BlockReader:
+    """The point stream, fetched block by block, with its block-list digest."""
+
+    def __init__(self, transfer, size):
+        self.transfer = transfer
+        self.size = size
+        self.offset = 0
+        self.block = b""
+        self.position = 0
+        self.digest = hashlib.sha256()
+
+    def fetch(self):
+        expected = min(NATIVE_CHUNK, self.size - self.offset)
+        try:
+            block = self.transfer.request(
+                "GET", f"data/?offset={self.offset}", limit=expected
+            )
+        except RecoveryError as exc:
+            if getattr(exc.__cause__, "code", None) == 409:
+                raise ImageIntegrityError("A block of this point is damaged") from exc
+            raise
+        if len(block) != expected:
+            raise ImageIntegrityError("Server returned an incomplete image chunk")
+        self.digest.update(hashlib.sha256(block).digest())
+        self.offset += expected
+        return block
+
+    def read(self, size=-1):
+        if self.position == len(self.block):
+            if self.offset == self.size:
+                return b""
+            self.block, self.position = self.fetch(), 0
+        end = len(self.block) if size < 0 else self.position + size
+        data = self.block[self.position : end]
+        self.position += len(data)
+        return data
+
+    def drain(self):
+        while self.offset < self.size:
+            self.fetch()
+
+
+def blank_target(verify, disk_id, native):
+    with verify(disk_id) as (disk, geometry):
+        if geometry["sector_size"] != native["sector_size"]:
+            raise RecoveryError("Restore target sector size differs from the source.")
+        if geometry["raw_size"] < native["min_target_size"]:
+            raise RecoveryError(
+                "Restore target is smaller than the recorded partitions."
+            )
+        device = os.readlink(f"/proc/self/fd/{disk.fileno()}")
+        (target,) = json.loads(
+            run("lsblk", "--json", "--paths", "--output", "NAME", device)
+        )["blockdevices"]
+        probe = subprocess.run(["blkid", "-p", device], capture_output=True)
+        if (
+            target.get("children")
+            or run("wipefs", "--no-act", device).strip()
+            or probe.returncode != 2
+        ):
+            raise RecoveryError(
+                "Restore target is not blank. Wipe it first with: "
+                f"wipefs -a /dev/disk/by-id/{disk_id}"
+            )
+    return device, geometry
+
+
+def safe_path(path):
+    return isinstance(path, str) and all(
+        part not in ("", ".", "..") and "\0" not in part for part in path.split("/")
+    )
+
+
+def check_layout(layout, native):
+    def need(condition):
+        if not condition:
+            raise ValueError
+
+    def number(value):
+        need(type(value) is int and 0 < value < 2**63)
+        return value
+
+    disk = layout["disk"]
+    need(
+        disk["pttype"] == "gpt"
+        and disk["sector_size"] == native["sector_size"]
+        and isinstance(disk["id"], str)
+        and disk["id"]
+        and UUID_TEXT.fullmatch(disk["ptuuid"])
+    )
+    parts = {}
+    for part in disk["partitions"]:
+        number(part["start"])
+        number(part["size"])
+        need(number(part["number"]) <= 128 and part["number"] not in parts)
+        need(UUID_TEXT.fullmatch(part["type"]) and UUID_TEXT.fullmatch(part["uuid"]))
+        need(isinstance(part["name"], str))
+        # sfdisk script syntax: no quote, backslash or control character; GPT
+        # names hold 36 UTF-16 units
+        name = part["name"]
+        if (
+            '"' in name
+            or "\\" in name
+            or not name.isprintable()
+            or len(name.encode("utf-16-le")) > 72
+        ):
+            print(
+                f"Partition {part['number']} is restored without its name "
+                f"{part['name'][:40]!r}."
+            )
+            part["name"] = ""
+        need(re.fullmatch(r"0x[0-9a-f]{1,16}", part["attrs"]))
+        parts[part["number"]] = part
+    need(parts)
+    keys, used, restored = set(), set(), {}
+    for item in layout["filesystems"]:
+        need(VOLUME_KEY.fullmatch(item["key"]) and item["key"] not in keys)
+        keys.add(item["key"])
+        if item["disk"] != disk["id"]:
+            continue
+        need(item["partition"] in parts and item["partition"] not in used)
+        need(isinstance(item["label"], str) and item["mount"].startswith("/"))
+        used.add(item["partition"])
+        if item["fs"] == "ext4":
+            ext4 = item["ext4"]
+            number(ext4["inode_count"])
+            need(
+                UUID_TEXT.fullmatch(item["uuid"])
+                and ext4["block_size"] in (1024, 2048, 4096)
+                and ext4["inode_size"] in (128, 256, 512, 1024)
+                and isinstance(ext4["features"], list)
+                and all(re.fullmatch("[a-z0-9_]+", f) for f in ext4["features"])
+            )
+        else:
+            need(
+                item["fs"] == "vfat"
+                and isinstance(item["uuid"], str)
+                and item["vfat"]["fat_bits"] in (12, 16, 32)
+                and re.fullmatch("[0-9a-f]{8}", item["vfat"]["volume_id"])
+            )
+        restored[item["key"]] = item
+    for swap in layout["swap"]:
+        need(swap["partition"] in parts and swap["partition"] not in used)
+        need(not swap["uuid"] or UUID_TEXT.fullmatch(swap["uuid"]))
+        need(isinstance(swap["label"], str))
+        used.add(swap["partition"])
+    need(restored.get("root", {}).get("fs") == "ext4")
+    need(restored.get("esp", {}).get("fs") == "vfat")
+    for swap in layout["swap_files"]:
+        need(swap["key"] in restored and restored[swap["key"]]["fs"] == "ext4")
+        need(safe_path(swap["path"]) and number(swap["size"]))
+        need(not swap["uuid"] or UUID_TEXT.fullmatch(swap["uuid"]))
+        need(isinstance(swap["label"], str))
+    return list(restored.values())
+
+
+def files_layout(tar, native, host):
+    first = tar.next()
+    if (
+        first is None
+        or first.name != STREAM_META[0]
+        or first.type not in REGULAR
+        or first.size > 4 << 20
+    ):
+        raise RecoveryError("The point stream does not start with its layout")
+    layout = json.loads(tar.extractfile(first).read())
+    tar.members.clear()
+    if (
+        not isinstance(layout, dict)
+        or layout.get("format") != 1
+        or layout.get("method") != FILES_METHOD
+    ):
+        raise RecoveryError("The point layout has an unsupported format")
+    if layout.get("arch") != host["architecture"]:
+        raise RecoveryError(
+            f"The point was captured on {str(layout.get('arch'))[:32]}. "
+            "Boot recovery media for that architecture."
+        )
+    try:
+        return layout, check_layout(layout, native)
+    except (KeyError, TypeError, AttributeError, ValueError) as exc:
+        raise RecoveryError("The point layout is invalid") from exc
+
+
+def ext4_options(item):
+    ext4 = item["ext4"]
+    return [
+        "-U",
+        item["uuid"],
+        "-b",
+        str(ext4["block_size"]),
+        "-I",
+        str(ext4["inode_size"]),
+        "-N",
+        str(ext4["inode_count"]),
+        "-O",
+        ",".join(["none", *ext4["features"]]),
+    ]
+
+
+def identity_options(item):
+    return [
+        *(("-U", item["uuid"]) if item["uuid"] else ()),
+        *(("-L", item["label"]) if item["label"] else ()),
+    ]
+
+
+def gpt_attrs(value):
+    bits = int(value, 16)
+    return " ".join(
+        GPT_ATTRS.get(bit, f"GUID:{bit}")
+        for bit in (*range(3), *range(48, 64))
+        if bits >> bit & 1
+    )
+
+
+def partition(device, layout):
+    disk = layout["disk"]
+    separator = "p" if device[-1].isdigit() else ""
+    script = ["label: gpt", f"label-id: {disk['ptuuid']}", "unit: sectors"]
+    for part in disk["partitions"]:
+        line = (
+            f"{device}{separator}{part['number']} : start={part['start']}, "
+            f"size={part['size']}, type={part['type']}, uuid={part['uuid']}, "
+            f'name="{part["name"]}"'
+        )
+        attrs = gpt_attrs(part["attrs"])
+        script.append(line + (f', attrs="{attrs}"' if attrs else ""))
+    run(
+        "sfdisk",
+        "--lock",
+        "--no-reread",
+        "--wipe",
+        "never",
+        device,
+        stdin="\n".join(script) + "\n",
+    )
+    run("blockdev", "--rereadpt", device)
+    run("udevadm", "settle")
+    # by-partuuid may name the original disk, which carries the same ids
+    (target,) = json.loads(
+        run("lsblk", "--json", "--paths", "--output", "NAME,PARTN,PARTUUID", device)
+    )["blockdevices"]
+    nodes = {}
+    for part in disk["partitions"]:
+        found = [
+            child["name"]
+            for child in target.get("children", [])
+            if str(child.get("partn")) == str(part["number"])
+            and (child.get("partuuid") or "").lower() == part["uuid"]
+        ]
+        if len(found) != 1:
+            raise RecoveryError("The new partitions did not appear on the target")
+        nodes[part["number"]] = found[0]
+    return nodes
+
+
+def member_path(name, keys, roots):
+    parts = name.split(b"/")
+    if (
+        b"\0" in name
+        or len(parts) < 2
+        or parts[0] != b"v"
+        or parts[1] not in keys
+        or any(part in (b"", b".", b"..") for part in parts[2:])
+    ):
+        raise RecoveryError(
+            "The point stream holds an unsafe member name: "
+            + name.decode("utf-8", "replace")[:300]
+        )
+    if parts[1] not in roots:
+        return parts[1], None, None
+    root, fs = roots[parts[1]]
+    return parts[1], b"/".join([root, *parts[2:]]), fs
+
+
+def metadata(member):
+    try:
+        mtime = decimal.Decimal(member.pax_headers.get("mtime", member.mtime))
+        nanoseconds = int(mtime.scaleb(9))
+    except (ArithmeticError, ValueError) as exc:
+        raise RecoveryError("The point stream holds an invalid file time") from exc
+    xattrs = {
+        key.removeprefix("SCHILY.xattr."): value.encode("utf-8", "surrogateescape")
+        for key, value in member.pax_headers.items()
+        if key.startswith("SCHILY.xattr.")
+    }
+    return member.uid, member.gid, member.mode & 0o7777, nanoseconds, xattrs
+
+
+def apply_metadata(path, fs, meta, chmod=True):
+    uid, gid, mode, nanoseconds, xattrs = meta
+    if fs != "vfat":
+        os.chown(path, uid, gid, follow_symlinks=False)
+        if chmod:
+            os.chmod(path, mode)
+        for name, value in xattrs.items():
+            os.setxattr(path, name, value, follow_symlinks=False)
+    os.utime(path, ns=(nanoseconds, nanoseconds), follow_symlinks=False)
+
+
+def write_file(tar, member, path, previous):
+    flags = os.O_WRONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+    if not previous:
+        flags |= os.O_CREAT | os.O_EXCL
+    with open(os.open(path, flags, 0o600), "wb") as output:
+        info = os.fstat(output.fileno())
+        if previous and previous != (info.st_dev, info.st_ino):
+            raise RecoveryError("A re-appended file names another restored file")
+        output.truncate(0)
+        source = tar.extractfile(member)
+        while chunk := source.read(1 << 20):
+            for start in range(0, len(chunk), len(ZERO_PAGE)):
+                page = chunk[start : start + len(ZERO_PAGE)]
+                if page == ZERO_PAGE[: len(page)]:
+                    output.seek(len(page), os.SEEK_CUR)
+                else:
+                    output.write(page)
+        output.truncate(member.size)
+    return info.st_dev, info.st_ino
+
+
+def extract(tar, keys, roots):
+    # Symlinks come last, so no write below a restore root follows one.
+    files, symlinks, directories = {}, [], []
+    while (member := tar.next()) is not None:
+        tar.members.clear()
+        if member.name in STREAM_META:
+            continue
+        name = member.name.encode("utf-8", "surrogateescape")
+        key, path, fs = member_path(name, keys, roots)
+        if member.type not in MEMBER_TYPES or (
+            fs == "vfat" and member.type not in (*REGULAR, tarfile.DIRTYPE)
+        ):
+            raise RecoveryError(
+                "The point stream holds an unsupported member: "
+                + name.decode("utf-8", "replace")[:300]
+            )
+        if path is None:
+            continue
+        meta = metadata(member)
+        if member.isdir():
+            os.makedirs(path, exist_ok=True)
+            directories.append((path, fs, meta))
+            continue
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if member.issym():
+            target = member.linkname.encode("utf-8", "surrogateescape")
+            symlinks.append((path, target, fs, meta))
+        elif member.islnk():
+            link = member.linkname.encode("utf-8", "surrogateescape")
+            if files.get(link, (None,))[0] != key:
+                raise RecoveryError(
+                    "The point stream holds a hard link to a file it has not restored"
+                )
+            os.link(member_path(link, keys, roots)[1], path, follow_symlinks=False)
+        else:
+            if member.type in REGULAR:
+                previous = files.get(name, (None,))[1:]
+                files[name] = (key, *write_file(tar, member, path, previous))
+            elif member.isfifo():
+                os.mkfifo(path, 0o600)
+            else:
+                kind = stat.S_IFCHR if member.ischr() else stat.S_IFBLK
+                device = os.makedev(member.devmajor, member.devminor)
+                os.mknod(path, 0o600 | kind, device)
+            apply_metadata(path, fs, meta)
+    for path, target, fs, meta in symlinks:
+        os.symlink(target, path)
+        apply_metadata(path, fs, meta, chmod=False)
+    for path, fs, meta in sorted(directories, key=lambda d: -d[0].count(b"/")):
+        apply_metadata(path, fs, meta)
+
+
+def open_below(root, relative, flags, makedirs=False):
+    """Open a regular file below root without following any symlink on the way."""
+    if not safe_path(relative):
+        raise RecoveryError(f"Unsafe path on the restored disk: {relative!r}")
+    *parents, name = relative.split("/")
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in parents:
+            if makedirs:
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(part, 0o755, dir_fd=fd)
+            child = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
+            )
+            os.close(fd)
+            fd = child
+        opened = os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=fd)
+        if not stat.S_ISREG(os.fstat(opened).st_mode):
+            os.close(opened)
+            raise RecoveryError(
+                f"{relative} on the restored disk is not a regular file"
+            )
+        return opened
+    except OSError as exc:
+        if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+            raise RecoveryError(
+                f"{relative} on the restored disk passes through a symbolic link"
+            ) from exc
+        raise
+    finally:
+        os.close(fd)
+
+
+def add_nofail(text, restored):
+    lines = []
+    for line in text.splitlines(keepends=True):
+        fields = line.split()
+        if (
+            len(fields) >= 3
+            and not fields[0].startswith("#")
+            and any(c in fields[0] for c in "/=")
+            and fstab_key(fields[0]) not in restored
+        ):
+            options = fields[3].split(",") if len(fields) > 3 else ["defaults"]
+            if "nofail" not in options:
+                fields[3:4] = [",".join([*options, "nofail"])]
+                line = " ".join(fields) + line[len(line.rstrip("\r\n")) :]
+        lines.append(line)
+    return "".join(lines)
+
+
+def efi_entry(layout):
+    entry = layout.get("efi_entry")
+    if (
+        isinstance(entry, dict)
+        and all(
+            isinstance(entry.get(field), str)
+            and 0 < len(entry[field]) <= 255
+            and entry[field].isprintable()
+            for field in ("loader", "label")
+        )
+        and safe_path(entry["loader"].replace("\\", "/").strip("/"))
+    ):
+        return entry
+    return None
+
+
+def copy_loader(esp, source, name):
+    target = open_below(
+        esp, f"EFI/BOOT/{name}", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, makedirs=True
+    )
+    with open(source, "rb") as copy_from, open(target, "wb") as copy_to:
+        shutil.copyfileobj(copy_from, copy_to)
+
+
+def fallback_loader(esp, layout):
+    # shortcut: x64 names only, the helper runs on x86_64; add aa64 with arm64 media
+    with contextlib.suppress(FileNotFoundError):
+        os.close(open_below(esp, "EFI/BOOT/BOOTX64.EFI", os.O_RDONLY))
+        return
+    entry = efi_entry(layout)
+    if entry:
+        loaders = [entry["loader"].replace("\\", "/").strip("/")]
+    else:
+        folder = f"EFI/{layout.get('os_id')}"
+        loaders = [f"{folder}/shimx64.efi", f"{folder}/grubx64.efi"]
+    for loader in loaders:
+        try:
+            source = open_below(esp, loader, os.O_RDONLY)
+        except FileNotFoundError:
+            continue
+        copy_loader(esp, source, "BOOTX64.EFI")
+        folder, _, name = loader.rpartition("/")
+        if name.lower().startswith("shim"):
+            for extra in ("grubx64.efi", "mmx64.efi"):
+                with contextlib.suppress(FileNotFoundError):
+                    path = posixpath.join(folder, extra)
+                    copy_loader(esp, open_below(esp, path, os.O_RDONLY), extra)
+        return
+    print("No boot loader found to copy to EFI/BOOT/BOOTX64.EFI.")
+
+
+def finish_files(layout, restored):
+    roots = {item["key"]: f"{RESTORE_ROOT}/{item['key']}" for item in restored}
+    mounts = {item["key"]: item["mount"] for item in restored}
+    parts = {part["number"]: part for part in layout["disk"]["partitions"]}
+    sources = set()
+    for item in [*restored, *layout["swap"]]:
+        part = parts[item["partition"]]
+        for kind, value in (
+            ("UUID", item["uuid"].lower()),
+            ("PARTUUID", part["uuid"]),
+            ("LABEL", item["label"]),
+            ("PARTLABEL", part["name"]),
+        ):
+            if value:
+                sources.add(f"{kind}={value}")
+    for swap in layout["swap_files"]:
+        fd = open_below(
+            roots[swap["key"]], swap["path"], os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        )
+        try:
+            os.posix_fallocate(fd, 0, swap["size"])
+            os.fchmod(fd, 0o600)
+            run("mkswap", *identity_options(swap), f"/proc/{os.getpid()}/fd/{fd}")
+        finally:
+            os.close(fd)
+        sources.add(posixpath.join(mounts[swap["key"]], swap["path"]))
+    try:
+        fd = open_below(roots["root"], "etc/fstab", os.O_RDWR)
+    except FileNotFoundError:
+        fd = None
+    if fd is not None:
+        with open(
+            fd, "r+", encoding="utf-8", errors="surrogateescape", newline=""
+        ) as fstab:
+            text = fstab.read()
+            changed = add_nofail(text, sources)
+            if changed != text:
+                fstab.seek(0)
+                fstab.write(changed)
+                fstab.truncate()
+    fallback_loader(roots["esp"], layout)
+
+
+def restore_files(transfer, manifest, args, host, verify, confirm):
+    native = manifest["native"]
+    raw_size = manifest["raw_size"]
+    if (
+        manifest["compression"] != "none"
+        or type(raw_size) is not int
+        or raw_size <= 0
+        or not re.fullmatch("[a-f0-9]{64}", str(manifest["raw_sha256"]))
+    ):
+        raise RecoveryError("The selected point is not a live Linux file backup")
+    if host["boot_mode"] != "uefi":
+        raise RecoveryError("Boot the recovery media in UEFI mode.")
+    for tool in RESTORE_TOOLS:
+        if not shutil.which(tool):
+            raise RecoveryError(f"Recovery media lacks {tool}.")
+    device, geometry = blank_target(verify, args.disk_id, native)
+    reader = BlockReader(transfer, raw_size)
+    mounted = []
+    try:
+        with tarfile.open(
+            fileobj=reader, mode="r|", encoding="utf-8", errors="surrogateescape"
+        ) as tar:
+            layout, restored = files_layout(tar, native, host)
+            sector = layout["disk"]["sector_size"]
+            parts = layout["disk"]["partitions"]
+            end = max(part["start"] + part["size"] for part in parts) * sector
+            if geometry["raw_size"] < end + 16384 + sector:
+                raise RecoveryError(
+                    "Restore target is smaller than the recorded partitions."
+                )
+            sizes = {part["number"]: part["size"] * sector for part in parts}
+            for item in restored:
+                if item["fs"] != "ext4":
+                    continue
+                size = sizes[item["partition"]]
+                with tempfile.NamedTemporaryFile() as probe:
+                    os.ftruncate(probe.fileno(), size)
+                    result = subprocess.run(
+                        ["mkfs.ext4", "-n", "-F", "-q", *ext4_options(item)]
+                        + [probe.name, str(size // item["ext4"]["block_size"])],
+                        capture_output=True,
+                        text=True,
+                        errors="replace",
+                    )
+                if result.returncode:
+                    raise RecoveryError(
+                        "This recovery media cannot create the recorded ext4 "
+                        f"features: {result.stderr.strip()}"
+                    )
+            if not confirm():
+                raise RecoveryError("Restore confirmation does not match")
+            current = json.loads(transfer.request("GET"))
+            if any(current[field] != manifest[field] for field in APPROVED):
+                raise RecoveryError("Restore approval changed during verification")
+            if blank_target(verify, args.disk_id, native) != (device, geometry):
+                raise RecoveryError("Selected disk changed while opening it")
+            # Nothing touches the target before this point.
+            nodes = partition(device, layout)
+            for item in restored:
+                node = nodes[item["partition"]]
+                label = item["label"]
+                if item["fs"] == "ext4":
+                    label = ("-L", label) if label else ()
+                    run("mkfs.ext4", "-F", "-q", *label, *ext4_options(item), node)
+                else:
+                    label = ("-n", label) if label else ()
+                    fat = item["vfat"]
+                    bits = str(fat["fat_bits"])
+                    run("mkfs.fat", "-F", bits, "-i", fat["volume_id"], *label, node)
+            for swap in layout["swap"]:
+                run("mkswap", *identity_options(swap), nodes[swap["partition"]])
+            roots = {}
+            for item in restored:
+                path = f"{RESTORE_ROOT}/{item['key']}"
+                os.makedirs(path, mode=0o700, exist_ok=True)
+                node = nodes[item["partition"]]
+                # nodev: a device node from the stream can be created, never opened
+                run("mount", "-t", item["fs"], "-o", "nodev,nosuid,noexec", node, path)
+                mounted.append(path)
+                roots[item["key"].encode()] = (os.fsencode(path), item["fs"])
+            keys = {item["key"].encode() for item in layout["filesystems"]}
+            extract(tar, keys, roots)
+        reader.drain()
+        if reader.digest.hexdigest() != manifest["raw_sha256"]:
+            raise ImageIntegrityError("Block-list SHA-256 does not match the approval")
+        finish_files(layout, restored)
+        os.sync()
+        while mounted:
+            run("umount", mounted[-1])
+            mounted.pop()
+    except ImageIntegrityError as exc:
+        with contextlib.suppress(RecoveryError, OSError, http.client.HTTPException):
+            transfer.request("POST", "integrity-failed/", {})
+        raise RecoveryError(
+            "Restore stopped: the point failed its integrity check. "
+            "Only the blank target was written."
+        ) from exc
+    except tarfile.TarError as exc:
+        raise RecoveryError(f"The point stream is not a valid backup: {exc}") from exc
+    finally:
+        for path in reversed(mounted):
+            subprocess.run(["umount", path], capture_output=True)
+    for item in restored:
+        node = nodes[item["partition"]]
+        if item["fs"] == "ext4":
+            run("e2fsck", "-fn", node)
+        else:
+            run("fsck.vfat", "-n", node)
+    entry = efi_entry(layout) if shutil.which("efibootmgr") else None
+    if entry:
+        esp = next(item for item in restored if item["key"] == "esp")
+        try:
+            run(
+                "efibootmgr",
+                "--create",
+                "--disk",
+                device,
+                "--part",
+                str(esp["partition"]),
+                "--loader",
+                entry["loader"],
+                "--label",
+                entry["label"],
+            )
+        except RecoveryError as exc:
+            print(exc)
+            entry = None
+    if not entry:
+        print(
+            "Firmware boot entry not created; "
+            "the disk boots through EFI/BOOT/BOOTX64.EFI."
+        )
+    try:
+        transfer.request("POST", "complete/", {"raw_sha256": manifest["raw_sha256"]})
+    except (RecoveryError, OSError, http.client.HTTPException) as exc:
+        raise RecoveryError(
+            f"The disk was restored, but ULRMM could not record completion. {exc}"
+        ) from exc
 
 
 def poll_capture(args, token):
@@ -830,24 +1550,33 @@ def main():
             capture(transfer, manifest, disk, geometry | host)
         print("Upload accepted. Check image verification in ULRMM.")
     elif manifest["direction"] == "restore" and not args.poll_url:
-        if not args.staging_dir:
+        files = (manifest.get("native") or {}).get("method") == FILES_METHOD
+        if not files and not args.staging_dir:
             raise RecoveryError(
                 "Restore requires --staging-dir on a separate filesystem"
             )
         phrase = f"RESTORE {transfer_id} {args.disk_id}"
+        action = "Partition and write blank disk" if files else "Overwrite disk"
 
         def confirm():
             with open("/dev/tty", "w") as terminal:
                 terminal.write(
-                    f"Overwrite disk {args.disk_id!r} on device {manifest['agent_id']!r} "
+                    f"{action} {args.disk_id!r} on device {manifest['agent_id']!r} "
                     f"with image {manifest['image_id']!r}? Type {phrase}: "
                 )
                 terminal.flush()
             with open("/dev/tty") as confirmation:
                 return confirmation.readline(4096).rstrip("\n") == phrase
 
-        restore(transfer, manifest, args, host, open_disk, confirm)
-        print("Restore completed and disk readback verified.")
+        if files:
+            restore_files(transfer, manifest, args, host, open_disk, confirm)
+            print(
+                "Restore completed. Keep the original disk detached: "
+                "the restored disk carries the same UUIDs."
+            )
+        else:
+            restore(transfer, manifest, args, host, open_disk, confirm)
+            print("Restore completed and disk readback verified.")
     else:
         raise RecoveryError("Unsupported transfer direction")
 
