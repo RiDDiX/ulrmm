@@ -1,5 +1,11 @@
 # Server changelog
 
+## 2.23.11.2026 (2026-11-23)
+
+- agents update to 1.23.11.2026
+- client imaging, Linux: mounts on other disks, network shares and swap on other disks no longer stop a device from being backed up; they are left out of the system disk image and listed as "Not included" in the device's backup scope. `/`, a separate `/boot` and the EFI partition must still be on the system disk. The recovery helper applies the same rule; rebuild recovery media from the new agent bundle
+- client imaging: the backup policy dialog adds the current device only when it supports native backups, shows the reason for each unsupported device and saves the policy for the supported ones
+
 ## 1.23.11.2026 (2026-11-23)
 
 - agents stay on 1.22.11.2026
