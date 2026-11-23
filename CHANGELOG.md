@@ -1,5 +1,16 @@
 # Server changelog
 
+## 1.23.11.2026 (2026-11-23)
+
+- agents stay on 1.22.11.2026
+- client imaging, standalone servers: install.sh and update.sh create the image store /rmmimages (service user, mode 0700) when no folder is set, Docker keeps it in the `images` volume; the public transfer address is taken from the API host when no internal listener is set up, so no local_settings.py change is needed
+- client imaging: Global Settings > System Images shows the store folder, its free space and stored points, checks a new folder before saving and names the command that fixes a failed check; saving needs a two-factor confirmation, is audited and needs no restart. Docker installations set another disk with `IMAGING_VOLUME` in `.env`
+- client imaging: the store is recognised by its marker and the file system it was saved on; while its disk is not mounted, or another disk is mounted there, backups and checks wait and the dashboard says why, stored points are not failed. A disk back under another device number, or a full copy at the same place, is taken over; an older copy can be chosen while the store is lost; a lost disk can be replaced by a new empty store, which retires the stored points
+- client imaging: backups wait while less than 10 GiB would stay free on the store (`ULRMM_IMAGING_RESERVE_BYTES`), so a full store does not take the server down
+- client imaging: new profiles and policies use internet upload when the server has no internal listener; internal-only is refused there instead of waiting for ever
+- client imaging: a file read error counts as damage only when it repeats; a store that stopped answering makes points wait
+- restore.sh sets up the image store folder like install.sh
+
 ## 1.22.11.2026 (2026-11-22)
 
 - agents update to 1.22.11.2026
