@@ -11,8 +11,9 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db import DatabaseError, transaction
-from django.db.models import Value
+from django.db.models import Q, Value
 from django.db.models.functions import Greatest, Least
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -32,7 +33,11 @@ from rest_framework.exceptions import (
 from rest_framework.response import Response
 
 from agents.models import Agent
-from core.utils import stepup_denied
+from core.models import CoreSettings
+from core.utils import get_core_settings, stepup_denied
+from logs.models import AuditLog
+from ulrmm.constants import CORESETTINGS_CACHE_KEY, AuditActionType, AuditObjType
+from ulrmm.permissions import _has_perm
 
 from . import blocks
 from .models import (
@@ -40,6 +45,8 @@ from .models import (
     MODE_CHANGED,
     RECEIVING_REASON,
     Image,
+    ImageBlock,
+    ImagePart,
     ImageStatus,
     Pairing,
     Profile,
@@ -57,10 +64,14 @@ from .serializers import (
 )
 from .service import (
     CHANGED_PATH,
+    NO_INTERNAL,
     agent_allowed,
     audit,
     capability,
+    check_network_mode,
     check_path,
+    default_mode,
+    internal_available,
     next_run,
     origin,
     queue_capture,
@@ -70,10 +81,19 @@ from .service import (
 from .storage import (
     CHUNK_SIZE,
     DESTINATION,
+    NO_SPACE,
+    OTHER_STORE,
     UNCONFIRMED_STORAGE,
+    DamagedFile,
+    StoreUnavailable,
     UnconfirmedStorage,
+    check_root,
+    claim_store,
     directory,
+    free_bytes,
     image_file,
+    imaging_root,
+    newest_files,
     remove_image_file,
 )
 from .tasks import verify_image
@@ -86,6 +106,8 @@ RECOVERY = Transfer.Direction.RESTORE
 BEARER = re.compile(r"Bearer ([A-Za-z0-9_-]{43})\Z")
 NUMBER = re.compile(r"\d{1,19}\Z", re.ASCII)
 RENEW_LIMIT = timedelta(days=7)
+STORED = Q(offset__gt=0) | Q(status__in=(ImageStatus.VERIFYING, ImageStatus.VERIFIED))
+REPLACED = "The store that held this point was replaced in Global Settings."
 
 
 class ImageBusy(APIException):
@@ -140,13 +162,22 @@ def _validated(serializer_class, data):
     return serializer.validated_data
 
 
-def _storage():
+def _storage(manager=False):
+    problem = ""
     try:
-        with directory():
-            pass
+        with directory() as root:
+            free = free_bytes(root)
+    except StoreUnavailable:
+        free, problem = None, OTHER_STORE
     except OSError:
-        return {"configured": False, "location": ""}
-    return {"configured": True, "location": settings.ULRMM_IMAGING_ROOT}
+        free = None
+    storage = {"configured": free is not None, "internal": internal_available()}
+    if manager:
+        storage["problem"] = problem
+        storage["location"] = imaging_root()
+        storage["free_bytes"] = free
+        storage["reserve_bytes"] = settings.ULRMM_IMAGING_RESERVE_BYTES
+    return storage
 
 
 @api_view(["GET", "PUT"])
@@ -163,7 +194,7 @@ def device(request, agent_id):
                     "destination": destination,
                     "at_rest": storage_encryption(destination),
                     "capability": capability(agent),
-                    "storage": {"configured": _storage()["configured"]},
+                    "storage": _storage(),
                 }
             )
         )
@@ -173,15 +204,16 @@ def device(request, agent_id):
     profiles = Profile.objects
     if request.method == "PUT":
         profiles = profiles.select_for_update()
-    profile = profiles.filter(agent=agent).first() or Profile(agent=agent)
-    storage = _storage()
+    profile = profiles.filter(agent=agent).first() or Profile(
+        agent=agent, network_mode=default_mode()
+    )
     can_manage = agent_allowed(request.user, agent, MANAGE)
-    if not can_manage:
-        storage = {"configured": storage["configured"]}
+    storage = _storage(can_manage)
     if request.method == "PUT":
         if not supported["supported"]:
             raise ValidationError(supported["reason"])
         config = _validated(ProfileSerializer, request.data)
+        check_network_mode(config)
         for key, value in config.items():
             setattr(profile, key, value)
         profile.operator = request.user
@@ -222,14 +254,134 @@ def capture(request, agent_id):
         raise ValidationError(supported["reason"])
     if not _storage()["configured"]:
         return _problem("Configure private server imaging storage.", 503)
-    profile, _ = Profile.objects.get_or_create(agent=agent)
+    profile, _ = Profile.objects.get_or_create(
+        agent=agent, defaults={"network_mode": default_mode()}
+    )
     profile = Profile.objects.select_for_update().get(pk=profile.pk)
+    if profile.network_mode == "internal" and not internal_available():
+        return _problem(NO_INTERNAL, 409)
     return Response(
         ImageSerializer(
             queue_capture(profile, request.user.username, request.user)
         ).data,
         status=202,
     )
+
+
+def _root_state(path=None):
+    current = imaging_root()
+    problem = ""
+    configured = False
+    try:
+        # the current store gets its marker, so a copy of it is recognised
+        with directory():
+            pass
+        configured = True
+    except StoreUnavailable:
+        problem = OTHER_STORE
+    except OSError:
+        pass
+    points = Image.objects.filter(STORED).count()
+    # the newest stored data shows whether another folder is a current copy
+    probes = newest_files()
+    path = current if path is None else path
+    return {
+        "path": path,
+        "current": current,
+        "source": "dashboard" if get_core_settings().imaging_root else "server",
+        "server_default": settings.ULRMM_IMAGING_ROOT,
+        "configured": configured,
+        "problem": problem,
+        **check_root(
+            path,
+            current,
+            probes,
+            configured,
+            bool(problem),
+            get_core_settings().imaging_store_id,
+        ),
+        "reserve_bytes": settings.ULRMM_IMAGING_RESERVE_BYTES,
+        "points": points,
+        "docker": getattr(settings, "ULRMM_DOCKER", False),
+    }
+
+
+@api_view(["GET", "PUT"])
+def storage(request):
+    if not _has_perm(request, "can_edit_core_settings"):
+        raise PermissionDenied()
+    if request.method == "GET":
+        return _no_cache(Response(_root_state(request.query_params.get("path"))))
+    if denied := stepup_denied(request, "Moving the system image storage needs it."):
+        return denied
+    path = request.data.get("path")
+    if not isinstance(path, str):
+        raise ValidationError({"path": ["Enter a folder path."]})
+    path = path.strip()
+    # a lost disk: an empty folder replaces the store and its points fail
+    start_new = request.data.get("start_new") is True
+    state = _root_state(path or settings.ULRMM_IMAGING_ROOT)
+    failed = next(
+        (
+            c["text"]
+            for c in state["checks"]
+            if not c["ok"] and not (start_new and c["key"] == "content")
+        ),
+        None,
+    )
+    if start_new and not failed and not state["can_start_new"]:
+        failed = (
+            "A new store needs an empty folder that does not hold the stored points."
+        )
+    if failed:
+        raise ValidationError({"path": [failed]})
+    message = f"System image storage moved from {state['current']} to {state['path']}."
+    store = None
+    if state["older_copy"] and not start_new:
+        message += " It is an older copy; points without their data fail when checked."
+    try:
+        with transaction.atomic():
+            core = CoreSettings.objects.select_for_update().get()
+            core.imaging_root = path
+            fields = ["imaging_root"]
+            if start_new:
+                now = timezone.now()
+                lost = Image.objects.filter(STORED).exclude(status=ImageStatus.FAILED)
+                Transfer.objects.filter(image__in=lost, expires_at__gt=now).update(
+                    expires_at=now
+                )
+                retired = lost.update(
+                    status=ImageStatus.FAILED, reason=REPLACED, updated_at=now
+                )
+                ImagePart.objects.all().delete()
+                # the delete collector would load every block row first
+                ImageBlock.objects.all()._raw_delete(ImageBlock.objects.db)
+                core.imaging_store_id = store = secrets.token_hex(16)
+                fields.append("imaging_store_id")
+                message = (
+                    f"System image storage replaced by a new store at {state['path']}, "
+                    f"{retired} stored points retired."
+                )
+            core.save(update_fields=fields)
+            try:
+                claim_store(state["path"], store, core)
+            except OSError as error:
+                raise ValidationError(
+                    {"path": [f"The folder cannot be marked: {error}"]}
+                )
+            AuditLog.objects.create(
+                username=request.user.username,
+                object_type=AuditObjType.CORE,
+                action=AuditActionType.MODIFY,
+                message=message[:255],
+                before_value={"imaging_root": state["current"]},
+                after_value={"imaging_root": state["path"]},
+            )
+    finally:
+        # after the commit, or after a refused claim rolled back: a reader in
+        # between may have cached the uncommitted or the old row
+        cache.delete(CORESETTINGS_CACHE_KEY)
+    return _no_cache(Response(_root_state()))
 
 
 def _problem(detail, status):
@@ -783,7 +935,7 @@ def _upload(request, image):
     if end > limit:
         return _problem("The chunk exceeds the declared image size.", 413)
     try:
-        with image_file(image, write=True) as file:
+        with image_file(image, write=True, incoming=len(data)) as file:
             if os.fstat(file.fileno()).st_size < offset:
                 set_status(
                     image, ImageStatus.FAILED, "Previously uploaded data is missing."
@@ -796,11 +948,7 @@ def _upload(request, image):
             os.fsync(file.fileno())
     except OSError as error:
         if error.errno in (errno.ENOSPC, errno.EDQUOT):
-            set_status(
-                image,
-                ImageStatus.UPLOADING,
-                "Waiting for free space on the imaging server.",
-            )
+            set_status(image, ImageStatus.UPLOADING, NO_SPACE)
             return _problem(image.reason, 507)
         return _problem("Imaging storage is unavailable.", 503)
     image.offset = end
@@ -846,6 +994,11 @@ def _download(request, image):
     except FileNotFoundError:
         set_status(image, ImageStatus.FAILED, "Verified image is missing from storage.")
         audit(image.agent, "imaging", f"Image {image.id} disappeared from storage.")
+        return _problem(image.reason, 409)
+    except DamagedFile:
+        set_status(
+            image, ImageStatus.FAILED, "Verified image cannot be read from storage."
+        )
         return _problem(image.reason, 409)
     except OSError:
         return _problem("Imaging storage is unavailable.", 503)

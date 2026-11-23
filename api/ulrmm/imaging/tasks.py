@@ -22,7 +22,15 @@ from .models import (
     Profile,
     Transfer,
 )
-from .service import audit, capability, next_run, queue_capture, set_status
+from .service import (
+    NO_INTERNAL,
+    audit,
+    capability,
+    internal_available,
+    next_run,
+    queue_capture,
+    set_status,
+)
 from .storage import (
     UNCONFIRMED_STORAGE,
     UnconfirmedStorage,
@@ -114,7 +122,13 @@ def _advance(profile_id, now):
         )
         if profile is None:
             return
-        if capability(profile.agent)["supported"]:
+        if profile.network_mode == "internal" and not internal_available():
+            audit(
+                profile.agent,
+                "imaging scheduler",
+                f"Client imaging capture skipped. {NO_INTERNAL}",
+            )
+        elif capability(profile.agent)["supported"]:
             queue_capture(profile, "imaging scheduler")
         profile.next_run = next_run(profile, now)
         profile.save(update_fields=["next_run"])

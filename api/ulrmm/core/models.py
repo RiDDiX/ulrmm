@@ -328,6 +328,10 @@ class CoreSettings(BaseAuditModel):
     tamper_offline_minutes = models.PositiveIntegerField(
         default=15, validators=[MinValueValidator(5), MaxValueValidator(1440)]
     )
+    # system image store chosen in the dashboard; blank = ULRMM_IMAGING_ROOT
+    imaging_root = models.CharField(blank=True, max_length=4096, default="")
+    imaging_store_id = models.CharField(blank=True, max_length=32, default="")
+    imaging_store_fs = models.CharField(blank=True, max_length=64, default="")
 
     def __str__(self) -> str:
         return "Global Site Settings"

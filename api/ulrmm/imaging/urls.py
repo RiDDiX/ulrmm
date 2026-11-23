@@ -7,6 +7,7 @@ from . import policies, views
 from .models import Transfer
 
 urlpatterns = [
+    path("storage/", views.storage),
     path("policies/", policies.policies),
     path("policies/<int:pk>/", policies.policies),
     path("agents/<str:agent_id>/", views.device),

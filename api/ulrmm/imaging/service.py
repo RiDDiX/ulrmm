@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from accounts.utils import has_superuser_rights
 from logs.models import AuditLog
@@ -19,6 +19,11 @@ from ulrmm.permissions import agent_perm_check
 from .models import ACTIVE_STATUSES, Image, NativeInventory, Pairing
 
 CHANGED_PATH = "Waiting for the configured internal imaging ingress."
+NO_INTERNAL = (
+    "Internal-only transfers need the internal imaging listener "
+    "(ULRMM_IMAGING_INTERNAL_ORIGIN and ULRMM_IMAGING_INTERNAL_CIDRS). "
+    "Choose internet upload or set up the listener."
+)
 
 
 def agent_allowed(user, agent, *flags):
@@ -100,6 +105,19 @@ def origin(mode):
     ):
         return f"https://{url.netloc.lower()}"
     return ""
+
+
+def internal_available():
+    return bool(origin("internal") and settings.ULRMM_IMAGING_INTERNAL_CIDRS)
+
+
+def default_mode():
+    return "internal" if internal_available() else "internet"
+
+
+def check_network_mode(config):
+    if config["network_mode"] == "internal" and not internal_available():
+        raise ValidationError({"network_mode": [NO_INTERNAL]})
 
 
 def check_path(request, mode):

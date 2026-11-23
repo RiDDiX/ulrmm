@@ -2,13 +2,21 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
 import errno
+import grp
 import gzip
+import importlib.util
+import os
+import pwd
+import shutil
+import sys
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
+from django.conf import settings
 from django.db import OperationalError
 from django.db.models.query import QuerySet
 from django.test import override_settings
@@ -16,7 +24,11 @@ from django.utils import timezone
 from model_bakery import baker
 from rest_framework.test import APIClient
 
+from core.models import CoreSettings
+from core.serializers import CoreSettingsSerializer
+from core.utils import get_core_settings
 from logs.models import AuditLog
+from ulrmm.settings import imaging_public_origin
 from ulrmm.test import ULRMMTestCase
 
 from .models import (
@@ -28,7 +40,18 @@ from .models import (
     Profile,
     Transfer,
 )
-from .storage import UnconfirmedStorage, _local_disk
+from . import storage
+from .service import NO_INTERNAL
+from .storage import (
+    OTHER_STORE,
+    MARKER,
+    NO_SPACE,
+    TEMP_PATHS,
+    UnconfirmedStorage,
+    _local_disk,
+    directory,
+    imaging_root,
+)
 from .tasks import DEVICE_DELETED, imaging_tick, verify_image
 
 IDENTITY = {
@@ -52,6 +75,7 @@ class ImagingTests(ULRMMTestCase):
                 ULRMM_IMAGING_INTERNAL_ORIGIN="https://private.example.test",
                 ULRMM_IMAGING_INTERNAL_CIDRS=["10.40.0.0/16"],
                 ULRMM_IMAGING_INTERNAL_STORAGE_CONFIRMED=True,
+                ULRMM_IMAGING_RESERVE_BYTES=0,
                 ALLOWED_HOSTS=["testserver", "api.example.com", "private.example.test"],
             )
         )
@@ -257,6 +281,106 @@ class ImagingTests(ULRMMTestCase):
         verify_image(image)
         self.assertEqual(Image.objects.get(pk=image).status, ImageStatus.FAILED)
 
+    def test_reserve_refuses_chunk_before_writing(self):
+        self.assertEqual(self._config(compression="none").status_code, 200)
+        image = self._queue()
+        url, capture = self._issue(image, "capture")
+        self.assertEqual(self._manifest(url, capture, PUBLIC).status_code, 204)
+        reserve = 10 * 1024**3
+        volume = SimpleNamespace(f_bavail=reserve + 1000, f_frsize=1)
+        with (
+            override_settings(ULRMM_IMAGING_RESERVE_BYTES=reserve),
+            patch("os.statvfs", return_value=volume),
+        ):
+            full = self._chunk(url, capture, PUBLIC, bytes(1024))
+            self.assertEqual(full.status_code, 507)
+            self.assertEqual(full.json()["detail"], NO_SPACE)
+            self.assertFalse(Path(self.root, "fleet", image).exists())
+            stored = Image.objects.get(pk=image)
+            self.assertEqual((stored.offset, stored.reason), (0, NO_SPACE))
+            self.assertEqual(
+                self._chunk(url, capture, PUBLIC, bytes(512)).status_code, 204
+            )
+
+    def test_storage_details_only_for_managers(self):
+        with patch("os.statvfs", return_value=SimpleNamespace(f_bavail=5, f_frsize=8)):
+            storage = self.client.get(self.uri).json()["storage"]
+        self.assertEqual(
+            storage,
+            {
+                "configured": True,
+                "internal": True,
+                "problem": "",
+                "location": self.root,
+                "free_bytes": 40,
+                "reserve_bytes": 0,
+            },
+        )
+        missing = self.root + "/missing"
+        with override_settings(ULRMM_IMAGING_ROOT=missing):
+            self.assertEqual(
+                self.client.get(self.uri).json()["storage"],
+                {
+                    "configured": False,
+                    "internal": True,
+                    "problem": "",
+                    "location": missing,
+                    "free_bytes": None,
+                    "reserve_bytes": 0,
+                },
+            )
+        viewer = self.create_user_with_roles(["can_view_images"])
+        viewer.role.can_view_sites.add(self.agent.site)
+        self.client.force_authenticate(user=viewer)
+        self.assertEqual(
+            self.client.get(self.uri).json()["storage"],
+            {"configured": True, "internal": True},
+        )
+        with override_settings(ULRMM_IMAGING_INTERNAL_CIDRS=[]):
+            self.assertFalse(self.client.get(self.uri).json()["storage"]["internal"])
+
+    def test_internal_mode_needs_the_internal_listener(self):
+        for missing in (
+            {"ULRMM_IMAGING_INTERNAL_CIDRS": []},
+            {"ULRMM_IMAGING_INTERNAL_ORIGIN": ""},
+        ):
+            with override_settings(**missing):
+                response = self._config(network_mode="internal")
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json(), {"network_mode": [NO_INTERNAL]})
+        self.assertFalse(Profile.objects.exists())
+        self.assertEqual(self._config(network_mode="internal").status_code, 200)
+
+    def test_public_origin_defaults_to_the_first_plain_host(self):
+        hosts = ["*", ".example.com", "", "api.example.com", "rmm.example.com"]
+        self.assertEqual(imaging_public_origin(hosts), "https://api.example.com")
+        self.assertEqual(imaging_public_origin(["*", ".example.com"]), "")
+        self.assertEqual(
+            imaging_public_origin(hosts, 8443), "https://api.example.com:8443"
+        )
+
+    def _settings(self, **local):
+        module = ModuleType("ulrmm.local_settings")
+        module.ALLOWED_HOSTS = ["api.example.com"]
+        module.CORS_ORIGIN_WHITELIST = ["https://rmm.example.com"]
+        vars(module).update(local)
+        path = Path(settings.BASE_DIR) / "ulrmm" / "settings.py"
+        spec = importlib.util.spec_from_file_location("ulrmm.settings_copy", path)
+        conf = importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules, {"ulrmm.local_settings": module}):
+            spec.loader.exec_module(conf)
+        return conf.ULRMM_IMAGING_PUBLIC_ORIGIN
+
+    def test_settings_derive_the_public_origin_only_standalone(self):
+        self.assertEqual(self._settings(), "https://api.example.com")
+        self.assertEqual(
+            self._settings(ULRMM_BACKEND_PORT=8443), "https://api.example.com:8443"
+        )
+        internal = "https://private.example.test"
+        self.assertEqual(self._settings(ULRMM_IMAGING_INTERNAL_ORIGIN=internal), "")
+        chosen = "https://images.example.com"
+        self.assertEqual(self._settings(ULRMM_IMAGING_PUBLIC_ORIGIN=chosen), chosen)
+
     def test_storage_rejects_unsafe_destination_and_cancels_partial(self):
         self.assertEqual(self._config(destination="../other").status_code, 400)
         self.assertEqual(self._config().status_code, 200)
@@ -398,7 +522,7 @@ class ImagingTests(ULRMMTestCase):
         state = self.client.get(self.uri).json()
         self.assertTrue(state["can_restore"])
         self.assertFalse(state["can_manage"])
-        self.assertEqual(state["storage"], {"configured": True})
+        self.assertEqual(state["storage"], {"configured": True, "internal": True})
         with patch("imaging.views.stepup_denied", return_value=None):
             self._issue(image_id, "restore", body, status=403)
 
@@ -531,6 +655,44 @@ class ImagingTests(ULRMMTestCase):
             imaging_tick()
         self.assertEqual(Image.objects.get().status, ImageStatus.WAITING)
 
+    def test_unreadable_file_fails_the_point_instead_of_waiting(self):
+        self.assertEqual(self._config(compression="none").status_code, 200)
+        bad_sector = OSError(errno.EIO, "Input/output error")
+        image = self._verified()
+        with patch("hashlib.file_digest", side_effect=bad_sector):
+            verify_image(image, recheck=True)
+        self.assertEqual(Image.objects.get(pk=image).status, ImageStatus.FAILED)
+        image = self._verified()
+        os.link(Path(self.root, "fleet", image), Path(self.root, "link"))
+        verify_image(image, recheck=True)
+        self.assertEqual(Image.objects.get(pk=image).status, ImageStatus.FAILED)
+
+    def test_a_disk_that_stops_answering_keeps_the_point_waiting(self):
+        self.assertEqual(self._config(compression="none").status_code, 200)
+        image = self._verified()
+        with (
+            patch("hashlib.file_digest", side_effect=OSError(errno.EIO, "I/O error")),
+            patch("imaging.storage._answers", return_value=False),
+        ):
+            verify_image(image, recheck=True)
+        self.assertEqual(Image.objects.get(pk=image).status, ImageStatus.VERIFIED)
+
+    def test_a_passing_read_error_is_read_again(self):
+        import hashlib
+
+        self.assertEqual(self._config(compression="none").status_code, 200)
+        image = self._verified()
+        real, errors = hashlib.file_digest, [OSError(errno.EIO, "I/O error")]
+
+        def digest(*args, **kwargs):
+            if errors:
+                raise errors.pop()
+            return real(*args, **kwargs)
+
+        with patch("hashlib.file_digest", side_effect=digest):
+            verify_image(image, recheck=True)
+        self.assertEqual(Image.objects.get(pk=image).status, ImageStatus.VERIFIED)
+
     def test_recheck_storage_error_keeps_verified_text_and_retries(self):
         self.assertEqual(self._config(compression="none").status_code, 200)
         image = self._verified()
@@ -604,3 +766,632 @@ class ImagingTests(ULRMMTestCase):
             list(ImageBlock.objects.values_list("pk", flat=True)), [kept.pk]
         )
         self.assertFalse((folder / str(orphan.pk)).exists())
+
+
+KEYS = ["absolute", "allowed", "exists", "directory", "owner", "mode", "content"]
+
+
+def other_disk(*folders):
+    """Gives folders another file system id, as a disk mounted there has."""
+    real = storage._fsid
+
+    def fsid(fd):
+        where = os.readlink(f"/proc/self/fd/{fd}")
+        if any(where == str(f) or where.startswith(f"{f}/") for f in folders):
+            return "other-disk"
+        return real(fd)
+
+    return patch("imaging.storage._fsid", side_effect=fsid)
+
+
+class StorageRootTests(ULRMMTestCase):
+    def setUp(self):
+        self.authenticate()
+        self.setup_coresettings()
+        self.base = self.enterContext(TemporaryDirectory())
+        self.default = self._folder("default")
+        self.enterContext(
+            override_settings(
+                ULRMM_IMAGING_ROOT=self.default, ULRMM_IMAGING_RESERVE_BYTES=0
+            )
+        )
+        # the test folders live in /tmp
+        self.enterContext(patch("imaging.storage.TEMP_PATHS", ()))
+        self.user = pwd.getpwuid(os.geteuid()).pw_name
+        self.group = grp.getgrgid(os.getegid()).gr_name
+
+    def _folder(self, name, mode=0o700):
+        path = os.path.join(self.base, name)
+        os.mkdir(path)
+        os.chmod(path, mode)
+        return path
+
+    def _check(self, path):
+        response = self.client.get("/imaging/storage/", {"path": path})
+        self.assertEqual(response.status_code, 200, response.content)
+        data = response.json()
+        self.assertEqual([c["key"] for c in data["checks"]], KEYS)
+        return next((c["key"] for c in data["checks"] if not c["ok"]), None), data
+
+    def _put(self, path):
+        with patch("imaging.views.stepup_denied", return_value=None):
+            return self.client.put("/imaging/storage/", {"path": path}, format="json")
+
+    def _start_new(self, path):
+        with patch("imaging.views.stepup_denied", return_value=None):
+            return self.client.put(
+                "/imaging/storage/", {"path": path, "start_new": True}, format="json"
+            )
+
+    def _point(self, **fields):
+        return baker.make(
+            "imaging.Image",
+            destination="fleet",
+            network_mode="internet",
+            compression="none",
+            compression_level=0,
+            **fields,
+        )
+
+    def _stored(self, root, row, data="x"):
+        os.makedirs(os.path.join(root, "fleet"), 0o700, exist_ok=True)
+        Path(root, "fleet", str(row.id)).write_text(data)
+
+    def test_reports_the_current_store_and_marks_it(self):
+        response = self.client.get("/imaging/storage/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "no-store")
+        data = response.json()
+        self.assertTrue(all(c["ok"] for c in data["checks"]), data["checks"])
+        self.assertEqual(
+            {k: data[k] for k in data if k not in ("checks", "free_bytes")},
+            {
+                "path": self.default,
+                "current": self.default,
+                "source": "server",
+                "server_default": self.default,
+                "configured": True,
+                "problem": "",
+                "older_copy": False,
+                "ok": True,
+                "can_start_new": False,
+                "fix": "",
+                "total_bytes": os.statvfs(self.default).f_blocks
+                * os.statvfs(self.default).f_frsize,
+                "reserve_bytes": 0,
+                "service_user": self.user,
+                "service_group": self.group,
+                "points": 0,
+                "docker": False,
+            },
+        )
+        self.assertIsInstance(data["free_bytes"], int)
+        marker = Path(self.default, MARKER)
+        self.assertEqual(marker.stat().st_mode & 0o777, 0o600)
+        with override_settings(ULRMM_DOCKER=True):
+            self.assertTrue(self.client.get("/imaging/storage/").json()["docker"])
+        self.assertNotIn("imaging_root", self.client.get("/core/settings/").json())
+
+    def test_each_check_names_the_failing_rule(self):
+        link = os.path.join(self.base, "etc")
+        os.symlink("/etc", link)
+        file = os.path.join(self.base, "file")
+        Path(file).write_text("x")
+        alias = os.path.join(self.base, "alias")
+        os.symlink(self.default, alias)
+        missing = os.path.join(self.base, "missing")
+        shared = self._folder("shared", 0o750)
+        full = self._folder("full")
+        Path(full, "data").write_text("x")
+        foreign = self._folder("foreign", 0o755)
+        Path(foreign, "data").write_text("x")
+        child = os.path.join(self.default, "fleet")
+        os.mkdir(child, 0o700)
+        create = f"sudo install -d -m 0700 -o {self.user} -g {self.group}"
+        cases = {
+            "relative/images": ("absolute", ""),
+            "/srv/images\0x": ("absolute", ""),
+            self.default + "/": ("absolute", ""),
+            self.base + "/./x": ("absolute", ""),
+            "/": ("allowed", ""),
+            "/mnt": ("allowed", ""),
+            "/srv": ("allowed", ""),
+            child: ("allowed", ""),
+            self.base: ("allowed", ""),
+            "/etc/images": ("allowed", ""),
+            "/var/lib/postgresql/images": ("allowed", ""),
+            "/opt/ulrmm-web": ("allowed", ""),
+            link + "/images": ("allowed", ""),
+            str(settings.BASE_DIR): ("allowed", ""),
+            missing: (
+                "exists",
+                f"sudo install -d -m 0700 -o {self.user} -g {self.group} {missing}",
+            ),
+            file: ("directory", ""),
+            alias: ("directory", ""),
+            shared: (
+                "mode",
+                f"sudo chown {self.user}:{self.group} {shared} "
+                f"&& sudo chmod 0700 {shared}",
+            ),
+            full: ("content", f"{create} {full}/rmmimages"),
+            foreign: ("mode", f"{create} {foreign}/rmmimages"),
+            self._folder("empty"): (None, ""),
+        }
+        for path, expected in cases.items():
+            with self.subTest(path=path):
+                failed, data = self._check(path)
+                self.assertEqual((failed, data["fix"]), expected)
+                self.assertEqual(data["ok"], failed is None)
+                self.assertEqual(data["path"], path)
+                self.assertEqual(data["current"], self.default)
+        other = self._folder("other")
+        with patch("imaging.storage.os.geteuid", return_value=os.geteuid() + 1):
+            failed, data = self._check(other)
+        self.assertEqual(failed, "owner")
+        owner = f"{data['service_user']}:{data['service_group']}"
+        self.assertEqual(
+            data["fix"], f"sudo chown {owner} {other} && sudo chmod 0700 {other}"
+        )
+
+    def test_content_needs_a_copy_while_points_are_stored(self):
+        empty = self._folder("empty")
+        fresh = self._folder("fresh")
+        os.mkdir(os.path.join(fresh, "lost+found"))
+        marked = self._folder("marked")
+        Path(marked, MARKER).touch()
+        full = self._folder("full")
+        Path(full, "data").write_text("x")
+        self._point(status=ImageStatus.WAITING, offset=0)
+        for path, failed in ((empty, None), (fresh, None), (marked, None)):
+            self.assertEqual(self._check(path)[0], failed)
+        self.assertEqual(self._check(full)[0], "content")
+        point = self._point(status=ImageStatus.UPLOADING, offset=1)
+        block = baker.make(
+            "imaging.ImageBlock",
+            destination="fleet",
+            namespace="n",
+            size=1,
+            stored_size=1,
+        )
+        copy = self._folder("copy")
+        os.mkdir(os.path.join(copy, "fleet"))
+        Path(copy, "fleet", str(point.id)).write_text("x")
+        # a marker alone, or a copy without the newest data, is not the store
+        for path in (empty, fresh, full, marked, copy):
+            failed, data = self._check(path)
+            self.assertEqual(failed, "content")
+            self.assertEqual(data["points"], 1)
+            self.assertEqual(data["fix"], f"sudo rsync -a {self.default}/ {path}/")
+        Path(copy, "fleet", str(block.id)).write_text("x")
+        self.assertEqual(self._check(copy)[0], None)
+        self.assertEqual(self._check(self.default)[0], None)
+        response = self._put(marked)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("newest backup data", response.json()["path"][0])
+        self.assertEqual(self._put(copy).status_code, 200)
+
+    def test_moved_disk_is_found_when_the_old_path_is_gone(self):
+        point = self._point(status=ImageStatus.VERIFIED, offset=512, size=1)
+        moved = self._folder("moved")
+        os.mkdir(os.path.join(moved, "fleet"))
+        Path(moved, "fleet", str(point.id)).write_text("x")
+        empty = self._folder("empty")
+        with override_settings(ULRMM_IMAGING_ROOT=os.path.join(self.base, "gone")):
+            failed, data = self._check(empty)
+            self.assertEqual(
+                (failed, data["fix"], data["configured"]), ("content", "", False)
+            )
+            self.assertIn("cannot be read", data["checks"][-1]["text"])
+            self.assertEqual(self._check(moved)[0], None)
+            self.assertEqual(self._put(moved).status_code, 200)
+        self.assertEqual(imaging_root(), moved)
+
+    def test_reset_refuses_a_default_without_the_points(self):
+        dash = self._folder("dash")
+        self.assertEqual(self._put(dash).status_code, 200)
+        point = self._point(status=ImageStatus.VERIFIED, offset=512)
+        os.mkdir(os.path.join(dash, "fleet"))
+        Path(dash, "fleet", str(point.id)).write_text("x")
+        # the installer leaves the default folder with only its marker
+        self.assertTrue(Path(self.default, MARKER).exists())
+        response = self._put("")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(imaging_root(), dash)
+
+    def test_unmounted_store_keeps_points_waiting(self):
+        points = []
+        for n in range(2):
+            point = self._point(status=ImageStatus.VERIFIED, offset=512, size=1)
+            os.makedirs(os.path.join(self.default, "fleet"), 0o700, exist_ok=True)
+            Path(self.default, "fleet", str(point.id)).write_text(str(n))
+            points.append(point)
+        self.assertTrue(self._check(self.default)[1]["configured"])
+        # the folder under the mount point: same marker, none of the data
+        under = self._folder("under")
+        shutil.copy(Path(self.default, MARKER), Path(under, MARKER))
+        for root in (under, os.path.join(self.base, "gone")):
+            with (
+                self.subTest(root=root),
+                override_settings(ULRMM_IMAGING_ROOT=root),
+                other_disk(under),
+            ):
+                verify_image(str(points[0].id), recheck=True)
+                points[0].refresh_from_db()
+                self.assertEqual(points[0].status, ImageStatus.VERIFIED)
+        other = self._folder("other")
+        Path(other, MARKER).write_text("another-store\n")
+        with override_settings(ULRMM_IMAGING_ROOT=other):
+            data = self.client.get("/imaging/storage/").json()
+            self.assertEqual(
+                (data["configured"], data["problem"]), (False, OTHER_STORE)
+            )
+        # with the rest of the store present a missing file is real data loss
+        os.unlink(os.path.join(self.default, "fleet", str(points[0].id)))
+        verify_image(str(points[0].id), recheck=True)
+        points[0].refresh_from_db()
+        self.assertEqual(points[0].status, ImageStatus.FAILED)
+
+    def test_an_empty_mount_point_is_not_the_unmounted_store(self):
+        for _ in range(2):
+            self._stored(
+                self.default, self._point(status=ImageStatus.VERIFIED, offset=1, size=1)
+            )
+        self.assertTrue(self._check(self.default)[1]["configured"])
+        under = self._folder("under", 0o755)
+        with override_settings(ULRMM_IMAGING_ROOT=under):
+            failed, data = self._check(under)
+            self.assertEqual(
+                (failed, data["fix"], data["configured"]), ("mode", "", False)
+            )
+            os.chmod(under, 0o700)
+            self.assertEqual(self._check(under)[0], "content")
+            self.assertEqual(self._put(under).status_code, 400)
+        self.assertFalse(Path(under, MARKER).exists())
+
+    def test_a_truncated_copy_is_not_the_store(self):
+        point = self._point(status=ImageStatus.VERIFIED, offset=10, size=10)
+        self._stored(self.default, point, "0123456789")
+        self.assertTrue(self._check(self.default)[1]["configured"])
+        copy = self._folder("copy")
+        self._stored(copy, point, "0")
+        self.assertEqual(self._check(copy)[0], "content")
+        self._stored(copy, point, "0123456789")
+        self.assertEqual(self._check(copy)[0], None)
+
+    def test_failed_points_hold_no_store_data(self):
+        self._point(status=ImageStatus.FAILED, offset=512)
+        data = self.client.get("/imaging/storage/").json()
+        self.assertEqual((data["configured"], data["problem"]), (True, ""))
+        self.assertTrue(Path(self.default, MARKER).exists())
+        with override_settings(ULRMM_IMAGING_ROOT=os.path.join(self.base, "gone")):
+            self.assertEqual(self.client.get("/imaging/storage/").json()["problem"], "")
+
+    def test_orphan_blocks_keep_the_store_where_it_is(self):
+        block = baker.make(
+            "imaging.ImageBlock",
+            destination="fleet",
+            namespace="n",
+            size=1,
+            stored_size=1,
+        )
+        self._stored(self.default, block)
+        self.assertTrue(self._check(self.default)[1]["configured"])
+        empty = self._folder("empty")
+        failed, data = self._check(empty)
+        self.assertEqual((failed, data["points"]), ("content", 0))
+        self.assertEqual(self._put(empty).status_code, 400)
+
+    def test_start_new_needs_an_unreachable_store(self):
+        point = self._point(status=ImageStatus.VERIFIED, offset=1, size=1)
+        self._stored(self.default, point)
+        fresh = self._folder("fresh")
+        failed, data = self._check(fresh)
+        self.assertEqual((failed, data["can_start_new"]), ("content", False))
+        self.assertEqual(self._start_new(fresh).status_code, 400)
+        point.refresh_from_db()
+        self.assertEqual(point.status, ImageStatus.VERIFIED)
+
+    def test_a_renumbered_or_copied_disk_with_the_newest_data_is_the_store(self):
+        point = self._point(status=ImageStatus.VERIFIED, offset=1, size=1)
+        self._stored(self.default, point)
+        self.assertTrue(self._check(self.default)[1]["configured"])
+        # xfs takes its id from the device number, which can change at boot
+        with other_disk(self.default):
+            data = self.client.get("/imaging/storage/").json()
+            self.assertEqual((data["configured"], data["problem"]), (True, ""))
+        self.assertEqual(CoreSettings.objects.get().imaging_store_fs, "other-disk")
+
+    def test_an_older_copy_waits_until_it_is_taken_on_purpose(self):
+        points = [
+            self._point(status=ImageStatus.VERIFIED, offset=1, size=1) for _ in range(4)
+        ]
+        for n, point in enumerate(points):
+            Image.objects.filter(pk=point.pk).update(
+                created_at=timezone.now() - timedelta(minutes=10 - n)
+            )
+            self._stored(self.default, point)
+        self.assertTrue(self._check(self.default)[1]["configured"])
+        mirror = self._folder("mirror")
+        shutil.copy(Path(self.default, MARKER), Path(mirror, MARKER))
+        self._stored(mirror, points[0])
+        # last week's mirror at the store's place: none of the newest data
+        with override_settings(ULRMM_IMAGING_ROOT=mirror), other_disk(mirror):
+            data = self.client.get("/imaging/storage/").json()
+        self.assertEqual((data["configured"], data["problem"]), (False, OTHER_STORE))
+        # the disk is lost: the admin takes the mirror on purpose
+        shutil.rmtree(self.default)
+        failed, data = self._check(mirror)
+        self.assertEqual((failed, data["older_copy"]), (None, True))
+        self.assertEqual(self._put(mirror).status_code, 200)
+        entry = AuditLog.objects.filter(object_type="coresettings").latest("id")
+        self.assertIn("older copy", entry.message)
+
+    def test_a_store_on_nfs_is_not_its_empty_mount_point(self):
+        point = self._point(status=ImageStatus.VERIFIED, offset=1, size=1)
+        nfs = self._folder("nfs")
+        self._stored(nfs, point)
+        real = os.statvfs
+
+        def statvfs(target):
+            info = real(target)
+            where = (
+                os.readlink(f"/proc/self/fd/{target}")
+                if isinstance(target, int)
+                else str(target)
+            )
+            if where != nfs and not where.startswith(nfs + "/"):
+                return info
+            # NFS and FUSE report no file system id
+            return SimpleNamespace(
+                f_fsid=0,
+                f_bavail=info.f_bavail,
+                f_frsize=info.f_frsize,
+                f_blocks=info.f_blocks,
+            )
+
+        with patch("imaging.storage.os.statvfs", side_effect=statvfs):
+            self.assertEqual(self._put(nfs).status_code, 200)
+        self.assertEqual(CoreSettings.objects.get().imaging_store_fs, "0")
+        # NFS not mounted at boot: the folder under it got the marker earlier
+        under = self._folder("under")
+        shutil.copy(Path(nfs, MARKER), Path(under, MARKER))
+        CoreSettings.objects.update(imaging_root=under)
+        data = self.client.get("/imaging/storage/").json()
+        self.assertEqual((data["configured"], data["problem"]), (False, OTHER_STORE))
+
+    def test_an_old_store_is_not_its_empty_mount_point(self):
+        point = self._point(status=ImageStatus.VERIFIED, offset=1, size=1)
+        self.assertEqual(CoreSettings.objects.get().imaging_store_id, "")
+        data = self.client.get("/imaging/storage/").json()
+        self.assertEqual((data["configured"], data["problem"]), (False, OTHER_STORE))
+        self.assertFalse(Path(self.default, MARKER).exists())
+        self._stored(self.default, point)
+        data = self.client.get("/imaging/storage/").json()
+        self.assertEqual((data["configured"], data["problem"]), (True, ""))
+
+    def test_another_servers_store_is_not_taken_over(self):
+        theirs = self._folder("theirs")
+        Path(theirs, MARKER).write_text("another-server\n")
+        os.mkdir(os.path.join(theirs, "fleet"), 0o700)
+        Path(theirs, "fleet", "x").write_text("x")
+        self.assertEqual(self._check(theirs)[0], "content")
+        with override_settings(ULRMM_IMAGING_ROOT=theirs):
+            data = self.client.get("/imaging/storage/").json()
+        self.assertEqual((data["configured"], data["problem"]), (False, OTHER_STORE))
+        self.assertEqual(Path(theirs, MARKER).read_text(), "another-server\n")
+
+    def test_the_probe_tells_a_lost_disk_from_a_full_one(self):
+        fd = os.open(self.default, os.O_RDONLY | os.O_DIRECTORY)
+        self.addCleanup(os.close, fd)
+        self.assertTrue(storage._answers(fd))
+        self.assertEqual(os.listdir(self.default), [])
+        for code, answers in (
+            (errno.ENOSPC, True),
+            (errno.EDQUOT, True),
+            (errno.EIO, False),
+            (errno.EROFS, False),
+        ):
+            with (
+                self.subTest(code=code),
+                patch("imaging.storage.os.open", side_effect=OSError(code, "x")),
+            ):
+                self.assertEqual(storage._answers(fd), answers)
+
+    def test_first_claim_of_an_old_store_tolerates_one_damaged_file(self):
+        points = [
+            self._point(status=ImageStatus.VERIFIED, offset=1, size=1) for _ in range(3)
+        ]
+        for point in points[1:]:
+            self._stored(self.default, point)
+        self.assertEqual(CoreSettings.objects.get().imaging_store_id, "")
+        self.assertFalse(Path(self.default, MARKER).exists())
+        data = self.client.get("/imaging/storage/").json()
+        self.assertEqual((data["configured"], data["problem"]), (True, ""))
+
+    def test_wrong_mode_on_the_store_still_gets_its_command(self):
+        point = self._point(status=ImageStatus.VERIFIED, offset=1, size=1)
+        self._stored(self.default, point)
+        os.chmod(self.default, 0o755)
+        failed, data = self._check(self.default)
+        self.assertEqual(failed, "mode")
+        self.assertEqual(
+            data["fix"],
+            f"sudo chown {self.user}:{self.group} {self.default} "
+            f"&& sudo chmod 0700 {self.default}",
+        )
+
+    def test_a_new_store_replaces_a_dead_disk_and_retires_its_points(self):
+        agent = baker.make("agents.Agent", plat="linux")
+        point = self._point(status=ImageStatus.VERIFIED, offset=1, size=1, agent=agent)
+        self._stored(self.default, point)
+        native = self._point(status=ImageStatus.VERIFIED, native={}, agent=agent)
+        block = baker.make(
+            "imaging.ImageBlock",
+            destination="fleet",
+            namespace="n",
+            size=1,
+            stored_size=1,
+        )
+        self._stored(self.default, block)
+        ImagePart.objects.create(image=native, index=0, block=block)
+        failed = self._point(status=ImageStatus.FAILED, offset=1, reason="old")
+        waiting = self._point(status=ImageStatus.WAITING, agent=agent)
+        grant = baker.make(
+            Transfer,
+            image=point,
+            user=self.john,
+            direction="restore",
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+        self.assertTrue(self._check(self.default)[1]["configured"])
+        store = CoreSettings.objects.get().imaging_store_id
+        shutil.rmtree(self.default)
+        fresh = self._folder("fresh")
+        failed_check, data = self._check(fresh)
+        self.assertEqual((failed_check, data["can_start_new"]), ("content", True))
+        self.assertEqual(self._put(fresh).status_code, 400)
+        full = self._folder("full")
+        Path(full, "data").write_text("x")
+        self.assertFalse(self._check(full)[1]["can_start_new"])
+        refused = self._start_new(full)
+        self.assertEqual(refused.status_code, 400)
+        self.assertIn("empty folder", refused.json()["path"][0])
+
+        response = self._start_new(fresh)
+        self.assertEqual(response.status_code, 200, response.content)
+        data = response.json()
+        self.assertEqual(
+            (data["current"], data["configured"], data["can_start_new"]),
+            (fresh, True, False),
+        )
+        for row in (point, native):
+            row.refresh_from_db()
+            self.assertEqual(
+                (row.status, row.reason),
+                (
+                    ImageStatus.FAILED,
+                    "The store that held this point was replaced in Global Settings.",
+                ),
+            )
+        failed.refresh_from_db()
+        waiting.refresh_from_db()
+        self.assertEqual((failed.reason, waiting.status), ("old", ImageStatus.WAITING))
+        grant.refresh_from_db()
+        self.assertLessEqual(grant.expires_at, timezone.now())
+        self.assertFalse(ImagePart.objects.exists() or ImageBlock.objects.exists())
+        new_store = CoreSettings.objects.get().imaging_store_id
+        self.assertNotEqual(new_store, store)
+        self.assertEqual(Path(fresh, MARKER).read_text().strip(), new_store)
+        entry = AuditLog.objects.get(object_type="coresettings")
+        self.assertIn("2 stored points retired", entry.message)
+        with patch("imaging.views.stepup_denied", return_value=None):
+            response = self.client.delete(
+                f"/imaging/agents/{agent.agent_id}/images/{point.id}/"
+            )
+        self.assertEqual(response.status_code, 204)
+
+    def test_temporary_and_nested_folders_are_refused(self):
+        with patch("imaging.storage.TEMP_PATHS", TEMP_PATHS):
+            for path in ("/tmp/x", "/var/tmp/x"):
+                with self.subTest(path=path):
+                    self.assertEqual(self._check(path)[0], "allowed")
+        failed, data = self._check(os.path.join(self.default, "fleet"))
+        self.assertEqual(failed, "allowed")
+        self.assertIn("inside the current store", data["checks"][1]["text"])
+
+    def test_unencodable_path_is_refused(self):
+        with patch("imaging.views.stepup_denied", return_value=None):
+            response = self.client.put(
+                "/imaging/storage/",
+                data='{"path": "/mnt/\\ud800x"}',
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("absolute path", response.json()["path"][0])
+
+    def test_save_moves_the_store_at_once_and_resets(self):
+        new = self._folder("new")
+        get_core_settings()
+        self.assertEqual(imaging_root(), self.default)
+        response = self._put(new)
+        self.assertEqual(response.status_code, 200, response.content)
+        data = response.json()
+        self.assertEqual(
+            (data["path"], data["current"], data["source"], data["configured"]),
+            (new, new, "dashboard", True),
+        )
+        self.assertEqual(imaging_root(), new)
+        self.assertEqual(CoreSettings.objects.get().imaging_root, new)
+        self.assertEqual(Path(new, MARKER).stat().st_mode & 0o777, 0o600)
+        with directory() as root:
+            self.assertEqual(os.fstat(root).st_ino, os.stat(new).st_ino)
+        entry = AuditLog.objects.get(object_type="coresettings")
+        self.assertEqual(entry.username, self.john.username)
+        self.assertEqual(entry.before_value, {"imaging_root": self.default})
+        self.assertEqual(entry.after_value, {"imaging_root": new})
+        self.assertIn(f"from {self.default} to {new}", entry.message)
+
+        for path, text in (
+            ("relative", "absolute path"),
+            (os.path.join(self.base, "missing"), "must exist"),
+            (None, "Enter a folder path."),
+        ):
+            refused = self._put(path)
+            self.assertEqual(refused.status_code, 400)
+            self.assertIn(text, refused.json()["path"][0])
+        self.assertEqual(imaging_root(), new)
+
+        response = self._put("")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            (response.json()["current"], response.json()["source"]),
+            (self.default, "server"),
+        )
+        self.assertEqual(CoreSettings.objects.get().imaging_root, "")
+        self.assertEqual(imaging_root(), self.default)
+        self.assertEqual(AuditLog.objects.filter(object_type="coresettings").count(), 2)
+
+    def test_save_needs_step_up_and_settings_rights(self):
+        new = self._folder("new")
+        response = self.client.put("/imaging/storage/", {"path": new}, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.json(),
+            {
+                "detail": "Confirm with a two-factor code first. "
+                "Moving the system image storage needs it.",
+                "stepup": True,
+            },
+        )
+        self.assertEqual(CoreSettings.objects.get().imaging_root, "")
+        self.assertFalse(Path(new, MARKER).exists())
+        self.client.force_authenticate(
+            self.create_user_with_roles(["can_view_core_settings"])
+        )
+        self.assertEqual(self.client.get("/imaging/storage/").status_code, 403)
+        self.assertEqual(self._put(new).status_code, 403)
+        self.client.force_authenticate(
+            self.create_user_with_roles(["can_edit_core_settings"])
+        )
+        self.assertEqual(self.client.get("/imaging/storage/").status_code, 200)
+        self.assertEqual(self._put(new).status_code, 200)
+
+    def test_global_settings_cannot_set_the_store(self):
+        core = CoreSettings.objects.get()
+        serializer = CoreSettingsSerializer(
+            core, data={"imaging_root": "/tmp"}, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        self.assertEqual(CoreSettings.objects.get().imaging_root, "")
+
+    def test_first_use_marks_the_store(self):
+        marker = Path(self.default, MARKER)
+        self.assertFalse(marker.exists())
+        with directory():
+            pass
+        self.assertEqual(marker.stat().st_mode & 0o777, 0o600)
+        store = CoreSettings.objects.get().imaging_store_id
+        self.assertEqual(len(store), 32)
+        self.assertEqual(marker.read_text().strip(), store)

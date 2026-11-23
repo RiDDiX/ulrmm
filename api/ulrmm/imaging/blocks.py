@@ -18,7 +18,15 @@ from rest_framework.response import Response
 
 from .models import Image, ImageBlock, ImagePart, ImageStatus, NATIVE_RECEIVING_REASON
 from .service import audit, set_status
-from .storage import image_file, remove_image_file
+from .storage import (
+    NO_SPACE,
+    OTHER_STORE,
+    DamagedFile,
+    StoreUnavailable,
+    image_file,
+    read_twice,
+    remove_image_file,
+)
 
 BLOCK = 2 * 1024**2
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -42,8 +50,15 @@ def decode(data, codec, size, digest):
 
 def load_block(image, block):
     block.network_mode = image.network_mode
-    with image_file(block) as file:
-        data = file.read(block.stored_size + 1)
+
+    def read():
+        with image_file(block) as file:
+            return file.read(block.stored_size + 1)
+
+    try:
+        data = read_twice(read)
+    except DamagedFile as error:
+        raise CorruptBlock from error
     if len(data) != block.stored_size:
         raise CorruptBlock
     return decode(data, image.compression, block.size, block.digest)
@@ -54,7 +69,7 @@ def stored(image, block):
     try:
         with image_file(block) as file:
             return os.fstat(file.fileno()).st_size == block.stored_size
-    except FileNotFoundError:
+    except (FileNotFoundError, DamagedFile):
         return False
 
 
@@ -150,9 +165,13 @@ def append_part(request, image):
     )
     # A dedup hit checks presence and length only; verify_point reads every
     # block and retires a damaged one, so the next capture uploads it again.
-    if block and not stored(image, block):
-        report_corrupt_dependency(block)
-        block = None
+    try:
+        if block and not stored(image, block):
+            report_corrupt_dependency(block)
+            block = None
+    except StoreUnavailable:
+        set_status(image, ImageStatus.UPLOADING, OTHER_STORE)
+        return Response({"detail": image.reason}, status=503)
     if block and block.size != size:
         raise ValidationError("Block length differs.")
     if not block and request.method == "POST":
@@ -183,19 +202,18 @@ def append_part(request, image):
         )
         block.network_mode = image.network_mode
         try:
-            with image_file(block, write=True) as file:
+            with image_file(block, write=True, incoming=len(body)) as file:
                 file.write(body)
                 file.flush()
                 os.fsync(file.fileno())
+        except StoreUnavailable:
+            set_status(image, ImageStatus.UPLOADING, OTHER_STORE)
+            return Response({"detail": image.reason}, status=503)
         except OSError as error:
             remove_image_file(block)
             if error.errno not in (errno.ENOSPC, errno.EDQUOT):
                 raise
-            set_status(
-                image,
-                ImageStatus.UPLOADING,
-                "Backup storage is full. Free capacity and retry.",
-            )
+            set_status(image, ImageStatus.UPLOADING, NO_SPACE)
             return Response({"detail": image.reason}, status=507)
         block.save(force_insert=True)
         image.new_bytes += block.stored_size
@@ -268,6 +286,8 @@ def download(image, offset):
         except (CorruptBlock, FileNotFoundError):
             report_corrupt_dependency(part.block)
             raise
+    except StoreUnavailable:
+        return Response({"detail": OTHER_STORE}, status=503)
     except (ImagePart.DoesNotExist, CorruptBlock, FileNotFoundError):
         set_status(
             image, ImageStatus.FAILED, "A required backup block is missing or corrupt."

@@ -243,6 +243,8 @@ ULRMM_IMAGING_INTERNAL_CIDRS = ()
 ULRMM_IMAGING_INTERNAL_STORAGE_CONFIRMED = False
 ULRMM_IMAGING_ENCRYPTED_DESTINATIONS = ()
 ULRMM_IMAGING_MAX_BYTES = 16 * 1024**4
+# writes stop while the imaging volume would keep less than this free
+ULRMM_IMAGING_RESERVE_BYTES = 10 * 1024**3
 
 from sso.settings import *  # noqa
 
@@ -272,6 +274,19 @@ if in_ci:
     MESH_TOKEN_KEY = "bd65e957a1e70c622d32523f61508400d6cd0937001a7ac12042227eba0b9ed625233851a316d4f489f02994145f74537a331415d00047dbbf13d940f556806dffe7a8ce1de216dc49edbad0c1a7399c"
     REDIS_HOST = "localhost"
     ENROLL_SIGNING_KEY = "dWxybW0tdGVzdC1lbnJvbGwtc2lnbmluZy1rZXktMzI="
+
+
+def imaging_public_origin(hosts, port=None):
+    # internet transfers default to the API host, nginx serves /imaging/transfers/ there
+    host = next((h for h in hosts if h and h != "*" and not h.startswith(".")), "")
+    return get_backend_url(host, "https", port) if host else ""
+
+
+# only standalone: a configured internal listener means internet transfers stay off
+if not ULRMM_IMAGING_PUBLIC_ORIGIN and not ULRMM_IMAGING_INTERNAL_ORIGIN:
+    ULRMM_IMAGING_PUBLIC_ORIGIN = imaging_public_origin(
+        ALLOWED_HOSTS, ULRMM_BACKEND_PORT
+    )
 
 ULRMM_ROOT_DOMAIN = get_root_domain(ALLOWED_HOSTS[0])
 frontend_domain = get_webdomain(CORS_ORIGIN_WHITELIST[0]).split(":")[0]

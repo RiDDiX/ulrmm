@@ -13,6 +13,7 @@ from rest_framework.exceptions import PermissionDenied
 from apiv3.views import AgentTokenView, _token_agent
 from .models import MODE_CHANGED, NativeInventory, Image, ImageStatus, Profile, Transfer
 from .service import agent_allowed, audit, origin, set_status
+from .storage import NO_SPACE, OTHER_STORE
 from .views import RENEW_LIMIT, _grant_response, _token_digest
 
 METHODS = {
@@ -146,7 +147,7 @@ class NativePoll(AgentTokenView):
                     expires_at__gt=timezone.now(),
                 ).update(expires_at=timezone.now())
             ):
-                if "storage is full" not in image.reason.lower():
+                if image.reason not in (NO_SPACE, OTHER_STORE):
                     reason = FAILURES[failure]
                     if failure == "upload" and image.network_mode == "internal":
                         reason = "Upload paused. Waiting for the permitted internal network and storage."

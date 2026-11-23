@@ -67,7 +67,8 @@ class CoreSettingsSerializer(HostedCoreMixin, serializers.ModelSerializer):
 
     class Meta:
         model = CoreSettings
-        fields = "__all__"
+        # imaging_root changes only through /imaging/storage/ and its checks
+        exclude = ("imaging_root", "imaging_store_id", "imaging_store_fs")
         read_only_fields = ("sso_enabled", "block_local_user_logon")
 
     def to_representation(self, instance):
@@ -129,7 +130,7 @@ class CoreSerializer(HostedCoreMixin, serializers.ModelSerializer):
 
     class Meta:
         model = CoreSettings
-        fields = "__all__"
+        exclude = ("imaging_root", "imaging_store_id", "imaging_store_fs")
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)

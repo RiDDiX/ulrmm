@@ -1,10 +1,13 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
-from datetime import timedelta
+import os
+import shutil
+from datetime import time, timedelta
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import urlsplit
 import gzip
@@ -27,7 +30,10 @@ from .models import (
     Profile,
     Transfer,
 )
+from .service import NO_INTERNAL
+from .storage import MARKER, NO_SPACE, OTHER_STORE
 from .tasks import imaging_tick, verify_image
+from .tests import other_disk
 
 
 class NativeBackupTests(ULRMMTestCase):
@@ -45,6 +51,7 @@ class NativeBackupTests(ULRMMTestCase):
             override_settings(
                 ULRMM_IMAGING_ROOT=str(self.root),
                 ULRMM_IMAGING_PUBLIC_ORIGIN="https://api.example.com",
+                ULRMM_IMAGING_RESERVE_BYTES=0,
                 ALLOWED_HOSTS=["api.example.com", "testserver"],
             )
         )
@@ -292,6 +299,9 @@ class NativeBackupTests(ULRMMTestCase):
         self.assertEqual(preview.status_code, 200, preview.data)
         self.assertEqual(preview.data["destination"], "new-folder")
         self.assertIn("unconfirmed", preview.data["at_rest"])
+        self.assertEqual(
+            preview.data["storage"], {"configured": True, "internal": False}
+        )
         self.assertNotIn("images", preview.data)
         self.assertEqual(Profile.objects.get(agent=self.agent).destination, "fleet")
 
@@ -300,6 +310,175 @@ class NativeBackupTests(ULRMMTestCase):
         self.client.force_authenticate(self.create_user_with_roles([]))
         denied = self.client.get(self.uri, {"destination": "fleet"})
         self.assertEqual(denied.status_code, 403)
+
+    def test_policy_internal_mode_needs_the_internal_listener(self):
+        internal = {
+            **self.config,
+            "config": {**self.config["config"], "network_mode": "internal"},
+        }
+        refused = self.client.post("/imaging/policies/", internal, format="json")
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.json(), {"network_mode": [NO_INTERNAL]})
+        self.assertFalse(BackupPolicy.objects.exists())
+        created = self.client.post("/imaging/policies/", self.config, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        update = f"/imaging/policies/{created.data['id']}/"
+        refused = self.client.put(update, internal, format="json")
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.json(), {"network_mode": [NO_INTERNAL]})
+        self.assertEqual(Profile.objects.get(agent=self.agent).network_mode, "internet")
+        with override_settings(
+            ULRMM_IMAGING_INTERNAL_ORIGIN="https://private.example.test",
+            ULRMM_IMAGING_INTERNAL_CIDRS=["10.40.0.0/16"],
+        ):
+            response = self.client.put(update, internal, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Profile.objects.get(agent=self.agent).network_mode, "internal")
+
+    def test_reserve_refuses_block_before_writing(self):
+        self.client.post("/imaging/policies/", self.config, format="json")
+        point_id, cli, path = self.claim()
+        cli.post(path + "begin/", {}, format="json", **self.transport)
+        reserve = 10 * 1024**3
+        volume = SimpleNamespace(f_bavail=reserve, f_frsize=1)
+        with (
+            override_settings(ULRMM_IMAGING_RESERVE_BYTES=reserve),
+            patch("os.statvfs", return_value=volume),
+        ):
+            full = self.part(cli, path, b"block data")
+        self.assertEqual(full.status_code, 507)
+        self.assertEqual(full.json()["detail"], NO_SPACE)
+        self.assertFalse(ImageBlock.objects.exists())
+        files = [p.name for p in self.root.rglob("*") if p.is_file()]
+        self.assertEqual([f for f in files if f != MARKER], [])
+        point = Image.objects.get(pk=point_id)
+        self.assertEqual((point.offset, point.reason), (0, NO_SPACE))
+        self.assertEqual(point.status, ImageStatus.UPLOADING)
+        self.assertEqual(self.part(cli, path, b"block data").status_code, 204)
+
+    def test_failure_report_keeps_the_free_space_reason(self):
+        self.client.post("/imaging/policies/", self.config, format="json")
+        point_id, cli, path = self.claim()
+        cli.post(path + "begin/", {}, format="json", **self.transport)
+        with patch("os.statvfs", return_value=SimpleNamespace(f_bavail=0, f_frsize=1)):
+            self.assertEqual(self.part(cli, path, b"block data").status_code, 507)
+        claim = Transfer.objects.get(image_id=point_id, direction="capture").id
+        report = {
+            "capability": self.cap,
+            "failure": "upload",
+            "image_id": str(point_id),
+            "claim": str(claim),
+        }
+        self.assertEqual(
+            self.worker_post(self.poll, report, format="json").status_code, 204
+        )
+        self.assertEqual(Image.objects.get(pk=point_id).reason, NO_SPACE)
+        self.assertFalse(
+            Transfer.objects.filter(pk=claim, expires_at__gt=timezone.now()).exists()
+        )
+
+    def test_failure_report_keeps_the_store_reason(self):
+        self.client.post("/imaging/policies/", self.config, format="json")
+        point_id, _, _ = self.claim()
+        Image.objects.filter(pk=point_id).update(reason=OTHER_STORE)
+        claim = Transfer.objects.get(image_id=point_id, direction="capture").id
+        report = {
+            "capability": self.cap,
+            "failure": "upload",
+            "image_id": str(point_id),
+            "claim": str(claim),
+        }
+        self.worker_post(self.poll, report, format="json")
+        self.assertEqual(Image.objects.get(pk=point_id).reason, OTHER_STORE)
+
+    def test_unmounted_store_with_its_marker_takes_no_blocks(self):
+        self.setup_coresettings()
+        self.client.post("/imaging/policies/", self.config, format="json")
+        first, _ = self.point([b"A" * BLOCK, b"old"])
+        _, cli, path = self.claim()
+        cli.post(path + "begin/", {}, format="json", **self.transport)
+        # the folder under the mount point, from before the disk was mounted
+        under = Path(self.enterContext(TemporaryDirectory()))
+        shutil.copy(self.root / MARKER, under / MARKER)
+        (under / "fleet").mkdir(mode=0o700)
+        probe = path + f"part/?i=1&size=3&sha256={sha256(b'old').hexdigest()}"
+        with (
+            override_settings(ULRMM_IMAGING_ROOT=str(under)),
+            other_disk(under),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            self.assertEqual(self.part(cli, path, b"N" * BLOCK).status_code, 503)
+            self.assertEqual(
+                cli.post(probe, {}, format="json", **self.transport).status_code, 503
+            )
+        self.assertEqual(sorted(p.name for p in under.rglob("*")), [MARKER, "fleet"])
+        first.refresh_from_db()
+        self.assertEqual(first.status, ImageStatus.VERIFIED)
+        self.assertEqual(self.part(cli, path, b"N" * BLOCK).status_code, 204)
+
+    def test_unreadable_block_fails_the_restore(self):
+        self.client.post("/imaging/policies/", self.config, format="json")
+        image, _ = self.point([b"old"])
+        block = image.parts.get().block
+        os.link(self.root / "fleet" / str(block.pk), self.root / "link")
+        confirmation = {
+            "device_uuid": self.cap["device_uuid"],
+            "disk_id": "gpt-spare",
+            "target_agent_id": self.agent.agent_id,
+            "confirmed": True,
+            "raw_size": self.cap["size"],
+            "sector_size": 512,
+        }
+        with patch("imaging.views.stepup_denied", return_value=None):
+            response = self.client.post(
+                self.uri + f"images/{image.pk}/restore-access/",
+                confirmation,
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201, response.data)
+        cli, path = self.issue(response.data)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(
+                cli.get(path + "data/?offset=0", **self.transport).status_code, 409
+            )
+        image.refresh_from_db()
+        block.refresh_from_db()
+        self.assertEqual(image.status, ImageStatus.FAILED)
+        self.assertTrue(block.namespace.startswith("corrupt/"))
+
+    def test_new_profile_uses_internet_without_the_internal_listener(self):
+        self.assertEqual(
+            self.client.get(self.uri).data["config"]["network_mode"], "internet"
+        )
+        with override_settings(
+            ULRMM_IMAGING_INTERNAL_ORIGIN="https://private.example.test",
+            ULRMM_IMAGING_INTERNAL_CIDRS=["10.40.0.0/16"],
+        ):
+            self.assertEqual(
+                self.client.get(self.uri).data["config"]["network_mode"], "internal"
+            )
+        response = self.client.post(self.uri + "capture/", {}, format="json")
+        self.assertEqual(response.status_code, 202, response.data)
+        self.assertEqual(Profile.objects.get(agent=self.agent).network_mode, "internet")
+        self.assertEqual(
+            Image.objects.get(pk=response.data["id"]).network_mode, "internet"
+        )
+
+    def test_internal_profile_waits_for_the_internal_listener(self):
+        profile = Profile.objects.create(
+            agent=self.agent,
+            network_mode="internal",
+            operator=self.john,
+            schedule_time=time(12, 30),
+            next_run=timezone.now() - timedelta(minutes=1),
+        )
+        response = self.client.post(self.uri + "capture/", {}, format="json")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json(), {"detail": NO_INTERNAL})
+        imaging_tick()
+        self.assertFalse(Image.objects.exists())
+        self.assertTrue(AuditLog.objects.filter(message__contains=NO_INTERNAL).exists())
+        self.assertGreater(Profile.objects.get(pk=profile.pk).next_run, timezone.now())
 
     def test_policy_bulk_rolls_back_if_device_is_outside_scope(self):
         self.client.force_authenticate(self.create_user_with_roles([]))

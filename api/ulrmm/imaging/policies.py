@@ -13,7 +13,7 @@ from accounts.utils import has_superuser_rights
 from agents.models import Agent
 from .models import BackupPolicy, Pairing, Profile
 from .serializers import ProfileSerializer
-from .service import agent_allowed, audit, capability, next_run
+from .service import agent_allowed, audit, capability, check_network_mode, next_run
 
 
 class PolicyInput(serializers.Serializer):
@@ -92,6 +92,7 @@ def policies(request, pk=None):
     data = PolicyInput(data=request.data)
     data.is_valid(raise_exception=True)
     data = data.validated_data
+    check_network_mode(data["config"])
     ids = set(data["agents"])
     agents = list(
         Agent.objects.select_for_update().filter(agent_id__in=ids).order_by("pk")
