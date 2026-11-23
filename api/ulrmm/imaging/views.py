@@ -42,8 +42,11 @@ from ulrmm.permissions import _has_perm
 from . import blocks
 from .models import (
     ACTIVE_STATUSES,
+    LINUX_FILES_METHOD,
     MODE_CHANGED,
     RECEIVING_REASON,
+    SELECTABLE_KINDS,
+    WINDOWS_METHOD,
     Image,
     ImageBlock,
     ImagePart,
@@ -70,10 +73,10 @@ from .service import (
     capability,
     check_network_mode,
     check_path,
-    default_mode,
     internal_available,
     next_run,
     origin,
+    profile_defaults,
     queue_capture,
     set_status,
     storage_encryption,
@@ -205,7 +208,7 @@ def device(request, agent_id):
     if request.method == "PUT":
         profiles = profiles.select_for_update()
     profile = profiles.filter(agent=agent).first() or Profile(
-        agent=agent, network_mode=default_mode()
+        agent=agent, **profile_defaults(supported)
     )
     can_manage = agent_allowed(request.user, agent, MANAGE)
     storage = _storage(can_manage)
@@ -214,6 +217,16 @@ def device(request, agent_id):
             raise ValidationError(supported["reason"])
         config = _validated(ProfileSerializer, request.data)
         check_network_mode(config)
+        offered = {
+            v["mount"]
+            for v in (supported.get("native") or {}).get("volumes", [])
+            if v["kind"] in SELECTABLE_KINDS
+        }
+        for selector in config["volumes"]:
+            if selector not in offered:
+                raise ValidationError(
+                    {"volumes": [f"{selector} is not an extra volume on this device."]}
+                )
         for key, value in config.items():
             setattr(profile, key, value)
         profile.operator = request.user
@@ -255,7 +268,7 @@ def capture(request, agent_id):
     if not _storage()["configured"]:
         return _problem("Configure private server imaging storage.", 503)
     profile, _ = Profile.objects.get_or_create(
-        agent=agent, defaults={"network_mode": default_mode()}
+        agent=agent, defaults=profile_defaults(supported)
     )
     profile = Profile.objects.select_for_update().get(pk=profile.pk)
     if profile.network_mode == "internal" and not internal_available():
@@ -596,12 +609,14 @@ def poll(request, pair_id):
 @transaction.atomic
 def access(request, agent_id, image_id, direction):
     agent = _agent(request.user, agent_id, MANAGE if direction == CAPTURE else RESTORE)
+    # a session without the two-factor step-up learns nothing about the image
+    if direction == RECOVERY and (
+        denied := stepup_denied(request, "This grants access to restore a device disk.")
+    ):
+        return denied
     image = _lock_image(get_object_or_404(Image, agent=agent, pk=image_id))
     selected = agent
     if direction == RECOVERY:
-        denied = stepup_denied(request, "This grants access to restore a device disk.")
-        if denied is not None:
-            return denied
         confirmation = _validated(
             NativeRestoreSerializer if image.native else RestoreGrantSerializer,
             request.data,
@@ -613,18 +628,44 @@ def access(request, agent_id, image_id, direction):
             raise ValidationError(
                 "The selected target has no compatible recovery workflow."
             )
+        method = (image.native or {}).get("method")
         # Windows Recovery recreates the source partitions on the target.
-        if (image.native or {}).get("method") == "windows-wbadmin-tar-v1" and (
+        if method == WINDOWS_METHOD and (
             confirmation.get("raw_size", 0) < image.native["size"]
             or confirmation.get("sector_size") != image.native["sector_size"]
         ):
             raise ValidationError(
                 "The target disk must be at least as large as the source disk and use its sector size."
             )
+        # The recovery helper recreates the recorded partitions on the target.
+        if method == LINUX_FILES_METHOD and (
+            confirmation.get("raw_size", 0) < image.native["min_target_size"]
+            or confirmation.get("sector_size") != image.native["sector_size"]
+        ):
+            raise ValidationError(
+                "The target disk must be at least as large as the recorded partitions and use the source sector size."
+            )
         if image.status != ImageStatus.VERIFIED:
             return _problem(
                 "The image must pass verification before it can be restored.", 409
             )
+        # The files restore writes before the whole stream is checked.
+        # shortcut: one fstat per block, a point with a million blocks makes
+        # this request slow; batch the lookups when such points are common.
+        if method == LINUX_FILES_METHOD:
+            try:
+                for part in image.parts.select_related("block").iterator(
+                    chunk_size=256
+                ):
+                    if not blocks.stored(image, part.block):
+                        return _problem(
+                            "A block of this point is missing from the image store. Check the point again before restoring.",
+                            409,
+                        )
+            except StoreUnavailable:
+                return _problem(OTHER_STORE, 503)
+            except OSError:
+                return _problem("Imaging storage is unavailable.", 503)
     else:
         if image.status not in (ImageStatus.WAITING, ImageStatus.UPLOADING):
             return _problem("This image cannot accept a capture.", 409)
@@ -697,6 +738,20 @@ def cancel(request, agent_id, image_id):
     Transfer.objects.filter(image=image).update(expires_at=timezone.now())
     audit(agent, request.user.username, f"Client image {image.id} discarded.")
     return Response(status=204)
+
+
+@api_view(["POST"])
+@transaction.atomic
+def recheck(request, agent_id, image_id):
+    agent = _agent(request.user, agent_id, MANAGE, RESTORE)
+    image = get_object_or_404(Image, agent=agent, pk=image_id)
+    if image.status != ImageStatus.VERIFIED:
+        return _problem("Only verified points can be checked again.", 409)
+    transaction.on_commit(
+        lambda: verify_image.delay(str(image.id), recheck=True), robust=True
+    )
+    audit(agent, request.user.username, f"Client image {image.id} check requested.")
+    return Response(status=202)
 
 
 @api_view(["DELETE"])

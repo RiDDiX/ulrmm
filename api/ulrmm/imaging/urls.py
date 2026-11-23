@@ -25,6 +25,7 @@ urlpatterns = [
         {"direction": Transfer.Direction.RESTORE},
     ),
     path("agents/<str:agent_id>/images/<uuid:image_id>/cancel/", views.cancel),
+    path("agents/<str:agent_id>/images/<uuid:image_id>/recheck/", views.recheck),
     path("agents/<str:agent_id>/images/<uuid:image_id>/", views.delete_image),
     path("transfers/<uuid:transfer_id>/", views.transfer, name="imaging-transfer"),
     path("transfers/<uuid:transfer_id>/data/", views.transfer, {"operation": "data"}),

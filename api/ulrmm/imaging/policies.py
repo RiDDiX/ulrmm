@@ -11,7 +11,13 @@ from rest_framework.response import Response
 
 from accounts.utils import has_superuser_rights
 from agents.models import Agent
-from .models import BackupPolicy, Pairing, Profile
+from .models import (
+    LINUX_FILES_METHOD,
+    SELECTABLE_KINDS,
+    BackupPolicy,
+    Pairing,
+    Profile,
+)
 from .serializers import ProfileSerializer
 from .service import agent_allowed, audit, capability, check_network_mode, next_run
 
@@ -46,6 +52,22 @@ def apply(profile, policy, config, user):
     audit(profile.agent, user.username, f"Backup policy {policy.pk} applied.")
 
 
+def _warning(agent, selectors):
+    native = capability(agent).get("native") or {}
+    if native.get("method") != LINUX_FILES_METHOD:
+        return None
+    kinds = {v["mount"]: v["kind"] for v in native.get("volumes", [])}
+    unmatched = [s for s in selectors if s not in kinds]
+    unusable = [s for s in selectors if s in kinds and kinds[s] not in SELECTABLE_KINDS]
+    if unmatched or unusable:
+        return {
+            "agent_id": agent.agent_id,
+            "unmatched": unmatched,
+            "unusable": unusable,
+        }
+    return None
+
+
 @api_view(["GET", "POST", "PUT", "DELETE"])
 @transaction.atomic
 def policies(request, pk=None):
@@ -66,7 +88,7 @@ def policies(request, pk=None):
                 {
                     "id": p.pk,
                     "name": p.name,
-                    "config": {"keep_last": 0, **p.config},
+                    "config": {"keep_last": 0, "volumes": [], **p.config},
                     "agents": list(
                         p.profile_set.values_list("agent__agent_id", flat=True)
                     ),
@@ -121,6 +143,7 @@ def policies(request, pk=None):
         for k, v in config.items()
     }
     policy.save()
+    applied = list(agents)
     for agent in agents:
         profile, _ = Profile.objects.select_for_update().get_or_create(agent=agent)
         apply(profile, policy, config, user)
@@ -132,4 +155,6 @@ def policies(request, pk=None):
         .select_related("agent")
     ):
         apply(profile, policy, config, user)
-    return Response({"id": policy.pk}, status=200 if pk else 201)
+        applied.append(profile.agent)
+    warnings = [w for a in applied if (w := _warning(a, config["volumes"]))]
+    return Response({"id": policy.pk, "warnings": warnings}, status=200 if pk else 201)

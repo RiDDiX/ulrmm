@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+import posixpath
+import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
@@ -19,6 +21,11 @@ class ProfileSerializer(serializers.ModelSerializer):
         format="%H:%M", input_formats=["%H:%M"], allow_null=True
     )
     keep_last = serializers.IntegerField(min_value=0, max_value=365, default=0)
+    volumes = serializers.ListField(
+        child=serializers.CharField(max_length=255, trim_whitespace=False),
+        max_length=32,
+        default=list,
+    )
 
     class Meta:
         model = Profile
@@ -31,8 +38,25 @@ class ProfileSerializer(serializers.ModelSerializer):
             "timezone",
             "next_run",
             "keep_last",
+            "volumes",
         )
         read_only_fields = ("next_run",)
+
+    def validate_volumes(self, value):
+        if len(set(value)) != len(value) or not all(
+            re.fullmatch(r"[A-Z]:", s)
+            or (
+                s.startswith("/")
+                and s != "/"
+                and posixpath.normpath(s) == s
+                and not re.search(r"[\x00-\x1f\x7f-\x9f]", s)
+            )
+            for s in value
+        ):
+            raise serializers.ValidationError(
+                "Use absolute mount paths such as /media/data or drive letters such as D:."
+            )
+        return value
 
     def validate_timezone(self, value):
         try:

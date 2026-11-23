@@ -11,21 +11,43 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 
 from apiv3.views import AgentTokenView, _token_agent
-from .models import MODE_CHANGED, NativeInventory, Image, ImageStatus, Profile, Transfer
+from .models import (
+    LINUX_FILES_METHOD,
+    LINUX_OFFLINE_METHOD,
+    METHODS,
+    MODE_CHANGED,
+    VOLUME_KINDS,
+    NativeInventory,
+    Image,
+    ImageStatus,
+    Profile,
+    Transfer,
+)
 from .service import agent_allowed, audit, origin, set_status
 from .storage import NO_SPACE, OTHER_STORE
 from .views import RENEW_LIMIT, _grant_response, _token_digest
 
-METHODS = {
-    "windows": "windows-wbadmin-tar-v1",
-    "linux": "linux-offline-disk-v1",
-    "darwin": "macos-timemachine-disk-v1",
-}
 FAILURES = {
     "network": "Waiting for the permitted imaging network.",
     "capture": "Native capture failed preflight or could not complete. Check the local agent imaging log.",
     "upload": "Upload paused. Check backup storage and network availability.",
 }
+
+
+class VolumeSerializer(serializers.Serializer):
+    id = serializers.CharField(max_length=300, allow_blank=True)
+    mount = serializers.CharField(
+        max_length=255, allow_blank=True, trim_whitespace=False
+    )
+    fs = serializers.CharField(max_length=32, allow_blank=True)
+    kind = serializers.ChoiceField(choices=VOLUME_KINDS)
+    disk = serializers.CharField(max_length=255, allow_blank=True)
+    size = serializers.IntegerField(min_value=0, max_value=2**63 - 1)
+    used = serializers.IntegerField(min_value=0, max_value=2**63 - 1)
+    consistency = serializers.ChoiceField(
+        choices=("", "live", "lvm-snapshot", "btrfs-snapshot")
+    )
+    reason = serializers.CharField(max_length=255, allow_blank=True)
 
 
 class CapabilitySerializer(serializers.Serializer):
@@ -40,6 +62,10 @@ class CapabilitySerializer(serializers.Serializer):
     boot_mode = serializers.CharField(max_length=32, allow_blank=True)
     size = serializers.IntegerField(min_value=0, max_value=2**63 - 1)
     sector_size = serializers.IntegerField(min_value=0, max_value=65536)
+    volumes = VolumeSerializer(many=True, required=False, default=list, max_length=64)
+    min_target_size = serializers.IntegerField(
+        min_value=0, max_value=2**63 - 1, required=False, default=0
+    )
 
     def validate(self, data):
         if data["device_uuid"]:
@@ -47,16 +73,32 @@ class CapabilitySerializer(serializers.Serializer):
             if uuid.int in (0, 2**128 - 1):
                 raise serializers.ValidationError("The device UUID is a placeholder.")
             data["device_uuid"] = str(uuid)
-        if data["ready"] and not all(
-            data[k]
-            for k in (
-                "method",
-                "source_id",
-                "device_uuid",
-                "size",
-                "sector_size",
-                "scope",
-                "recovery",
+        ids = [
+            v["id"]
+            for v in data["volumes"]
+            if v["id"] and v["kind"] in ("system", "extra", "unmounted")
+        ]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError("Volume IDs must be unique.")
+        if data["ready"] and (
+            not all(
+                data[k]
+                for k in (
+                    "method",
+                    "source_id",
+                    "device_uuid",
+                    "size",
+                    "sector_size",
+                    "scope",
+                    "recovery",
+                )
+            )
+            or (
+                data["method"] == LINUX_FILES_METHOD
+                and not (
+                    any(v["kind"] == "system" for v in data["volumes"])
+                    and 0 < data["min_target_size"] <= data["size"]
+                )
             )
         ):
             raise serializers.ValidationError(
@@ -101,7 +143,7 @@ class NativePoll(AgentTokenView):
         serializer = CapabilitySerializer(data=request.data.get("capability"))
         serializer.is_valid(raise_exception=True)
         cap = serializer.validated_data
-        if cap["method"] and METHODS.get(agent.plat) != cap["method"]:
+        if cap["method"] and cap["method"] not in METHODS.get(agent.plat, ()):
             raise serializers.ValidationError(
                 "The capture method belongs to a different platform."
             )
@@ -123,7 +165,7 @@ class NativePoll(AgentTokenView):
             image.operator, agent, "can_manage_images"
         )
         # An offline Linux point is claimed by its rescue pairing, not the operator.
-        if not allowed and image.native.get("method") != METHODS["linux"]:
+        if not allowed and image.native.get("method") != LINUX_OFFLINE_METHOD:
             return _fail(
                 agent,
                 image,
@@ -176,6 +218,15 @@ class NativePoll(AgentTokenView):
                 image,
                 "The backup source changed. Review the capability and request a new capture.",
             )
+        current = {v["id"]: v for v in cap["volumes"]}
+        queued = {v["id"]: v for v in image.native.get("volumes", [])}
+        for vid in image.native.get("include", []):
+            mount = queued.get(vid, {}).get("mount", vid)
+            v = current.get(vid)
+            if not v or v["kind"] not in ("system", "extra") or v["mount"] != mount:
+                return _fail(
+                    agent, image, f"Selected volume {mount} is not mounted."[:255]
+                )
         now = timezone.now()
         active = Transfer.objects.filter(
             image=image, direction="capture", expires_at__gt=now

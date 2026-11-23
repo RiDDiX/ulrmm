@@ -16,7 +16,15 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .models import Image, ImageBlock, ImagePart, ImageStatus, NATIVE_RECEIVING_REASON
+from .models import (
+    LINUX_FILES_METHOD,
+    NATIVE_RECEIVING_REASON,
+    STREAM_METHODS,
+    Image,
+    ImageBlock,
+    ImagePart,
+    ImageStatus,
+)
 from .service import audit, set_status
 from .storage import (
     NO_SPACE,
@@ -30,6 +38,7 @@ from .storage import (
 
 BLOCK = 2 * 1024**2
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+REPORT = {"entries", "changed", "vanished", "skipped", "reappended", "padding_bytes"}
 
 
 class CorruptBlock(ValueError):
@@ -95,6 +104,8 @@ def report_corrupt_dependency(block):
 
 def verify_point(image):
     digest = hashlib.sha256()
+    # the files method seals the digest over the block digests in order
+    files = image.native["method"] == LINUX_FILES_METHOD
     total = stored = count = 0
     for part in (
         image.parts.select_related("block").order_by("index").iterator(chunk_size=256)
@@ -106,7 +117,7 @@ def verify_point(image):
         except (CorruptBlock, FileNotFoundError):
             report_corrupt_dependency(part.block)
             return False
-        digest.update(data)
+        digest.update(bytes.fromhex(part.block.digest) if files else data)
         total += len(data)
         stored += part.block.stored_size
         count += 1
@@ -133,10 +144,10 @@ def append_part(request, image):
         raise ValidationError("Block exceeds the image size limit.")
     # Restarted maps keep new_bytes, so the second bound also holds across begin.
     approved = image.native["size"]
+    limit = image.native.get("stream_limit") or approved
     if (
-        image.native["method"] != "windows-wbadmin-tar-v1"
-        and index * BLOCK + size > approved
-    ) or image.new_bytes > 2 * approved:
+        image.native["method"] not in STREAM_METHODS and index * BLOCK + size > approved
+    ) or image.new_bytes > 2 * limit:
         # A refused part stays refused on every retry; end the point so the
         # next scheduled run can start a fresh one.
         image.parts.all().delete()
@@ -254,14 +265,32 @@ def capture(request, image, operation):
                 or not DIGEST.fullmatch(digest)
             ):
                 raise ValidationError("Final length or SHA-256 is invalid.")
-            if (
-                image.native["method"] != "windows-wbadmin-tar-v1"
-                and size != image.native["size"]
-            ):
+            method = image.native["method"]
+            if method not in STREAM_METHODS and size != image.native["size"]:
                 raise ValidationError("The capture does not cover the complete media.")
+            fields = ["raw_size", "sha256", "raw_sha256"]
+            if method == LINUX_FILES_METHOD:
+                index, report = request.data.get("index"), request.data.get("report")
+                if not (
+                    isinstance(index, dict)
+                    and set(index) == {"offset", "size"}
+                    and all(type(v) is int for v in index.values())
+                    and index["offset"] >= 0
+                    and index["size"] > 0
+                    and index["offset"] + index["size"] <= size
+                ):
+                    raise ValidationError("The stream index location is invalid.")
+                if not (
+                    isinstance(report, dict)
+                    and set(report) == REPORT
+                    and all(type(v) is int and 0 <= v < 2**63 for v in report.values())
+                ):
+                    raise ValidationError("The stream report is invalid.")
+                image.native = {**image.native, "index": index, "report": report}
+                fields.append("native")
             image.raw_size = size
             image.sha256 = image.raw_sha256 = digest
-            image.save(update_fields=["raw_size", "sha256", "raw_sha256"])
+            image.save(update_fields=fields)
             set_status(
                 image,
                 ImageStatus.VERIFYING,

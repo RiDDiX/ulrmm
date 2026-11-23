@@ -16,7 +16,16 @@ from logs.models import AuditLog
 from ulrmm.constants import AgentPlat, AuditActionType, AuditObjType, GoArch
 from ulrmm.permissions import agent_perm_check
 
-from .models import ACTIVE_STATUSES, Image, NativeInventory, Pairing
+from .models import (
+    ACTIVE_STATUSES,
+    LINUX_FILES_METHOD,
+    LINUX_OFFLINE_METHOD,
+    SELECTABLE_KINDS,
+    Image,
+    ImageStatus,
+    NativeInventory,
+    Pairing,
+)
 
 CHANGED_PATH = "Waiting for the configured internal imaging ingress."
 NO_INTERNAL = (
@@ -54,7 +63,7 @@ def capability(agent):
                 data.get("method")
                 and data.get("source_id")
                 and data.get("device_uuid")
-                and (data.get("ready") or data["method"] == "linux-offline-disk-v1")
+                and (data.get("ready") or data["method"] == LINUX_OFFLINE_METHOD)
             ),
             "reason": data["reason"],
             "native": data,
@@ -115,6 +124,15 @@ def default_mode():
     return "internal" if internal_available() else "internet"
 
 
+def profile_defaults(supported):
+    """Settings of a device that has no saved profile yet."""
+    defaults = {"network_mode": default_mode()}
+    # the file stream pads to the block grid; level 1 squeezes that as well
+    if (supported.get("native") or {}).get("method") == LINUX_FILES_METHOD:
+        defaults["compression_level"] = 1
+    return defaults
+
+
 def check_network_mode(config):
     if config["network_mode"] == "internal" and not internal_available():
         raise ValidationError({"network_mode": [NO_INTERNAL]})
@@ -173,13 +191,51 @@ def queue_capture(profile, username, operator=None):
         )
         return None
     native = capability(profile.agent).get("native")
+    failed = ""
     if not profile.policy_id and Pairing.objects.filter(agent=profile.agent).exists():
         native = None
+        if profile.volumes:
+            # the paired offline capture holds the system disk only
+            failed = (
+                "Selected volumes need the live backup. "
+                "Unpair offline capture or untick the volumes."
+            )
     if native:
         native = {
             **native,
             "storage_encryption": storage_encryption(profile.destination),
         }
+    if native and native["method"] == LINUX_FILES_METHOD:
+        volumes = native.get("volumes", [])
+        by_mount = {v["mount"]: v for v in volumes}
+        include = [v["id"] for v in volumes if v["kind"] == "system"]
+        missing = []
+        for selector in profile.volumes:
+            v = by_mount.get(selector)
+            if v and v["kind"] in SELECTABLE_KINDS:
+                include.append(v["id"])
+            elif not v or v["kind"] != "system":
+                missing.append(selector)
+        native.update(
+            include=include,
+            missing=missing,
+            stream_limit=sum(v["size"] for v in volumes if v["id"] in include),
+        )
+        # a policy's selectors may not exist on every device, the device's own must
+        if missing and not profile.policy_id:
+            gone = by_mount.get(missing[0])
+            failed = (
+                f"Selected volume {missing[0]} cannot be backed up: {gone['reason']}"
+                if gone and gone["kind"] != "unmounted" and gone.get("reason")
+                else f"Selected volume {missing[0]} is not mounted."
+            )[:255]
+    elif native and native["method"] == LINUX_OFFLINE_METHOD and profile.volumes:
+        # the offline image holds the system disk only
+        native["missing"] = list(profile.volumes)
+        if not profile.policy_id:
+            failed = (
+                f"Selected volumes need the live backup. {native.get('reason') or ''}"
+            ).strip()[:255]
     image = Image.objects.create(
         native=native,
         operator=operator,
@@ -204,7 +260,10 @@ def queue_capture(profile, username, operator=None):
         f"Client imaging capture queued for image {image.id}.",
         AuditActionType.ADD,
     )
-    if native:
+    if failed:
+        set_status(image, ImageStatus.FAILED, failed)
+        audit(profile.agent, username, f"Image {image.id} failed: {failed}")
+    elif native:
         from .tasks import wake_imaging_agent
 
         transaction.on_commit(

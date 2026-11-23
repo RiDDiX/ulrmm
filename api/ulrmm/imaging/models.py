@@ -24,6 +24,19 @@ MODE_CHANGED = (
     "The network mode changed after this capture was queued. Request a new capture."
 )
 WAITING_REASON = "Boot the device into offline recovery and issue capture access."
+WINDOWS_METHOD = "windows-wbadmin-tar-v1"
+LINUX_OFFLINE_METHOD = "linux-offline-disk-v1"
+LINUX_FILES_METHOD = "linux-files-v1"
+MACOS_METHOD = "macos-timemachine-disk-v1"
+METHODS = {
+    "windows": {WINDOWS_METHOD},
+    "linux": {LINUX_OFFLINE_METHOD, LINUX_FILES_METHOD},
+    "darwin": {MACOS_METHOD},
+}
+# wbadmin and the files method: stream length is not the disk size
+STREAM_METHODS = {WINDOWS_METHOD, LINUX_FILES_METHOD}
+VOLUME_KINDS = ("system", "extra", "network", "unsupported", "unmounted")
+SELECTABLE_KINDS = ("extra", "unmounted")
 
 
 class Profile(models.Model):
@@ -40,6 +53,7 @@ class Profile(models.Model):
     timezone = models.CharField(max_length=64, default="UTC")
     next_run = models.DateTimeField(null=True, db_index=True)
     keep_last = models.PositiveSmallIntegerField(default=0)
+    volumes = models.JSONField(default=list, blank=True)
 
 
 class Image(models.Model):
