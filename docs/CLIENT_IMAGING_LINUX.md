@@ -1,6 +1,29 @@
 # Linux system images
 
-The Linux agent detects the system disk and reports the source disk identifier, firmware mode, sector size, capacity, and recovery requirements to ULRMM. On the reference layout it requests an offline maintenance window. Start the same ULRMM agent binary from trusted recovery media after the installed OS has shut down. It takes an exclusive read-only handle to the authorized disk and runs the offline filesystem and boot-layout checks before it streams any image bytes.
+The Linux agent detects the system disk and reports the source disk identifier, firmware mode, sector size, capacity, and recovery requirements to ULRMM. It uses one of two methods:
+
+- **Live backup** (`linux-files-v1`): the running system is backed up on schedule, without a reboot. This is the default when the device meets the requirements below.
+- **Offline disk image** (`linux-offline-disk-v1`): a whole-disk image taken in a maintenance window. The device tab shows "Live backup unavailable:" and the reason when only this method fits. Start the same ULRMM agent binary from trusted recovery media after the installed OS has shut down. It takes an exclusive read-only handle to the authorized disk and runs the offline filesystem and boot-layout checks before it streams any image bytes.
+
+## Live backup
+
+Requirements: x86-64 or arm64 Linux, UEFI boot, GPT system disk, a valid DMI product UUID, and only ext4, FAT and swap on the system disk. LVM, Btrfs, XFS and LUKS system disks have no supported backup yet, with either method. Restoring needs x86-64 recovery media; arm64 backups are stored and verified, and arm64 recovery media follows in a later release.
+
+The device tab lists every volume:
+
+| Kind | Backup |
+| --- | --- |
+| System, always included | Every local file system on the disk that holds `/`, `/boot` and the EFI partition. |
+| Extra volume | Other local disks, for example `/media/frigate`. Tick them in **Back up** to include them. Each backup reads every ticked volume in full, so a multi-terabyte recordings disk means a full read every day. |
+| Not mounted | A local fstab entry that is not mounted right now. It can be ticked; a backup then fails until it is mounted. |
+| Network storage, not backed up | CIFS, NFS and other network shares. Back them up on the server that holds them. |
+| Not supported | The reason is shown next to the volume. |
+
+The backup reads files while the system runs. A file that changes while it is read is read again; if it still changes, it is stored as read and counted under "Changed while read" on the point. Files that change together, such as a database and its journal, can come from different moments. Stop such services or dump their data with a scheduled script shortly before the backup window, for example the SQLite backup API into a second file. Snapshots that give one point in time for all files follow in a later release.
+
+If a volume ticked on the device is missing or not mounted at backup time, the backup fails with the reason, for example "Selected volume ... is not mounted." Older backups stay and are not removed by **points to keep**. A volume named by a backup policy that a device does not have is skipped on that device and shown on the point. While offline capture is paired, the device's own schedule uses the offline method, and a backup with ticked volumes fails until you unpair or untick them.
+
+The stream is cut into the server's 2 MiB blocks. Unchanged files reuse their blocks, so a daily backup stores only what changed. New profiles use gzip level 1, which also compresses the alignment padding.
 
 ## Reference configuration
 
@@ -33,7 +56,17 @@ For the source and target, boot rescue mode with the kernel argument `ulrmm.reco
 python3 /usr/lib/ulrmm/ulrmm_image_recovery.py --identify capture --disk-id "$disk_id"
 ```
 
-## Capture and restore
+## Restore a live backup
+
+1. Prepare a blank target disk. It must be at least the size shown in the restore dialog and use the source's logical sector size. The original disk carries the same file system IDs, so keep it detached while the restored disk boots.
+2. Open **Restore** on the image row and use **Check all blocks** first. A live restore starts writing before the whole point has been read, and this check finds damage before anything is written.
+3. Boot the target into the recovery media with `ulrmm.recovery=1`. The media needs Python 3.11 or later, util-linux (`sfdisk`, `lsblk`, `wipefs`, `blkid`, `blockdev`, `mount`), e2fsprogs, dosfstools, udev, the kernel driver of the target disk (for example NVMe) and, for the boot entry, `efibootmgr`. Run `--identify restore --disk-id "$target_disk_id"` and enter the reported size and sector size in **Restore**, together with the target device, its DMI UUID and disk ID. Complete the two-factor prompt.
+4. Run the recovery command from [Linux whole-disk restore](CLIENT_IMAGING.md#linux-whole-disk-restore) without `--staging-dir`. It checks that the target is blank and that the recovery media can create the recorded file systems, then asks for the phrase `RESTORE <transfer> <disk>`. It recreates the partitions and file systems with their original IDs, writes the files, checks the block digest, runs read-only `e2fsck` and `fsck.vfat`, creates the EFI boot entry and, when the source had none, copies the boot loader to the fallback path `EFI/BOOT`. fstab entries of volumes that were not restored, such as extra disks and network shares, get `nofail`, so the system boots without them.
+5. Boot the restored disk. Extra volumes are kept in the backup but are not written by a disk restore; restoring files and folders from a point follows in a later release.
+
+The helper refuses a target that is not blank and never wipes a disk itself. If a restore stops part-way, the target already holds partitions with the source's IDs: clear only that target with `wipefs -a /dev/disk/by-id/<target disk id>` before you start again.
+
+## Capture and restore with the offline method
 
 1. Open **System images** on the device. Review the capability report, choose compression and network access, and request an image or configure a schedule. A scheduled run waits for the chosen recovery window.
 2. After a clean shutdown, boot the recovery media and verify the disk identity displayed by preflight. Request **Capture access** for the waiting image. Use the direction-specific URL and token displayed there.

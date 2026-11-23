@@ -127,6 +127,8 @@ python3 ulrmm_image_recovery.py --poll-url "$pairing_url" --disk-id "$source_dis
 
 ## Linux whole-disk restore
 
+This section covers the offline disk image. A live Linux backup is restored with the same command; the [Linux guide](CLIENT_IMAGING_LINUX.md#restore-a-live-backup) lists its additional steps and requirements.
+
 1. Select the verified image on its source device. Boot the intended target into a trusted Linux recovery environment, preserving the firmware mode. Use `--identify restore --disk-id "$target_disk_id"` to inspect the target. Compare the exact size and sector size with the source. Provision a private staging filesystem on separate recovery storage. Gzip restore needs room for the stored file plus the full raw disk. An uncompressed image needs room for the full raw disk.
 2. In **Restore**, select the target device, enter its DMI UUID and stable disk ID, confirm image and target, and complete the two-factor prompt. Use the resulting transfer URL and token on the target.
 3. Run the command below as root. The tool downloads and verifies the entire image before requesting the final local confirmation. Check the displayed device, disk and image, then type the displayed phrase. It obtains a fresh authorization and exclusive device handle, writes the disk, flushes it, checks the readback hash and reports completion.
