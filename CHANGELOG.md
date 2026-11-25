@@ -1,5 +1,37 @@
 # Server changelog
 
+## 1.24.11.2026 (2026-11-24)
+
+- agents update to 1.24.11.2026
+- backups: new Backups page with a Devices tab (policies, settings state, readiness, last verified point, next backup, stored size, alerts, current run and held change of every device, with filters) and a Policies tab. Setup, rights and upgrade notes are in `docs/CLIENT_IMAGING.md`
+- backup policies: settings are resolved field by field over the Global default, client, site, device group and tag (with priority), assigned policy and device levels; the device tab shows where each value comes from and can reset a device value to the inherited one. Backup target, hooks and automatic setup can be enforced by a policy
+- backup policies: a tag, device group or site change that would move a device's backup settings applies at once only for a user with Manage System Images on the device, and Run Script when hooks change; otherwise it is held until a user with those rights confirms or rejects it in the device tab or on the Backups page
+- backup targets: Global Settings > System Images lists the backup folders as targets with client or site scope, a quota and a limit of backups at the same time; one global target is the default
+- schedules: manual, daily, every N hours after the last verified point, calendar and cron schedules, backups when the agent starts or AC power is connected, a minimum spacing, catch-up once with a delay or skipping missed runs, backup and blackout windows and an optional stop at the window end
+- retention: keep last plus hourly, daily, weekly, monthly and yearly tiers, protected points and a retention preview in the device tab; a quota per device and per target makes new backups wait and never deletes a point
+- hooks: saved scripts run before and after the backup and the snapshot, with a timeout and abort or warn on failure. The script hash is pinned on save and a changed script suspends the hook until it is confirmed, a later save keeps that pin; saving and confirming hooks needs Run Script and a two-factor unlock. Environment values are never shown again, arguments and output only to users who may run scripts
+- readiness checks from the agent and the server, with automatic setup `safe`, `all` or `off` and **Check now**; applied fixes are audited
+- backup settings go to the agent as a versioned document that it acknowledges; the device tab shows synced, pending, refused or older agent
+- backup runs with step, progress, log, warnings, hook results and **Cancel run**; an interrupted run sends its point back to waiting and the next run reuses the stored blocks
+- backup alerts with the notification source Backups: failed runs, failures and interruptions in a row, no recent verified backup by recovery point objective, failed verification, refused settings, readiness lost, quotas, SMART warnings, unreachable targets and suspended hooks
+- a client, site, device group or tag that a backup policy or target names cannot be deleted until they are removed
+- the upgrade turns every backup folder into a target and keeps the settings of existing profiles and policies; the next scheduled run of each device stays as it was
+
+### Changes in behaviour
+
+- devices that are not ready are no longer dropped from a policy silently; the review list shows them and the user removes them
+- assigning a policy no longer replaces the values set on a device: a device value wins over the policy until it is reset to inherited. After the upgrade a device without a policy holds its earlier values as device values; the policy dialog names them for each device
+- a policy is deleted in the policy list of the Backups page, not in the device dialog
+- a policy started from a device takes the device's own settings, not its whole configuration
+- saving device settings keeps the device in its assigned policy; a device leaves an assigned policy only when it is removed from the policy's device list, and saving an assigned policy without devices takes every device off it
+- scheduled points run on the authority of the policy or device schedule and need no backup operator; a point fails when its policy no longer reaches the device
+- a waiting scheduled point that no agent has claimed is replaced by the next occurrence, so missed runs are coalesced into one; **Request backup** with a point open returns that point
+- failed points are removed 7 days after they failed when a newer verified point of the same target exists
+- updated agents get backup settings and claims only over their sealed channel; a device without an active agent identity makes no backup until it has one
+- a device whose settings hold hooks makes no backup until its agent is updated to 1.24.11.2026
+- run logs are cleared 30 days after the run ended, and each point keeps its last 20 ended runs
+- after a rollback of the server to an earlier version, updated agents refuse its backup grants for up to 24 hours, or until their service restarts
+
 ## 3.23.11.2026 (2026-11-23)
 
 - agents update to 2.23.11.2026
