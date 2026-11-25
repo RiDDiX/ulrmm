@@ -37,33 +37,46 @@ from core.models import CoreSettings
 from core.utils import get_core_settings, stepup_denied
 from logs.models import AuditLog
 from ulrmm.constants import CORESETTINGS_CACHE_KEY, AuditActionType, AuditObjType
-from ulrmm.permissions import _has_perm
+from ulrmm.permissions import _has_perm, _is_restricted
 
 from . import blocks
+from . import resolver
 from .models import (
     ACTIVE_STATUSES,
     LINUX_FILES_METHOD,
     MODE_CHANGED,
+    OPEN_RUNS,
     RECEIVING_REASON,
     SELECTABLE_KINDS,
     WINDOWS_METHOD,
+    Authority,
+    BackupPolicy,
+    BackupRun,
+    DeviceBackupState,
+    HoldStatus,
     Image,
     ImageBlock,
     ImagePart,
     ImageStatus,
     Pairing,
+    PolicyChangeHold,
     Profile,
+    RunStatus,
+    StorageTarget,
     Transfer,
 )
 from .serializers import (
     CaptureGrantSerializer,
     CompleteCaptureSerializer,
     CompleteRestoreSerializer,
+    ConfigSerializer,
+    HookConfirmSerializer,
     ImageSerializer,
     ManifestSerializer,
     ProfileSerializer,
     RestoreGrantSerializer,
     NativeRestoreSerializer,
+    TargetSerializer,
 )
 from .service import (
     CHANGED_PATH,
@@ -71,15 +84,21 @@ from .service import (
     agent_allowed,
     audit,
     capability,
-    check_network_mode,
     check_path,
+    covers,
+    has_flag,
+    masked_hooks,
+    not_covered,
     internal_available,
-    next_run,
+    keyed_hooks,
     origin,
-    profile_defaults,
     queue_capture,
+    script_hash,
     set_status,
     storage_encryption,
+    script_names,
+    suspended_hooks,
+    usage_later,
 )
 from .storage import (
     CHUNK_SIZE,
@@ -111,6 +130,7 @@ NUMBER = re.compile(r"\d{1,19}\Z", re.ASCII)
 RENEW_LIMIT = timedelta(days=7)
 STORED = Q(offset__gt=0) | Q(status__in=(ImageStatus.VERIFYING, ImageStatus.VERIFIED))
 REPLACED = "The store that held this point was replaced in Global Settings."
+DISCARDABLE = (ImageStatus.WAITING, ImageStatus.UPLOADING, ImageStatus.FAILED)
 
 
 class ImageBusy(APIException):
@@ -183,6 +203,276 @@ def _storage(manager=False):
     return storage
 
 
+def sync_state(agent, state):
+    if not state.protocol:
+        name = "legacy"
+    elif state.acked_hash == state.config_hash and state.ack_status == "applied":
+        name = "synced"
+    elif state.ack_status == "error" and state.acked_version == state.config_version:
+        name = "error"
+    else:
+        name = "pending"
+    return {
+        "state": name,
+        "config_version": state.config_version,
+        "acked_version": state.acked_version,
+        "acked_at": state.acked_at,
+        "pending_since": state.pending_since,
+        "offline": not agent.is_online,
+        "errors": state.ack_errors,
+    }
+
+
+def run_row(run, show_output, log_from=None):
+    """A run for an answer; hook output only for callers who may run scripts."""
+    # the name the claim carried; a result without one looks the script up
+    known = {
+        (h["phase"], h["script_id"]): h["script_name"]
+        for h in run.claimed_hooks
+        if "script_name" in h
+    }
+    for h in run.hooks:
+        if "script_name" in h:
+            known[(h["phase"], h["script_id"])] = h["script_name"]
+    lost = [
+        h["script_id"] for h in run.hooks if (h["phase"], h["script_id"]) not in known
+    ]
+    names = script_names(lost) if lost else {}
+    hooks = [
+        {
+            **h,
+            "script_name": known.get(
+                (h["phase"], h["script_id"]), names.get(h["script_id"], "")
+            ),
+        }
+        for h in run.hooks
+    ]
+    if not show_output:
+        hooks = [
+            {k: v for k, v in h.items() if k not in ("stdout", "stderr")} for h in hooks
+        ]
+    row = {
+        "id": str(run.id),
+        "image": str(run.image_id),
+        "trigger": run.trigger,
+        "status": run.status,
+        "step": run.step,
+        "deferred_reason": run.deferred_reason,
+        "reason": run.reason,
+        "pause_reason": run.pause_reason,
+        "counters": run.counters,
+        "warnings": run.warnings,
+        "hooks": hooks,
+        "output_hidden": not show_output,
+        "cancel_requested": run.cancel_requested,
+        "cancelled_by": run.cancelled_by.username if run.cancelled_by else None,
+        "created_at": run.created_at,
+        "started_at": run.started_at,
+        "ended_at": run.ended_at,
+    }
+    if log_from is not None:
+        skip = max(0, log_from - run.log_start)
+        row.update(log=run.log[skip:], log_start=run.log_start + skip)
+    return row
+
+
+def masked_view(view, show_args):
+    """An effective view without hook env values, and args only for script users."""
+    fields = dict(view["fields"])
+    hooks = fields["hooks"]
+    fields["hooks"] = {**hooks, "value": masked_hooks(hooks["value"], show_args)}
+    hold = view["hold"]
+    if hold:
+        hold = {
+            **hold,
+            "changes": [
+                (
+                    {
+                        **c,
+                        "held": masked_hooks(c["held"], show_args),
+                        "proposed": masked_hooks(c["proposed"], show_args),
+                    }
+                    if c["field"] == "hooks"
+                    else c
+                )
+                for c in hold["changes"]
+            ],
+        }
+    return {**view, "fields": fields, "hold": hold}
+
+
+def _device_answer(request, agent, supported, profile, state, storage):
+    from .native import readiness, shown_checks
+
+    user = request.user
+    view = resolver.effective(agent, profile, state)
+    fields = view["fields"]
+    show_args = agent_allowed(user, agent, "can_run_scripts")
+    tab = resolver.table()
+    ready, reason = readiness(
+        agent, state, fields, tab, supported.get("native") or supported
+    )
+    can_manage = agent_allowed(user, agent, MANAGE)
+    runs = (
+        BackupRun.objects.filter(image__agent=agent)
+        .select_related("cancelled_by")
+        .defer("log")
+    )
+    active = runs.filter(
+        status__in=OPEN_RUNS, image__status__in=ACTIVE_STATUSES
+    ).first()
+    return {
+        "capability": supported,
+        "storage": storage,
+        "can_manage": can_manage,
+        "can_restore": agent_allowed(user, agent, RESTORE),
+        "config": ProfileSerializer(profile).data,
+        "policy": (
+            {"id": profile.policy_id, "name": profile.policy.name}
+            if profile.policy_id
+            else None
+        ),
+        "at_rest": storage_encryption(profile.destination),
+        "pairing": _pairing_metadata(agent, user),
+        "images": ImageSerializer(
+            Image.objects.filter(agent=agent).order_by("-created_at"), many=True
+        ).data,
+        "effective": masked_view(view, show_args),
+        "overrides": {
+            **profile.overrides,
+            **(
+                {"hooks": masked_hooks(profile.overrides["hooks"], show_args)}
+                if "hooks" in profile.overrides
+                else {}
+            ),
+        },
+        "enforced_by": {
+            k: {"id": f["origin"]["id"], "name": f["origin"]["name"]}
+            for k, f in fields.items()
+            if f["locked"]
+        },
+        "sync": sync_state(agent, state),
+        "checks": shown_checks(agent, state, fields, tab),
+        "ready": ready,
+        "not_ready_reason": reason,
+        "active_run": run_row(active, show_args) if active else None,
+        "runs": [run_row(r, show_args) for r in runs.order_by("-created_at")[:10]],
+        "hold": masked_view(view, show_args)["hold"],
+        "hooks_suspended": suspended_hooks(
+            fields["hooks"]["value"],
+            resolver.pinned_hooks(fields, profile, tab),
+            fields["hooks"]["origin"],
+        ),
+        "can_run_scripts": show_args,
+        "usage": _usage(state, fields, tab),
+    }
+
+
+def _usage(state, fields, tab):
+    ids = {int(k) for k in state.usage} | {fields["target"]["value"]}
+    return [
+        {
+            "target": pk,
+            "name": tab["targets"][pk]["name"],
+            "stored_bytes": state.usage.get(str(pk), 0),
+            "quota_bytes": fields["quota_bytes"]["value"],
+        }
+        for pk in sorted(ids)
+        if pk in tab["targets"]
+    ]
+
+
+def _device_save(request, agent, supported, profile, fields):
+    body = request.data if isinstance(request.data, dict) else {}
+    unknown = set(body) - {"set", "reset"}
+    if unknown or not ({"set", "reset"} & set(body)):
+        raise ValidationError(
+            {
+                k: [
+                    "Send the changed settings under set and the reset ones under reset."
+                ]
+                for k in (unknown or ["set"])
+            }
+        )
+    changes = body.get("set", {})
+    reset = body.get("reset", [])
+    if not isinstance(changes, dict):
+        raise ValidationError({"set": ["Send the changed settings as an object."]})
+    if not isinstance(reset, list) or not all(
+        isinstance(k, str) and k in fields for k in reset
+    ):
+        raise ValidationError({"reset": ["Unknown setting."]})
+    serializer = ConfigSerializer(data=changes)
+    if not serializer.is_valid():
+        raise ValidationError({"set": serializer.errors})
+    config = serializer.validated_data
+    if "hooks" in config:
+        # a kept value comes from the device's own hooks, then the inherited ones
+        config["hooks"] = keyed_hooks(
+            config["hooks"],
+            (profile.overrides.get("hooks", []), fields["hooks"]["value"]),
+            "set",
+        )
+    locked = {
+        k: [f"Enforced by backup policy {fields[k]['origin']['name']}."]
+        for k in config
+        if fields[k]["locked"]
+    }
+    if locked:
+        raise ValidationError({"set": locked})
+    offered = {
+        v["mount"]
+        for v in (supported.get("native") or {}).get("volumes", [])
+        if v["kind"] in SELECTABLE_KINDS
+    }
+    for selector in config.get("volumes", ()):
+        if selector not in offered:
+            raise ValidationError(
+                {
+                    "set": {
+                        "volumes": [
+                            f"{selector} is not an extra volume on this device."
+                        ]
+                    }
+                }
+            )
+    if "target" in config:
+        target = resolver.table()["targets"][config["target"]]
+        if not covers(target, agent.site.client_id, agent.site_id):
+            raise ValidationError({"set": {"target": [not_covered(target)]}})
+    overrides = {
+        k: v for k, v in {**profile.overrides, **config}.items() if k not in reset
+    }
+    # an absent key inherits hooks, an empty list switches them off: both count
+    if overrides.get("hooks") != profile.overrides.get("hooks"):
+        if not agent_allowed(request.user, agent, "can_run_scripts"):
+            raise PermissionDenied()
+        if denied := stepup_denied(request, "Backup hooks run scripts on devices."):
+            return denied
+        from scripts.models import Script
+
+        scripts = Script.objects.in_bulk(
+            [h["script_id"] for h in overrides.get("hooks", [])]
+        )
+        # a kept pin stays, so a script edited after its pin stays suspended
+        old = profile.hooks_pinned
+        profile.hooks_pinned = {
+            str(pk): old.get(str(pk)) or script_hash(script)
+            for pk, script in scripts.items()
+        }
+        profile.hooks_approved_by = request.user
+        profile.hooks_approved_at = timezone.now()
+    profile.overrides = overrides
+    profile.operator = request.user
+    profile.save()
+    audit(
+        agent,
+        request.user.username,
+        f"Backup device settings changed: {', '.join(sorted(set(config) | set(reset)))}.",
+    )
+    return None
+
+
 @api_view(["GET", "PUT"])
 @transaction.atomic
 def device(request, agent_id):
@@ -204,58 +494,308 @@ def device(request, agent_id):
     flags = (MANAGE,) if request.method == "PUT" else (VIEW, MANAGE, RESTORE)
     agent = _agent(request.user, agent_id, *flags, lock=request.method == "PUT")
     supported = capability(agent)
-    profiles = Profile.objects
-    if request.method == "PUT":
-        profiles = profiles.select_for_update()
-    profile = profiles.filter(agent=agent).first() or Profile(
-        agent=agent, **profile_defaults(supported)
-    )
-    can_manage = agent_allowed(request.user, agent, MANAGE)
-    storage = _storage(can_manage)
+    profile, state = resolver.rows(agent)
+    storage = _storage(agent_allowed(request.user, agent, MANAGE))
     if request.method == "PUT":
         if not supported["supported"]:
             raise ValidationError(supported["reason"])
-        config = _validated(ProfileSerializer, request.data)
-        check_network_mode(config)
-        offered = {
-            v["mount"]
-            for v in (supported.get("native") or {}).get("volumes", [])
-            if v["kind"] in SELECTABLE_KINDS
+        profile = Profile.objects.select_for_update().get(pk=profile.pk)
+        fields = resolver.effective(agent, profile, state)["fields"]
+        if denied := _device_save(request, agent, supported, profile, fields):
+            return denied
+        profile, state = resolver.resolve_device(
+            agent, cause="device", author=request.user
+        )
+    return Response(_device_answer(request, agent, supported, profile, state, storage))
+
+
+@api_view(["GET"])
+def device_effective(request, agent_id):
+    agent = _agent(request.user, agent_id, VIEW, MANAGE, RESTORE)
+    show_args = agent_allowed(request.user, agent, "can_run_scripts")
+    return Response(masked_view(resolver.effective(agent), show_args))
+
+
+@api_view(["POST"])
+def device_check(request, agent_id):
+    import asyncio
+
+    agent = _agent(request.user, agent_id, MANAGE)
+    _, state = resolver.rows(agent)
+    if not state.protocol:
+        return _problem(
+            "Update the agent to run readiness checks from the dashboard.", 409
+        )
+    asyncio.run(agent.nats_cmd({"func": "imagingcheck"}, wait=False))
+    audit(agent, request.user.username, "Backup readiness check requested.")
+    return Response({}, status=202)
+
+
+@api_view(["POST"])
+@transaction.atomic
+def hold_confirm(request, pk):
+    found = get_object_or_404(PolicyChangeHold.objects.select_related("agent"), pk=pk)
+    agent = _agent(request.user, found.agent.agent_id, MANAGE)
+    # lock order everywhere: profile, then hold
+    resolver.rows(agent)
+    Profile.objects.select_for_update().filter(agent=agent).first()
+    hold = PolicyChangeHold.objects.select_for_update().get(pk=pk)
+    action = request.data.get("action") if isinstance(request.data, dict) else None
+    if action not in ("confirm", "reject"):
+        raise ValidationError({"action": ["Choose confirm or reject."]})
+    if hold.status != HoldStatus.PENDING:
+        return _problem("This change was already decided.", 409)
+    pending = resolver.effective(agent)["hold"]
+    # the live proposal: a policy edit since the last resolve needs a new review
+    if not pending or request.data.get("proposed_hash") != pending["proposed_hash"]:
+        return _problem("This change was updated; review it again.", 409)
+    if action == "confirm" and any(c["field"] == "hooks" for c in pending["changes"]):
+        # confirming changes which scripts run on the device
+        if not agent_allowed(request.user, agent, "can_run_scripts"):
+            raise PermissionDenied()
+        if denied := stepup_denied(request, "Backup hooks run scripts on devices."):
+            return denied
+    hold.status = HoldStatus.CONFIRMED if action == "confirm" else HoldStatus.REJECTED
+    hold.confirmed_by = request.user
+    hold.confirmed_at = timezone.now()
+    # a reject is remembered under the change it was shown
+    hold.proposed_hash = pending["proposed_hash"]
+    hold.save()
+    if action == "confirm":
+        resolver.resolve_device(
+            agent,
+            cause="device",
+            author=request.user,
+            members=hold.proposed_memberships,
+        )
+    audit(
+        agent,
+        request.user.username,
+        f"Held backup settings change {hold.pk} {hold.status}.",
+    )
+    show_args = agent_allowed(request.user, agent, "can_run_scripts")
+    return Response(masked_view(resolver.effective(agent), show_args))
+
+
+FLEET_STATES = (
+    "stale",
+    "not_ready",
+    "error",
+    "pending",
+    "legacy",
+    "pending_confirmation",
+)
+
+
+@api_view(["GET"])
+def fleet(request):
+    from django.db.models import Max
+
+    user = request.user
+    if not has_flag(user, VIEW, MANAGE, RESTORE):
+        raise PermissionDenied()
+    agents = (
+        Agent.objects.filter_by_role(user)
+        .select_related("site__client", "backup_state", "profile")
+        .annotate(last_verified=Max("image__verified_at"))
+        .order_by("hostname", "pk")
+    )
+    query = request.query_params.get("q", "").strip()
+    if query:
+        agents = agents.filter(hostname__icontains=query)
+    wanted = request.query_params.get("state", "")
+    if wanted and wanted not in FLEET_STATES:
+        raise ValidationError({"state": ["Unknown filter."]})
+    try:
+        limit = min(max(int(request.query_params.get("limit", 50)), 1), 500)
+        offset = max(int(request.query_params.get("offset", 0)), 0)
+    except ValueError:
+        raise ValidationError("Use numbers for limit and offset.") from None
+    holds = {
+        h.agent_id: h
+        for h in PolicyChangeHold.objects.filter(status=HoldStatus.PENDING)
+    }
+    runs = {
+        r.image.agent_id: r
+        for r in BackupRun.objects.filter(
+            status__in=OPEN_RUNS, image__status__in=ACTIVE_STATUSES
+        )
+        .select_related("image")
+        .defer("log")
+    }
+    tab = resolver.table()
+    counts = dict.fromkeys(FLEET_STATES, 0)
+    rows, seen = [], []
+    for agent in agents:
+        seen.append(agent.pk)
+        state = getattr(agent, "backup_state", None) or DeviceBackupState(agent=agent)
+        profile = getattr(agent, "profile", None)
+        sync = sync_state(agent, state)["state"]
+        hold = holds.get(agent.pk)
+        tags = {
+            "stale": "stale" in state.alerts,
+            "not_ready": not state.ready,
+            "error": sync == "error",
+            "pending": sync == "pending",
+            "legacy": sync == "legacy",
+            "pending_confirmation": hold is not None,
         }
-        for selector in config["volumes"]:
-            if selector not in offered:
-                raise ValidationError(
-                    {"volumes": [f"{selector} is not an extra volume on this device."]}
-                )
-        for key, value in config.items():
-            setattr(profile, key, value)
-        profile.operator = request.user
-        profile.policy_id = None
-        profile.next_run = next_run(profile, timezone.now())
-        profile.save()
-        Pairing.objects.filter(agent=agent).exclude(
-            network_mode=profile.network_mode
-        ).delete()
-        audit(agent, request.user.username, "Client imaging configuration changed.")
+        for key, hit in tags.items():
+            counts[key] += hit
+        if wanted and not tags[wanted]:
+            continue
+        rows.append((agent, state, profile, sync, hold))
+    page = []
+    for agent, state, profile, sync, hold in rows[offset : offset + limit]:
+        members = state.memberships or {}
+        policies = [tab["global"]] + [
+            tab[scope].get(members.get(scope)) for scope in ("client", "site")
+        ]
+        policies += resolver._shared(members, tab)
+        if profile and profile.policy_id:
+            policies.append(tab["policies"].get(profile.policy_id))
+        run = runs.get(agent.pk)
+        page.append(
+            {
+                "agent_id": agent.agent_id,
+                "hostname": agent.hostname,
+                "client": agent.site.client.name,
+                "site": agent.site.name,
+                "plat": agent.plat,
+                "policies": [
+                    {"id": p["id"], "name": p["name"], "level": p["scope"]}
+                    for p in policies
+                    if p
+                ],
+                "sync": sync,
+                "ready": state.ready,
+                "not_ready_reason": state.not_ready_reason,
+                "last_verified_at": agent.last_verified,
+                "next_run": profile.next_run if profile else None,
+                "stored_bytes": sum(state.usage.values()),
+                "alerts": sorted(state.alerts),
+                "hold": (
+                    {
+                        "id": hold.pk,
+                        "proposed_hash": resolver.live_hash(agent, profile, hold, tab),
+                    }
+                    if hold
+                    else None
+                ),
+                "run": {"status": run.status, "step": run.step} if run else None,
+                "can_manage": agent_allowed(user, agent, MANAGE),
+            }
+        )
+    counts["all"] = len(seen)
     return Response(
         {
-            "capability": supported,
-            "storage": storage,
-            "can_manage": can_manage,
-            "can_restore": agent_allowed(request.user, agent, RESTORE),
-            "config": ProfileSerializer(profile).data,
-            "policy": (
-                {"id": profile.policy_id, "name": profile.policy.name}
-                if profile.policy_id
-                else None
-            ),
-            "at_rest": storage_encryption(profile.destination),
-            "pairing": _pairing_metadata(agent, request.user),
-            "images": ImageSerializer(
-                Image.objects.filter(agent=agent).order_by("-created_at"), many=True
-            ).data,
+            "rows": page,
+            "total": len(rows),
+            "counts": counts,
+            "internal": internal_available(),
         }
     )
+
+
+def _target_row(target):
+    return {
+        "id": target.pk,
+        "name": target.name,
+        "kind": target.kind,
+        "scope": target.scope,
+        "client": target.client_id,
+        "site": target.site_id,
+        "quota_bytes": target.quota_bytes,
+        "max_runs": target.max_runs,
+        "is_default": target.is_default,
+        "used_bytes": target.used_bytes,
+        "unreachable_since": target.unreachable_since,
+        "in_use": _target_in_use(target),
+        "storage_encryption": storage_encryption(target.name),
+    }
+
+
+def _target_in_use(target):
+    return (
+        Profile.objects.filter(target=target).exists()
+        or Profile.objects.filter(overrides__target=target.pk).exists()
+        or Image.objects.filter(target=target).exists()
+        or any(
+            p.get("target") == target.pk
+            for p in BackupPolicy.objects.values_list("config", flat=True)
+        )
+    )
+
+
+@api_view(["GET", "POST", "PUT", "DELETE"])
+@transaction.atomic
+def targets(request, pk=None):
+    user = request.user
+    if request.method == "GET":
+        if not (_has_perm(request, "can_view_core_settings") or has_flag(user, MANAGE)):
+            raise PermissionDenied()
+        rows = StorageTarget.objects.order_by("name", "pk")
+        if _is_restricted(user):
+            from clients.models import Client, Site
+
+            rows = rows.filter(
+                Q(scope="global")
+                | Q(client__in=Client.objects.filter_by_role(user))
+                | Q(site__in=Site.objects.filter_by_role(user))
+            )
+        return Response([_target_row(t) for t in rows])
+    if not _has_perm(request, "can_edit_core_settings"):
+        raise PermissionDenied()
+    target = None
+    if pk is not None:
+        target = get_object_or_404(StorageTarget.objects.select_for_update(), pk=pk)
+    elif request.method != "POST":
+        return Response(status=405)
+    if request.method == "DELETE":
+        if target.is_default:
+            return _problem("The default backup target cannot be deleted.", 409)
+        if _target_in_use(target):
+            return _problem("This backup target is in use.", 409)
+        name = target.name
+        target.delete()
+        resolver.invalidate()
+        audit(None, user.username, f"Backup target {name} deleted.")
+        return Response(status=204)
+    serializer = TargetSerializer(target, data=request.data, partial=target is not None)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    if (
+        target is not None
+        and _target_in_use(target)
+        and data.get("name", target.name) != target.name
+    ):
+        raise ValidationError(
+            {
+                "name": [
+                    "The name is the backup folder of existing points and cannot change."
+                ]
+            }
+        )
+    if target is not None and target.is_default and data.get("is_default") is False:
+        raise ValidationError({"is_default": ["One target must be the default."]})
+    target = target or StorageTarget()
+    was_default = target.is_default
+    for key, value in data.items():
+        setattr(target, key, value)
+    if target.is_default and not was_default:
+        StorageTarget.objects.filter(is_default=True).update(is_default=False)
+    target.save()
+    resolver.invalidate()
+    reached = (
+        Agent.objects.all()
+        if target.is_default != was_default
+        else Agent.objects.filter(profile__target=target)
+    )
+    resolver.resolve_many(
+        reached.values_list("pk", flat=True), cause="target", author=user
+    )
+    audit(None, user.username, f"Backup target {target.name} saved.")
+    return Response(_target_row(target), status=201 if pk is None else 200)
 
 
 @api_view(["POST"])
@@ -267,9 +807,7 @@ def capture(request, agent_id):
         raise ValidationError(supported["reason"])
     if not _storage()["configured"]:
         return _problem("Configure private server imaging storage.", 503)
-    profile, _ = Profile.objects.get_or_create(
-        agent=agent, defaults=profile_defaults(supported)
-    )
+    profile, _ = resolver.rows(agent)
     profile = Profile.objects.select_for_update().get(pk=profile.pk)
     if profile.network_mode == "internal" and not internal_available():
         return _problem(NO_INTERNAL, 409)
@@ -493,6 +1031,10 @@ def _image_identity(image, device_uuid, disk_id):
 
 
 def _grant_response(grant, secret, *, status, image_id=None):
+    return _no_cache(Response(_grant_data(grant, secret, image_id), status=status))
+
+
+def _grant_data(grant, secret, image_id=None):
     data = {
         "url": origin(grant.image.network_mode)
         + reverse("imaging-transfer", args=[grant.id]),
@@ -503,7 +1045,7 @@ def _grant_response(grant, secret, *, status, image_id=None):
     }
     if image_id is not None:
         data["image_id"] = image_id
-    return _no_cache(Response(data, status=status))
+    return data
 
 
 def _bearer(request, grant):
@@ -721,23 +1263,193 @@ def access(request, agent_id, image_id, direction):
 def cancel(request, agent_id, image_id):
     agent = _agent(request.user, agent_id, MANAGE)
     image = _lock_image(get_object_or_404(Image, agent=agent, pk=image_id))
-    if image.status not in (
-        ImageStatus.WAITING,
-        ImageStatus.UPLOADING,
-        ImageStatus.FAILED,
-    ):
+    if image.status not in DISCARDABLE:
         return _problem(
             "Only pending, interrupted or failed captures can be discarded.", 409
         )
+    return _discard(request, agent, image) or Response(status=204)
+
+
+def _discard(request, agent, image):
+    from .runs import finish
+
     try:
         remove_image_file(image)
     except OSError:
         return _problem("Imaging storage is unavailable.", 503)
+    for run in image.runs.select_for_update().filter(
+        status__in=(RunStatus.DEFERRED, *OPEN_RUNS)
+    ):
+        finish(run, RunStatus.CANCELLED, "Capture discarded.", by=request.user)
     image.parts.all().delete()
     set_status(image, ImageStatus.FAILED, "Capture discarded.")
     Transfer.objects.filter(image=image).update(expires_at=timezone.now())
     audit(agent, request.user.username, f"Client image {image.id} discarded.")
-    return Response(status=204)
+    usage_later(agent.pk)
+    return None
+
+
+@api_view(["GET"])
+def runs(request, agent_id, run_id=None):
+    agent = _agent(request.user, agent_id, VIEW, MANAGE, RESTORE)
+    found = BackupRun.objects.filter(image__agent=agent).select_related("cancelled_by")
+    show = agent_allowed(request.user, agent, "can_run_scripts")
+    if run_id is None:
+        rows = found.defer("log").order_by("-created_at")[:50]
+        return Response([run_row(r, show) for r in rows])
+    log_from = request.query_params.get("log_from", "0")
+    if not NUMBER.fullmatch(log_from):
+        raise ValidationError({"log_from": ["Enter a line number."]})
+    return Response(run_row(get_object_or_404(found, pk=run_id), show, int(log_from)))
+
+
+@api_view(["POST"])
+@transaction.atomic
+def run_cancel(request, agent_id, run_id):
+    import asyncio
+
+    agent = _agent(request.user, agent_id, MANAGE)
+    run = get_object_or_404(
+        BackupRun.objects.select_related("image"), pk=run_id, image__agent=agent
+    )
+    image = run.image
+    if image.status != ImageStatus.VERIFYING:
+        image = _lock_image(image)
+        run = BackupRun.objects.select_for_update().get(pk=run.pk)
+    if run.status not in (RunStatus.DEFERRED, *OPEN_RUNS):
+        return _problem("This run has ended.", 409)
+    if image.status == ImageStatus.VERIFYING:
+        return _problem("The backup is sealed and being verified.", 409)
+    _, state = resolver.rows(agent)
+    online = state.protocol and agent.is_online and run.status in OPEN_RUNS
+    if not online and image.status not in DISCARDABLE:
+        return _problem(
+            "Only pending, interrupted or failed captures can be discarded.", 409
+        )
+    audit(agent, request.user.username, f"Backup run {run.pk} cancel requested.")
+    if state.protocol:
+        # update() keeps updated_at, the stale clock of the run
+        BackupRun.objects.filter(pk=run.pk).update(
+            cancel_requested=True, cancelled_by=request.user
+        )
+    if online:
+        message = {"func": "imagingcancel", "payload": {"run": str(run.pk)}}
+        transaction.on_commit(
+            lambda: asyncio.run(agent.nats_cmd(message, wait=False)), robust=True
+        )
+    elif denied := _discard(request, agent, image):
+        return denied
+    run.refresh_from_db()
+    return Response(run_row(run, agent_allowed(request.user, agent, "can_run_scripts")))
+
+
+@api_view(["POST"])
+@transaction.atomic
+def protect(request, agent_id, image_id):
+    agent = _agent(request.user, agent_id, MANAGE)
+    value = request.data.get("protected") if isinstance(request.data, dict) else None
+    if not isinstance(value, bool):
+        raise ValidationError({"protected": ["Send true or false."]})
+    if not value and (
+        denied := stepup_denied(request, "Retention may then delete this point.")
+    ):
+        return denied
+    image = _lock_image(get_object_or_404(Image, agent=agent, pk=image_id))
+    image.protected = value
+    image.save(update_fields=["protected"])
+    audit(
+        agent,
+        request.user.username,
+        f"Image {image.id} {'protected' if value else 'unprotected'}.",
+    )
+    return Response(ImageSerializer(image).data)
+
+
+@api_view(["POST"])
+def retention_preview(request):
+    from django.db.models import Exists
+
+    from .retention import when
+    from .tasks import _restoring, failed_due, retention_plan
+
+    body = request.data if isinstance(request.data, dict) else {}
+    agent = _agent(request.user, str(body.get("agent_id", ""))[:200], MANAGE)
+    config = body.get("config") or {}
+    if not isinstance(config, dict):
+        raise ValidationError({"config": ["Send the retention settings as an object."]})
+    unknown = set(config) - {"keep_last", "gfs", "timezone"}
+    if unknown:
+        raise ValidationError({"config": {k: ["Unknown setting."] for k in unknown}})
+    serializer = ConfigSerializer(data=config)
+    if not serializer.is_valid():
+        raise ValidationError({"config": serializer.errors})
+    profile, _ = resolver.rows(agent)
+    vals = {**profile.effective, **serializer.validated_data}
+    # a blank zone is the device's, as the resolver turns it
+    vals["timezone"] = vals.get("timezone") or agent.timezone
+    now = timezone.now()
+    points = list(
+        Image.objects.filter(
+            agent=agent, status__in=(ImageStatus.VERIFIED, ImageStatus.FAILED)
+        ).annotate(restoring=Exists(_restoring(now)))
+    )
+    kept, newest, zone = retention_plan(profile, vals, points)
+    rows = []
+    for p in sorted(points, key=lambda p: (when(p), p.created_at), reverse=True):
+        if p.status == ImageStatus.VERIFIED:
+            action = "keep" if kept[p.id] else "delete"
+        else:
+            action = "delete" if failed_due(p, newest, now) else "keep"
+        rows.append(
+            {
+                "id": str(p.id),
+                "target": p.target_id,
+                "snapshot_at": p.snapshot_at,
+                "at": when(p),
+                "status": p.status,
+                "kept_by": kept.get(p.id, []),
+                "action": action,
+            }
+        )
+    return Response({"timezone": zone, "points": rows})
+
+
+@api_view(["POST"])
+@transaction.atomic
+def device_hooks_confirm(request, agent_id):
+    from scripts.models import Script
+
+    agent = _agent(request.user, agent_id, MANAGE, lock=True)
+    if not agent_allowed(request.user, agent, "can_run_scripts"):
+        raise PermissionDenied()
+    if denied := stepup_denied(request, "Backup hooks run scripts on devices."):
+        return denied
+    data = _validated(HookConfirmSerializer, request.data)
+    profile, _ = resolver.rows(agent)
+    profile = Profile.objects.select_for_update().get(pk=profile.pk)
+    if not any(
+        h["script_id"] == data["script_id"] for h in profile.overrides.get("hooks", [])
+    ):
+        raise ValidationError({"script_id": ["The device settings hold no such hook."]})
+    script = Script.objects.filter(pk=data["script_id"]).first()
+    if script is None or script_hash(script) != data["sha256"]:
+        return _problem("The script changed again; review it again.", 409)
+    profile.hooks_pinned = {**profile.hooks_pinned, str(script.pk): data["sha256"]}
+    profile.hooks_approved_by = request.user
+    profile.hooks_approved_at = timezone.now()
+    profile.save(
+        update_fields=["hooks_pinned", "hooks_approved_by", "hooks_approved_at"]
+    )
+    audit(
+        agent,
+        request.user.username,
+        f"Backup hook {script.name} confirmed at {data['sha256'][:12]}.",
+    )
+    profile, state = resolver.resolve_device(agent, cause="device", author=request.user)
+    supported = capability(agent)
+    return Response(
+        _device_answer(request, agent, supported, profile, state, _storage(True))
+    )
 
 
 @api_view(["POST"])
@@ -785,7 +1497,20 @@ def delete_image(request, agent_id, image_id):
     # Parts and grants cascade; unreferenced blocks go to the orphan cleanup.
     image.delete()
     audit(agent, request.user.username, f"Client image {image_id} deleted.")
+    usage_later(agent.pk)
     return Response(status=204)
+
+
+def _policy_authorized(grant, image):
+    # the config version is pinned at the claim and not compared again
+    profile, state = resolver.rows(image.agent)
+    if grant.policy_id:
+        policy = resolver.table()["policies"].get(grant.policy_id)
+        return bool(policy) and resolver.reaches(policy, profile, state.memberships)
+    fields = resolver.effective(image.agent, profile, state)["fields"]
+    return fields["schedule"]["value"]["kind"] != "none" or bool(
+        fields["schedule_events"]["value"]
+    )
 
 
 def _authorized_transfer(request, transfer_id, *, lock):
@@ -823,8 +1548,12 @@ def _authorized_transfer(request, transfer_id, *, lock):
         grant.expires_at <= timezone.now()
         or not image.agent_id
         or not grant.target_id
-        or not agent_allowed(grant.user, image.agent, flag)
-        or not agent_allowed(grant.user, grant.target, flag)
+        or not (
+            _policy_authorized(grant, image)
+            if grant.authority == Authority.POLICY
+            else agent_allowed(grant.user, image.agent, flag)
+            and agent_allowed(grant.user, grant.target, flag)
+        )
     ):
         raise PermissionDenied(
             "This imaging transfer grant has expired or been revoked."
@@ -832,11 +1561,39 @@ def _authorized_transfer(request, transfer_id, *, lock):
     return grant, image
 
 
-@api_view(["GET", "POST", "PUT"])
+PROGRESS_MAX = 256 * 1024
+
+
+def _progress(request, transfer_id):
+    from .runs import progress
+
+    length = str(request.META.get("CONTENT_LENGTH") or "0")
+    if not NUMBER.fullmatch(length) or int(length) > PROGRESS_MAX:
+        return _problem("A progress report is at most 256 KiB.", 413)
+    # without a final only the run row is locked, so a verification never blocks it
+    grant, image = _authorized_transfer(request, transfer_id, lock=False)
+    try:
+        check_path(request, image.network_mode)
+    except PermissionDenied as error:
+        return _problem(str(error.detail), 403)
+    if grant.direction != CAPTURE:
+        return _problem("This operation is unavailable for this transfer.", 409)
+    if isinstance(request.data, dict) and request.data.get("final") is not None:
+        grant, image = _authorized_transfer(request, transfer_id, lock=True)
+    return progress(request, grant, image)
+
+
+@api_view(["GET", "POST", "PUT", "PATCH"])
 @authentication_classes([])
 @permission_classes([])
 @transaction.atomic
 def transfer(request, transfer_id, operation=""):
+    if operation == "progress":
+        if request.method != "PATCH":
+            return _problem("This operation is unavailable for this transfer.", 409)
+        return _progress(request, transfer_id)
+    if request.method == "PATCH":
+        return _problem("This operation is unavailable for this transfer.", 409)
     metadata = request.method == "GET" and not operation
     # Reads take no image lock, so parallel restores and a recheck do not queue.
     grant, image = _authorized_transfer(
@@ -869,7 +1626,7 @@ def transfer(request, transfer_id, operation=""):
     if metadata:
         return _transfer_metadata(grant, image)
     response = _operate(request, grant, image, operation)
-    if operation in ("data", "part") and response.status_code in (200, 204):
+    if operation in ("data", "part", "parts") and response.status_code in (200, 204):
         window = timedelta(hours=1)
         total = image.raw_size if image.native else image.size
         # After the last chunk the client still writes and reads back the disk

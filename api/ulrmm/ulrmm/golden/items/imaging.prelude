@@ -1,0 +1,60 @@
+import datetime as dt
+from django.utils import timezone
+from agents.models import Agent
+from clients.models import Client, Site
+from groups.models import DeviceGroup, Tag
+from imaging import resolver
+from imaging.models import (BackupPolicy, DeviceBackupState, Image, NativeInventory, PolicyChangeHold,
+                            Profile, StorageTarget)
+from imaging.service import backup_rows
+
+# --- targets: the default store and one scoped to Nordwind
+nordwind = Client.objects.get(name="Nordwind Logistics")
+nas = StorageTarget.objects.create(name="nordwind-nas", scope="client", client=nordwind)
+for agent in Agent.objects.order_by("pk"):
+    backup_rows(agent)
+
+# --- one policy per level
+glob = resolver.global_policy()
+glob.config = {"keep_last": 7}
+glob.save()
+BackupPolicy.objects.create(name="Nordwind", scope="client", client=nordwind,
+                            config={"target": nas.pk, "smart": "off"}, enforced=["target"])
+BackupPolicy.objects.create(name="Bremen nightly", scope="site", site=Site.objects.get(name="Bremen Warehouse"),
+                            config={"schedule": {"kind": "daily", "time": "01:30"}})
+laptops = Tag.objects.create(name="backup-laptops")
+Agent.objects.get(hostname="NW-LT-0203").tags.add(laptops)
+BackupPolicy.objects.create(name="Laptops", scope="tag", tag=laptops, priority=5, config={"on_battery": "run"})
+BackupPolicy.objects.create(name="Reboot group", scope="group",
+                            group=DeviceGroup.objects.get(name="Windows workstations needing a reboot"),
+                            config={"pause_max_minutes": 60})
+assigned = BackupPolicy.objects.create(name="Berger servers", scope="assigned",
+                                       config={"keep_last": 3, "compression": "none"})
+Profile.objects.filter(agent__hostname__in=("BLP-SRV01", "BLP-WS01")).update(policy=assigned)
+
+# --- one device override
+Profile.objects.filter(agent__hostname="NW-WS-0142").update(overrides={"keep_last": 2})
+resolver.resolve_now(list(Agent.objects.values_list("pk", flat=True)), cause="enrol")
+
+# --- protocol-2 states on Windows, Linux and macOS
+for host in ("NW-DC01", "nw-web01", "NW-MAC-DESIGN"):
+    state = DeviceBackupState.objects.get(agent__hostname=host)
+    DeviceBackupState.objects.filter(pk=state.pk).update(
+        protocol=2, sealed=True, ready=True, acked_version=state.config_version, acked_hash=state.config_hash,
+        ack_status="applied", acked_at=timezone.now(), pending_since=None)
+
+# --- one pending hold
+ws = Agent.objects.get(hostname="NW-WS-0157")
+state = DeviceBackupState.objects.get(agent=ws)
+PolicyChangeHold.objects.create(agent=ws, cause="tag", author=None, held_hash="0" * 64, proposed_hash="1" * 64,
+                                proposed_memberships={**state.memberships, "tags": [laptops.pk]})
+
+# --- three verified points of one device
+dc = Agent.objects.get(hostname="NW-DC01")
+profile = Profile.objects.get(agent=dc)
+for days in (1, 2, 9):
+    at = timezone.now() - dt.timedelta(days=days)
+    Image.objects.create(agent=dc, status="verified", verified_at=at, snapshot_at=at, reason="",
+                         destination=profile.destination, target=profile.target, client=nordwind,
+                         network_mode="internet", compression="gzip", compression_level=6,
+                         native={"method": "windows-wbadmin-tar-v1"})

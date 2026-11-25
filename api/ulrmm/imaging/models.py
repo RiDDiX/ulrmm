@@ -39,6 +39,122 @@ VOLUME_KINDS = ("system", "extra", "network", "unsupported", "unmounted")
 SELECTABLE_KINDS = ("extra", "unmounted")
 
 
+class TargetKind(models.TextChoices):
+    SERVER = "server"
+
+
+class TargetScope(models.TextChoices):
+    GLOBAL = "global"
+    CLIENT = "client"
+    SITE = "site"
+
+
+class PolicyScope(models.TextChoices):
+    GLOBAL = "global"
+    CLIENT = "client"
+    SITE = "site"
+    GROUP = "group"
+    TAG = "tag"
+    ASSIGNED = "assigned"
+
+
+class Trigger(models.TextChoices):
+    SCHEDULE = "schedule"
+    MANUAL = "manual"
+    EVENT = "event"
+
+
+class Authority(models.TextChoices):
+    USER = "user"
+    POLICY = "policy"
+
+
+class AckStatus(models.TextChoices):
+    NONE = ""
+    APPLIED = "applied"
+    ERROR = "error"
+
+
+class HoldCause(models.TextChoices):
+    GROUP_RULE = "group_rule"
+    GROUP_MEMBER = "group_member"
+    TAG = "tag"
+    SITE_MOVE = "site_move"
+    UNKNOWN = "unknown"
+
+
+class HoldStatus(models.TextChoices):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
+
+
+class RunStatus(models.TextChoices):
+    DEFERRED = "deferred"
+    RUNNING = "running"
+    PAUSED = "paused"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    INTERRUPTED = "interrupted"
+
+
+class RunStep(models.TextChoices):
+    NONE = ""
+    SNAPSHOT = "snapshot"
+    SCAN = "scan"
+    TRANSFER = "transfer"
+    VERIFY = "verify"
+    CLEANUP = "cleanup"
+
+
+class PauseReason(models.TextChoices):
+    NONE = ""
+    NETWORK = "network"
+    BATTERY = "battery"
+
+
+OPEN_RUNS = (RunStatus.RUNNING, RunStatus.PAUSED)
+
+
+class StorageTarget(models.Model):
+    name = models.CharField(max_length=64, unique=True)
+    kind = models.CharField(
+        max_length=8, choices=TargetKind.choices, default=TargetKind.SERVER
+    )
+    scope = models.CharField(
+        max_length=6, choices=TargetScope.choices, default=TargetScope.GLOBAL
+    )
+    client = models.ForeignKey(
+        "clients.Client", null=True, blank=True, on_delete=models.PROTECT
+    )
+    site = models.ForeignKey(
+        "clients.Site", null=True, blank=True, on_delete=models.PROTECT
+    )
+    params = models.JSONField(default=dict, blank=True)
+    quota_bytes = models.PositiveBigIntegerField(default=0)
+    max_runs = models.PositiveSmallIntegerField(default=5)
+    is_default = models.BooleanField(default=False)
+    used_bytes = models.PositiveBigIntegerField(default=0)
+    unreachable_since = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=django_timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_default"],
+                condition=Q(is_default=True),
+                name="imaging_one_default_target",
+            ),
+            models.CheckConstraint(
+                condition=Q(scope="global", client=None, site=None)
+                | Q(scope="client", client__isnull=False, site=None)
+                | Q(scope="site", site__isnull=False, client=None),
+                name="imaging_target_scope_keys",
+            ),
+        ]
+
+
 class Profile(models.Model):
     policy = models.ForeignKey("BackupPolicy", null=True, on_delete=models.PROTECT)
     operator = models.ForeignKey(
@@ -54,6 +170,14 @@ class Profile(models.Model):
     next_run = models.DateTimeField(null=True, db_index=True)
     keep_last = models.PositiveSmallIntegerField(default=0)
     volumes = models.JSONField(default=list, blank=True)
+    overrides = models.JSONField(default=dict, blank=True)
+    effective = models.JSONField(default=dict, blank=True)
+    target = models.ForeignKey(StorageTarget, null=True, on_delete=models.PROTECT)
+    hooks_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    hooks_approved_at = models.DateTimeField(null=True)
+    hooks_pinned = models.JSONField(default=dict, blank=True)
 
 
 class Image(models.Model):
@@ -85,6 +209,15 @@ class Image(models.Model):
     boot_mode = models.CharField(max_length=4, blank=True)
     sha256 = models.CharField(max_length=64, blank=True)
     raw_sha256 = models.CharField(max_length=64, blank=True)
+    target = models.ForeignKey(StorageTarget, null=True, on_delete=models.PROTECT)
+    client = models.ForeignKey(
+        "clients.Client", null=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    trigger = models.CharField(
+        max_length=8, choices=Trigger.choices, default=Trigger.MANUAL
+    )
+    snapshot_at = models.DateTimeField(null=True)
+    protected = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
@@ -119,11 +252,19 @@ class Transfer(models.Model):
     target = models.ForeignKey("agents.Agent", null=True, on_delete=models.CASCADE)
     device_uuid = models.UUIDField(null=True)
     disk_id = models.CharField(max_length=255, blank=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.CASCADE
+    )
     token_digest = models.CharField(max_length=64)
     expires_at = models.DateTimeField(db_index=True)
     renew_until = models.DateTimeField(null=True)
     completed_at = models.DateTimeField(null=True)
+    authority = models.CharField(
+        max_length=7, choices=Authority.choices, default=Authority.USER
+    )
+    policy = models.ForeignKey("BackupPolicy", null=True, on_delete=models.SET_NULL)
+    config_version = models.PositiveIntegerField(null=True)
+    run = models.ForeignKey("BackupRun", null=True, on_delete=models.SET_NULL)
 
 
 class NativeInventory(models.Model):
@@ -138,6 +279,182 @@ class BackupPolicy(models.Model):
         settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL
     )
     config = models.JSONField()
+    scope = models.CharField(
+        max_length=8, choices=PolicyScope.choices, default=PolicyScope.ASSIGNED
+    )
+    client = models.ForeignKey(
+        "clients.Client", null=True, blank=True, on_delete=models.PROTECT
+    )
+    site = models.ForeignKey(
+        "clients.Site", null=True, blank=True, on_delete=models.PROTECT
+    )
+    group = models.ForeignKey(
+        "groups.DeviceGroup", null=True, blank=True, on_delete=models.PROTECT
+    )
+    tag = models.ForeignKey(
+        "groups.Tag", null=True, blank=True, on_delete=models.PROTECT
+    )
+    priority = models.SmallIntegerField(default=0)
+    enforced = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(default=django_timezone.now)
+    hooks_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    hooks_approved_at = models.DateTimeField(null=True)
+    hooks_pinned = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["scope"],
+                condition=Q(scope="global"),
+                name="imaging_one_global_policy",
+            ),
+            models.UniqueConstraint(
+                fields=["client"],
+                condition=Q(scope="client"),
+                name="imaging_one_client_policy",
+            ),
+            models.UniqueConstraint(
+                fields=["site"],
+                condition=Q(scope="site"),
+                name="imaging_one_site_policy",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    scope__in=("global", "assigned"),
+                    client=None,
+                    site=None,
+                    group=None,
+                    tag=None,
+                )
+                | Q(
+                    scope="client",
+                    client__isnull=False,
+                    site=None,
+                    group=None,
+                    tag=None,
+                )
+                | Q(scope="site", site__isnull=False, client=None, group=None, tag=None)
+                | Q(
+                    scope="group", group__isnull=False, client=None, site=None, tag=None
+                )
+                | Q(scope="tag", tag__isnull=False, client=None, site=None, group=None),
+                name="imaging_policy_scope_keys",
+            ),
+        ]
+
+
+class DeviceBackupState(models.Model):
+    agent = models.OneToOneField(
+        "agents.Agent", on_delete=models.CASCADE, related_name="backup_state"
+    )
+    protocol = models.PositiveSmallIntegerField(default=0)
+    config_version = models.PositiveIntegerField(default=0)
+    config_hash = models.CharField(max_length=64, blank=True)
+    config_doc = models.TextField(blank=True)
+    effective_hash = models.CharField(max_length=64, blank=True)
+    memberships = models.JSONField(default=dict)
+    pending_since = models.DateTimeField(null=True)
+    acked_version = models.PositiveIntegerField(default=0)
+    acked_hash = models.CharField(max_length=64, blank=True)
+    acked_at = models.DateTimeField(null=True)
+    ack_status = models.CharField(
+        max_length=7, choices=AckStatus.choices, blank=True, default=AckStatus.NONE
+    )
+    ack_errors = models.JSONField(default=list)
+    checks = models.JSONField(default=list)
+    checks_at = models.DateTimeField(null=True)
+    capabilities = models.JSONField(default=list)
+    conditions = models.JSONField(default=dict)
+    sealed = models.BooleanField(default=False)
+    ready = models.BooleanField(default=False)
+    not_ready_reason = models.CharField(max_length=255, blank=True)
+    last_poll_at = models.DateTimeField(null=True)
+    last_success_at = models.DateTimeField(null=True)
+    schedule_since = models.DateTimeField(null=True)
+    consecutive_failures = models.PositiveIntegerField(default=0)
+    consecutive_interruptions = models.PositiveIntegerField(default=0)
+    usage = models.JSONField(default=dict)
+    alerts = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class PolicyChangeHold(models.Model):
+    agent = models.ForeignKey("agents.Agent", on_delete=models.CASCADE)
+    cause = models.CharField(max_length=12, choices=HoldCause.choices)
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    held_hash = models.CharField(max_length=64)
+    proposed_hash = models.CharField(max_length=64)
+    proposed_memberships = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=django_timezone.now)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    confirmed_at = models.DateTimeField(null=True)
+    status = models.CharField(
+        max_length=9, choices=HoldStatus.choices, default=HoldStatus.PENDING
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["agent"],
+                condition=Q(status="pending"),
+                name="imaging_one_pending_hold",
+            )
+        ]
+
+
+class BackupRun(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    image = models.ForeignKey(Image, related_name="runs", on_delete=models.CASCADE)
+    trigger = models.CharField(max_length=8, choices=Trigger.choices)
+    policy = models.ForeignKey(BackupPolicy, null=True, on_delete=models.SET_NULL)
+    policy_version = models.PositiveIntegerField(null=True)
+    status = models.CharField(
+        max_length=11, choices=RunStatus.choices, default=RunStatus.DEFERRED
+    )
+    step = models.CharField(
+        max_length=8, choices=RunStep.choices, blank=True, default=RunStep.NONE
+    )
+    deferred_reason = models.CharField(max_length=32, blank=True)
+    reason = models.CharField(max_length=255, blank=True)
+    pause_reason = models.CharField(
+        max_length=8, choices=PauseReason.choices, blank=True, default=PauseReason.NONE
+    )
+    pause_max_minutes = models.PositiveSmallIntegerField(default=30)
+    agent_protocol = models.PositiveSmallIntegerField(default=0)
+    counters = models.JSONField(default=dict)
+    log = models.JSONField(default=list)
+    log_start = models.PositiveIntegerField(default=0)
+    warnings = models.JSONField(default=list)
+    hooks = models.JSONField(default=list)
+    claimed_hooks = models.JSONField(default=list, blank=True)
+    cancel_requested = models.BooleanField(default=False)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(default=django_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True)
+    ended_at = models.DateTimeField(null=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "updated_at"], name="imaging_run_status")
+        ]
 
 
 class ImageBlock(models.Model):

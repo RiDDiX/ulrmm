@@ -434,7 +434,10 @@ def _profile_request(request):
     # Recovery grants are returned once as bearer secrets.
     return not (
         request.path.startswith("/imaging/")
-        or (request.path.startswith("/api/v3/") and request.path.endswith("/imaging/"))
+        or (
+            request.path.startswith("/api/v3/")
+            and request.path.endswith(("/imaging/", "/imaging/config/"))
+        )
     )
 
 

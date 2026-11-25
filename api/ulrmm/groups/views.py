@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 RiDDiX / Maximilian Hammerschmid
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
+from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,6 +10,8 @@ from rest_framework.views import APIView
 from agents.models import Agent
 from agents.permissions import AgentPerms
 from agents.views import GetAgents
+from imaging.resolver import resolve_many
+from imaging.service import scope_blockers
 from logs.models import AuditLog
 from ulrmm.constants import AuditObjType
 from ulrmm.middleware import get_debug_info
@@ -44,7 +47,14 @@ class EditDeleteTag(APIView):
 
     def delete(self, request, pk):
         tag = get_object_or_404(Tag, pk=pk)
-        tag.delete()
+        if blocked := scope_blockers(tags=[tag.pk]):
+            return Response({"detail": blocked}, status=409)
+        agents = list(tag.agents.values_list("pk", flat=True))
+        try:
+            tag.delete()
+        except ProtectedError:
+            return Response({"detail": scope_blockers(tags=[tag.pk])}, status=409)
+        resolve_many(agents, cause="tag", author=request.user)
         return Response(f"{tag.name} was deleted")
 
 
@@ -70,6 +80,7 @@ class AgentTags(APIView):
                 agent.hostname,
                 debug_info=get_debug_info(),
             )
+            resolve_many([agent.pk], cause="tag", author=request.user)
         return Response(TagSerializer(agent.tags.all(), many=True).data)
 
 
@@ -87,9 +98,13 @@ class GetAddGroups(APIView):
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
-        return Response(
-            DeviceGroupSerializer(serializer.save(), context={"request": request}).data
+        group = serializer.save()
+        resolve_many(
+            group.agents().values_list("pk", flat=True),
+            cause="group_rule",
+            author=request.user,
         )
+        return Response(DeviceGroupSerializer(group, context={"request": request}).data)
 
 
 class GetEditDeleteGroup(APIView):
@@ -101,6 +116,7 @@ class GetEditDeleteGroup(APIView):
 
     def put(self, request, pk):
         group = get_object_or_404(DeviceGroup, pk=pk)
+        before = set(group.agents().values_list("pk", flat=True))
         serializer = DeviceGroupSerializer(
             instance=group,
             data=request.data,
@@ -108,13 +124,24 @@ class GetEditDeleteGroup(APIView):
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
-        return Response(
-            DeviceGroupSerializer(serializer.save(), context={"request": request}).data
+        group = serializer.save()
+        resolve_many(
+            before | set(group.agents().values_list("pk", flat=True)),
+            cause="group_rule",
+            author=request.user,
         )
+        return Response(DeviceGroupSerializer(group, context={"request": request}).data)
 
     def delete(self, request, pk):
         group = get_object_or_404(DeviceGroup, pk=pk)
-        group.delete()
+        if blocked := scope_blockers(groups=[group.pk]):
+            return Response({"detail": blocked}, status=409)
+        before = list(group.agents().values_list("pk", flat=True))
+        try:
+            group.delete()
+        except ProtectedError:
+            return Response({"detail": scope_blockers(groups=[group.pk])}, status=409)
+        resolve_many(before, cause="group_rule", author=request.user)
         return Response(f"{group.name} was deleted")
 
 

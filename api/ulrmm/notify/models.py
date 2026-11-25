@@ -19,6 +19,7 @@ SOURCES = (
     "tamper",
     "license",
     "laps",
+    "backup",
 )
 
 

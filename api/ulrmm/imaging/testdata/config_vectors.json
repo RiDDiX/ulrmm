@@ -1,0 +1,170 @@
+[
+  {
+    "document": {
+      "schema": 1,
+      "agent_id": "VECTORagent0123456789abcdefXYZ",
+      "target": {
+        "id": 1,
+        "kind": "server",
+        "name": "images"
+      },
+      "network_mode": "internet",
+      "compression": "gzip",
+      "compression_level": 6,
+      "volumes": [],
+      "auto_setup": "safe",
+      "smart": "warn",
+      "priority": "background",
+      "keep_awake": true,
+      "on_battery": "defer",
+      "pause_on_battery": true,
+      "pause_max_minutes": 30,
+      "throttle": {
+        "default_kbps": 0,
+        "rules": []
+      },
+      "schedule_events": [],
+      "hooks": [],
+      "timezone": "UTC"
+    },
+    "canonical": "{\"agent_id\":\"VECTORagent0123456789abcdefXYZ\",\"auto_setup\":\"safe\",\"compression\":\"gzip\",\"compression_level\":6,\"hooks\":[],\"keep_awake\":true,\"network_mode\":\"internet\",\"on_battery\":\"defer\",\"pause_max_minutes\":30,\"pause_on_battery\":true,\"priority\":\"background\",\"schedule_events\":[],\"schema\":1,\"smart\":\"warn\",\"target\":{\"id\":1,\"kind\":\"server\",\"name\":\"images\"},\"throttle\":{\"default_kbps\":0,\"rules\":[]},\"timezone\":\"UTC\",\"volumes\":[]}",
+    "sha256": "273a0be8d4f349f09fcf7e4733ed90f124ab3c06799115082fdc5f63ce14f2b7"
+  },
+  {
+    "document": {
+      "schema": 1,
+      "agent_id": "VECTORagent0123456789abcdefXYZ",
+      "target": {
+        "id": 2,
+        "kind": "server",
+        "name": "Büro & Lager <Nord> 東京"
+      },
+      "network_mode": "internet",
+      "compression": "gzip",
+      "compression_level": 6,
+      "volumes": [],
+      "auto_setup": "safe",
+      "smart": "warn",
+      "priority": "background",
+      "keep_awake": true,
+      "on_battery": "defer",
+      "pause_on_battery": true,
+      "pause_max_minutes": 30,
+      "throttle": {
+        "default_kbps": 0,
+        "rules": []
+      },
+      "schedule_events": [],
+      "hooks": [],
+      "timezone": "Europe/Berlin"
+    },
+    "canonical": "{\"agent_id\":\"VECTORagent0123456789abcdefXYZ\",\"auto_setup\":\"safe\",\"compression\":\"gzip\",\"compression_level\":6,\"hooks\":[],\"keep_awake\":true,\"network_mode\":\"internet\",\"on_battery\":\"defer\",\"pause_max_minutes\":30,\"pause_on_battery\":true,\"priority\":\"background\",\"schedule_events\":[],\"schema\":1,\"smart\":\"warn\",\"target\":{\"id\":2,\"kind\":\"server\",\"name\":\"Büro & Lager <Nord> 東京\"},\"throttle\":{\"default_kbps\":0,\"rules\":[]},\"timezone\":\"Europe/Berlin\",\"volumes\":[]}",
+    "sha256": "b4db946823f50adcf2a207afd8978153c30bdca03a6be2928e98f88463aa81e3"
+  },
+  {
+    "document": {
+      "schema": 1,
+      "agent_id": "VECTORagent0123456789abcdefXYZ",
+      "target": {
+        "id": 3,
+        "kind": "server",
+        "name": "nordwind-nas"
+      },
+      "network_mode": "internet",
+      "compression": "gzip",
+      "compression_level": 1,
+      "volumes": [
+        "/",
+        "/home",
+        "/srv/daten"
+      ],
+      "auto_setup": "safe",
+      "smart": "warn",
+      "priority": "background",
+      "keep_awake": true,
+      "on_battery": "defer",
+      "pause_on_battery": true,
+      "pause_max_minutes": 30,
+      "throttle": {
+        "default_kbps": 50000,
+        "rules": [
+          {
+            "days": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "start": "08:00",
+            "end": "18:00",
+            "kbps": 2000
+          },
+          {
+            "days": [
+              6,
+              7
+            ],
+            "start": "22:00",
+            "end": "06:00",
+            "kbps": 0
+          }
+        ]
+      },
+      "schedule_events": [
+        "agent_start",
+        "ac_connected"
+      ],
+      "hooks": [
+        {
+          "phase": "pre-backup",
+          "script_id": 12,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "timeout": 300,
+          "on_fail": "abort"
+        },
+        {
+          "phase": "post-backup",
+          "script_id": 13,
+          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          "timeout": 60,
+          "on_fail": "warn"
+        }
+      ],
+      "timezone": "America/Sao_Paulo"
+    },
+    "canonical": "{\"agent_id\":\"VECTORagent0123456789abcdefXYZ\",\"auto_setup\":\"safe\",\"compression\":\"gzip\",\"compression_level\":1,\"hooks\":[{\"on_fail\":\"abort\",\"phase\":\"pre-backup\",\"script_id\":12,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"timeout\":300},{\"on_fail\":\"warn\",\"phase\":\"post-backup\",\"script_id\":13,\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"timeout\":60}],\"keep_awake\":true,\"network_mode\":\"internet\",\"on_battery\":\"defer\",\"pause_max_minutes\":30,\"pause_on_battery\":true,\"priority\":\"background\",\"schedule_events\":[\"agent_start\",\"ac_connected\"],\"schema\":1,\"smart\":\"warn\",\"target\":{\"id\":3,\"kind\":\"server\",\"name\":\"nordwind-nas\"},\"throttle\":{\"default_kbps\":50000,\"rules\":[{\"days\":[1,2,3,4,5],\"end\":\"18:00\",\"kbps\":2000,\"start\":\"08:00\"},{\"days\":[6,7],\"end\":\"06:00\",\"kbps\":0,\"start\":\"22:00\"}]},\"timezone\":\"America/Sao_Paulo\",\"volumes\":[\"/\",\"/home\",\"/srv/daten\"]}",
+    "sha256": "c9299c16df31298e240426798d903848660bb7e81e37ab136be16c5c254609bf"
+  },
+  {
+    "document": {
+      "schema": 1,
+      "agent_id": "VECTORagent0123456789abcdefXYZ",
+      "target": {
+        "id": 1,
+        "kind": "server",
+        "name": "images"
+      },
+      "network_mode": "internet",
+      "compression": "none",
+      "compression_level": 0,
+      "volumes": [],
+      "auto_setup": "off",
+      "smart": "abort",
+      "priority": "normal",
+      "keep_awake": false,
+      "on_battery": "run",
+      "pause_on_battery": false,
+      "pause_max_minutes": 0,
+      "throttle": {
+        "default_kbps": 0,
+        "rules": []
+      },
+      "schedule_events": [],
+      "hooks": [],
+      "timezone": "UTC"
+    },
+    "canonical": "{\"agent_id\":\"VECTORagent0123456789abcdefXYZ\",\"auto_setup\":\"off\",\"compression\":\"none\",\"compression_level\":0,\"hooks\":[],\"keep_awake\":false,\"network_mode\":\"internet\",\"on_battery\":\"run\",\"pause_max_minutes\":0,\"pause_on_battery\":false,\"priority\":\"normal\",\"schedule_events\":[],\"schema\":1,\"smart\":\"abort\",\"target\":{\"id\":1,\"kind\":\"server\",\"name\":\"images\"},\"throttle\":{\"default_kbps\":0,\"rules\":[]},\"timezone\":\"UTC\",\"volumes\":[]}",
+    "sha256": "a9dbcd1fe35a35f497f9ca4d976d41bb05461b93ae43b2aed77d0537dfcb62e9"
+  }
+]

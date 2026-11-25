@@ -1,0 +1,386 @@
+[
+ {
+  "id": "imaging-P-admin",
+  "desc": "policy list for admin",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/policies/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-P-clienta",
+  "desc": "policy list for clienta",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/imaging/policies/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-P-site",
+  "desc": "policy list for site",
+  "token": "site",
+  "method": "GET",
+  "path": "/imaging/policies/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-P-readonly",
+  "desc": "policy list for readonly",
+  "token": "readonly",
+  "method": "GET",
+  "path": "/imaging/policies/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-P-noperm",
+  "desc": "policy list for noperm",
+  "token": "noperm",
+  "method": "GET",
+  "path": "/imaging/policies/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-D-win",
+  "desc": "device answer with effective view, sync and checks (win)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/agents/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-D-linux",
+  "desc": "device answer with effective view, sync and checks (linux)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/agents/demo05xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-D-mac",
+  "desc": "device answer with effective view, sync and checks (mac)",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/agents/demo06xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-E-win",
+  "desc": "effective view of a device under client, site and group policies",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/agents/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/effective/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-F-all",
+  "desc": "fleet list without a filter",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/fleet/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-F-stale",
+  "desc": "fleet list filtered by stale",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/fleet/?state=stale",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-F-not_ready",
+  "desc": "fleet list filtered by not_ready",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/fleet/?state=not_ready",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-F-error",
+  "desc": "fleet list filtered by error",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/fleet/?state=error",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-F-pending",
+  "desc": "fleet list filtered by pending",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/fleet/?state=pending",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-F-legacy",
+  "desc": "fleet list filtered by legacy",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/fleet/?state=legacy",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-F-pending_confirmation",
+  "desc": "fleet list filtered by pending_confirmation",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/fleet/?state=pending_confirmation",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-F-clienta",
+  "desc": "fleet list of a client-scoped role",
+  "token": "clienta",
+  "method": "GET",
+  "path": "/imaging/fleet/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-T-admin",
+  "desc": "storage target list",
+  "token": "admin",
+  "method": "GET",
+  "path": "/imaging/targets/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ]
+  }
+ },
+ {
+  "id": "imaging-R-preview",
+  "desc": "retention preview of the device with three verified points",
+  "token": "admin",
+  "method": "POST",
+  "path": "/imaging/retention/preview/",
+  "body": {
+   "agent_id": "demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "config": {
+    "keep_last": 2
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)",
+    "\"id\": \"[0-9a-f-]{36}\""
+   ]
+  }
+ },
+ {
+  "id": "imaging-A-legacy",
+  "desc": "legacy poll of a Windows agent",
+  "token": "agent:1",
+  "method": "POST",
+  "path": "/api/v3/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/imaging/",
+  "body": {
+   "capability": {
+    "method": "windows-wbadmin-tar-v1",
+    "ready": true,
+    "scope": "Critical volumes",
+    "recovery": "WinRE",
+    "reason": "Ready",
+    "encryption": "unencrypted source",
+    "source_id": "gpt-golden",
+    "device_uuid": "90cb53c8-01ea-444d-b1f1-23abcd127ace",
+    "boot_mode": "uefi",
+    "size": 536870912,
+    "sector_size": 512
+   }
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ],
+   "headers": [
+    "x-ulrmm-imaging-config"
+   ]
+  }
+ },
+ {
+  "id": "imaging-A-proto2",
+  "desc": "protocol-2 poll without the seal header",
+  "token": "agent:1",
+  "method": "POST",
+  "path": "/api/v3/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/imaging/",
+  "body": {
+   "protocol": 2,
+   "capability": {
+    "method": "windows-wbadmin-tar-v1",
+    "ready": true,
+    "scope": "Critical volumes",
+    "recovery": "WinRE",
+    "reason": "Ready",
+    "encryption": "unencrypted source",
+    "source_id": "gpt-golden",
+    "device_uuid": "90cb53c8-01ea-444d-b1f1-23abcd127ace",
+    "boot_mode": "uefi",
+    "size": 536870912,
+    "sector_size": 512
+   },
+   "capabilities": [
+    {
+     "method": "windows-wbadmin-tar-v1",
+     "ready": true,
+     "scope": "Critical volumes",
+     "recovery": "WinRE",
+     "reason": "Ready",
+     "encryption": "unencrypted source",
+     "source_id": "gpt-golden",
+     "device_uuid": "90cb53c8-01ea-444d-b1f1-23abcd127ace",
+     "boot_mode": "uefi",
+     "size": 536870912,
+     "sector_size": 512
+    }
+   ],
+   "config": {
+    "version": 0,
+    "hash": "",
+    "status": "none",
+    "errors": []
+   },
+   "checks": [],
+   "checks_at": 0,
+   "conditions": {
+    "on_ac": true,
+    "up_since": 0,
+    "events": []
+   },
+   "deferred": ""
+  },
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ],
+   "headers": [
+    "x-ulrmm-imaging-config"
+   ]
+  }
+ },
+ {
+  "id": "imaging-A-config",
+  "desc": "config fetch without the seal header",
+  "token": "agent:1",
+  "method": "GET",
+  "path": "/api/v3/demo00xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/imaging/config/",
+  "compare": {
+   "status": true,
+   "body": "json",
+   "mask": [
+    "\"(created_at|updated_at|pending_since|acked_at|observed_at|last_poll_at|hooks_approved_at|next_run|snapshot_at|verified_at|started_at|ended_at|last_verified_at|expires_at|alert_time)\": (\"(?:[^\"\\\\]|\\\\.)*\"|[-\\d.]+|null)"
+   ],
+   "headers": [
+    "x-ulrmm-imaging-config"
+   ]
+  }
+ }
+]

@@ -45,6 +45,7 @@ ALERT_SOURCES = {
     "task": "task",
     # notify.tamper alerts
     "agent": "tamper",
+    "backup": "backup",
 }
 _CTRL = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
 

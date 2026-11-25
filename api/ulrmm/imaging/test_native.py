@@ -3,7 +3,7 @@
 
 import os
 import shutil
-from datetime import time, timedelta
+from datetime import timedelta
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -20,6 +20,7 @@ from rest_framework.test import APIClient
 from logs.models import AuditLog
 from ulrmm.test import ULRMMTestCase
 from .blocks import BLOCK
+from . import resolver
 from .models import (
     MODE_CHANGED,
     NATIVE_RECEIVING_REASON,
@@ -28,6 +29,7 @@ from .models import (
     ImageBlock,
     ImageStatus,
     Profile,
+    StorageTarget,
     Transfer,
 )
 from .service import NO_INTERNAL
@@ -40,8 +42,13 @@ class NativeBackupTests(ULRMMTestCase):
     def setUp(self):
         self.authenticate()
         self.agent = baker.make(
-            "agents.Agent", agent_id="test-native-agent", plat="windows", goarch="amd64"
+            "agents.Agent",
+            agent_id="test-native-agent",
+            plat="windows",
+            goarch="amd64",
+            time_zone="UTC",
         )
+        self.fleet = StorageTarget.objects.create(name="fleet")
         self.agent_user = self.authenticate_agent(self.agent)
         self.worker = self.client
         self.client = APIClient()
@@ -72,13 +79,14 @@ class NativeBackupTests(ULRMMTestCase):
         )
         self.config = dict(
             name="Office",
+            scope="assigned",
             config=dict(
                 timezone="UTC",
-                destination="fleet",
+                target=self.fleet.pk,
                 network_mode="internet",
                 compression="gzip",
                 compression_level=6,
-                schedule_time="12:30",
+                schedule={"kind": "daily", "time": "12:30"},
             ),
             agents=[self.agent.agent_id],
         )
@@ -89,6 +97,14 @@ class NativeBackupTests(ULRMMTestCase):
             204,
         )
         self.transport = {"secure": True, "HTTP_HOST": "api.example.com"}
+
+    def post_policy(self, body=None, url="/imaging/policies/", method="post"):
+        with (
+            patch("imaging.tasks.wake_imaging_agent.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            send = getattr(self.client, method)
+            return send(url, body or self.config, format="json")
 
     def worker_post(self, *args, **kwargs):
         return self.worker.post(*args, secure=True, **kwargs)
@@ -174,7 +190,7 @@ class NativeBackupTests(ULRMMTestCase):
         return image, needed
 
     def test_duplicate_manual_capture_wakes_agent_once_after_commit(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         with (
             patch("imaging.tasks.wake_imaging_agent.delay") as wake,
             self.captureOnCommitCallbacks(execute=True),
@@ -187,7 +203,7 @@ class NativeBackupTests(ULRMMTestCase):
         wake.assert_called_once_with(self.agent.agent_id)
 
     def test_crashed_upload_can_be_reclaimed_after_one_idle_poll_interval(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         image_id = self.client.post(self.uri + "capture/", {}, format="json").data["id"]
         report = {"capability": self.cap}
         first = self.worker_post(self.poll, report, format="json").data
@@ -219,7 +235,7 @@ class NativeBackupTests(ULRMMTestCase):
         )
 
     def test_two_independent_maps_and_damaged_dependency(self):
-        response = self.client.post("/imaging/policies/", self.config, format="json")
+        response = self.post_policy()
         self.assertEqual(response.status_code, 201, response.data)
         common = b"A" * BLOCK
         first, needed = self.point([common, b"old"])
@@ -290,7 +306,7 @@ class NativeBackupTests(ULRMMTestCase):
 
     @override_settings(ULRMM_IMAGING_ENCRYPTED_DESTINATIONS=["fleet"])
     def test_policy_preview_uses_the_requested_destination(self):
-        response = self.client.post("/imaging/policies/", self.config, format="json")
+        response = self.post_policy()
         self.assertEqual(response.status_code, 201, response.data)
         current = self.client.get(self.uri)
         self.assertIn("encryption confirmed", current.data["at_rest"])
@@ -316,27 +332,27 @@ class NativeBackupTests(ULRMMTestCase):
             **self.config,
             "config": {**self.config["config"], "network_mode": "internal"},
         }
-        refused = self.client.post("/imaging/policies/", internal, format="json")
+        refused = self.post_policy(internal)
         self.assertEqual(refused.status_code, 400)
-        self.assertEqual(refused.json(), {"network_mode": [NO_INTERNAL]})
-        self.assertFalse(BackupPolicy.objects.exists())
-        created = self.client.post("/imaging/policies/", self.config, format="json")
+        self.assertEqual(refused.json(), {"config": {"network_mode": [NO_INTERNAL]}})
+        self.assertFalse(BackupPolicy.objects.filter(scope="assigned").exists())
+        created = self.post_policy()
         self.assertEqual(created.status_code, 201, created.data)
         update = f"/imaging/policies/{created.data['id']}/"
-        refused = self.client.put(update, internal, format="json")
+        refused = self.post_policy(internal, update, "put")
         self.assertEqual(refused.status_code, 400)
-        self.assertEqual(refused.json(), {"network_mode": [NO_INTERNAL]})
+        self.assertEqual(refused.json(), {"config": {"network_mode": [NO_INTERNAL]}})
         self.assertEqual(Profile.objects.get(agent=self.agent).network_mode, "internet")
         with override_settings(
             ULRMM_IMAGING_INTERNAL_ORIGIN="https://private.example.test",
             ULRMM_IMAGING_INTERNAL_CIDRS=["10.40.0.0/16"],
         ):
-            response = self.client.put(update, internal, format="json")
+            response = self.post_policy(internal, update, "put")
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(Profile.objects.get(agent=self.agent).network_mode, "internal")
 
     def test_reserve_refuses_block_before_writing(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         point_id, cli, path = self.claim()
         cli.post(path + "begin/", {}, format="json", **self.transport)
         reserve = 10 * 1024**3
@@ -357,7 +373,7 @@ class NativeBackupTests(ULRMMTestCase):
         self.assertEqual(self.part(cli, path, b"block data").status_code, 204)
 
     def test_failure_report_keeps_the_free_space_reason(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         point_id, cli, path = self.claim()
         cli.post(path + "begin/", {}, format="json", **self.transport)
         with patch("os.statvfs", return_value=SimpleNamespace(f_bavail=0, f_frsize=1)):
@@ -378,7 +394,7 @@ class NativeBackupTests(ULRMMTestCase):
         )
 
     def test_failure_report_keeps_the_store_reason(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         point_id, _, _ = self.claim()
         Image.objects.filter(pk=point_id).update(reason=OTHER_STORE)
         claim = Transfer.objects.get(image_id=point_id, direction="capture").id
@@ -393,7 +409,7 @@ class NativeBackupTests(ULRMMTestCase):
 
     def test_unmounted_store_with_its_marker_takes_no_blocks(self):
         self.setup_coresettings()
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         first, _ = self.point([b"A" * BLOCK, b"old"])
         _, cli, path = self.claim()
         cli.post(path + "begin/", {}, format="json", **self.transport)
@@ -417,7 +433,7 @@ class NativeBackupTests(ULRMMTestCase):
         self.assertEqual(self.part(cli, path, b"N" * BLOCK).status_code, 204)
 
     def test_unreadable_block_fails_the_restore(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         image, _ = self.point([b"old"])
         block = image.parts.get().block
         os.link(self.root / "fleet" / str(block.pk), self.root / "link")
@@ -454,8 +470,9 @@ class NativeBackupTests(ULRMMTestCase):
             ULRMM_IMAGING_INTERNAL_ORIGIN="https://private.example.test",
             ULRMM_IMAGING_INTERNAL_CIDRS=["10.40.0.0/16"],
         ):
+            # the builtin default is internet; internal is chosen per policy
             self.assertEqual(
-                self.client.get(self.uri).data["config"]["network_mode"], "internal"
+                self.client.get(self.uri).data["config"]["network_mode"], "internet"
             )
         response = self.client.post(self.uri + "capture/", {}, format="json")
         self.assertEqual(response.status_code, 202, response.data)
@@ -465,12 +482,16 @@ class NativeBackupTests(ULRMMTestCase):
         )
 
     def test_internal_profile_waits_for_the_internal_listener(self):
-        profile = Profile.objects.create(
-            agent=self.agent,
-            network_mode="internal",
+        Profile.objects.filter(agent=self.agent).update(
             operator=self.john,
-            schedule_time=time(12, 30),
-            next_run=timezone.now() - timedelta(minutes=1),
+            overrides={
+                "network_mode": "internal",
+                "schedule": {"kind": "daily", "time": "12:30"},
+            },
+        )
+        profile, _ = resolver.resolve_device(self.agent, cause="device")
+        Profile.objects.filter(pk=profile.pk).update(
+            next_run=timezone.now() - timedelta(minutes=1)
         )
         response = self.client.post(self.uri + "capture/", {}, format="json")
         self.assertEqual(response.status_code, 409)
@@ -482,9 +503,9 @@ class NativeBackupTests(ULRMMTestCase):
 
     def test_policy_bulk_rolls_back_if_device_is_outside_scope(self):
         self.client.force_authenticate(self.create_user_with_roles([]))
-        res = self.client.post("/imaging/policies/", self.config, format="json")
+        res = self.post_policy()
         self.assertEqual(res.status_code, 403)
-        self.assertFalse(Profile.objects.exists())
+        self.assertFalse(Profile.objects.filter(policy__isnull=False).exists())
 
     def test_agent_cannot_report_another_machine(self):
         other = baker.make(
@@ -500,7 +521,7 @@ class NativeBackupTests(ULRMMTestCase):
     def test_interruption_full_store_and_resume_preserve_previous_point(self):
         import errno
 
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         first, _ = self.point([b"first capture"])
         point_id = self.client.post(self.uri + "capture/", {}, format="json").data["id"]
         grant = self.worker_post(
@@ -555,7 +576,7 @@ class NativeBackupTests(ULRMMTestCase):
     def test_source_encryption_change_requires_review_and_only_own_verified_status_is_visible(
         self,
     ):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         queued = self.client.post(self.uri + "capture/", {}, format="json").data["id"]
         self.assertEqual(
             self.worker_post(
@@ -585,7 +606,7 @@ class NativeBackupTests(ULRMMTestCase):
         )
 
     def test_claim_slides_with_committed_blocks(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         _, cli, path = self.claim()
         claim = Transfer.objects.get()
         self.assertEqual(claim.renew_until - claim.expires_at, timedelta(days=6))
@@ -596,7 +617,7 @@ class NativeBackupTests(ULRMMTestCase):
         self.assertGreater(claim.expires_at, timezone.now() + timedelta(minutes=59))
 
     def test_mode_change_stops_capture_and_fails_the_point(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         image_id, cli, path = self.claim()
         Profile.objects.update(network_mode="internal")
         self.assertEqual(
@@ -612,8 +633,8 @@ class NativeBackupTests(ULRMMTestCase):
             (point.status, point.reason), (ImageStatus.FAILED, MODE_CHANGED)
         )
 
-    def test_point_without_operator_fails_and_scheduler_skips(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+    def test_manual_point_without_operator_fails_and_scheduler_needs_none(self):
+        self.post_policy()
         image_id = self.client.post(self.uri + "capture/", {}, format="json").data["id"]
         Image.objects.filter(pk=image_id).update(operator=None)
         report = {"capability": self.cap}
@@ -625,13 +646,14 @@ class NativeBackupTests(ULRMMTestCase):
             operator=None, next_run=timezone.now() - timedelta(minutes=1)
         )
         imaging_tick()
-        self.assertEqual(Image.objects.count(), 1)
-        self.assertTrue(
-            AuditLog.objects.filter(message__contains="no backup operator").exists()
-        )
+        point = Image.objects.exclude(pk=image_id).get()
+        self.assertEqual((point.trigger, point.operator), ("schedule", None))
+        grant = self.worker_post(self.poll, report, format="json")
+        self.assertEqual(grant.status_code, 200, grant.data)
+        self.assertEqual(Transfer.objects.get(image=point).authority, "policy")
 
     def test_parts_beyond_the_approved_source_are_refused(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         image_id, cli, path = self.claim()
         cli.post(path + "begin/", {}, format="json", **self.transport)
         point = Image.objects.filter(pk=image_id)
@@ -650,7 +672,7 @@ class NativeBackupTests(ULRMMTestCase):
         self.assertEqual(self.part(cli, path, b"12345").status_code, 204)
 
     def test_restarted_map_gives_its_blocks_a_fresh_grace(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         _, cli, path = self.claim()
         cli.post(path + "begin/", {}, format="json", **self.transport)
         self.assertEqual(self.part(cli, path, b"block").status_code, 204)
@@ -660,7 +682,7 @@ class NativeBackupTests(ULRMMTestCase):
         self.assertEqual(ImageBlock.objects.count(), 1)
 
     def test_dedup_trusts_length_and_verification_retires_damaged_block(self):
-        self.client.post("/imaging/policies/", self.config, format="json")
+        self.post_policy()
         first, _ = self.point([b"old"])
         bad = first.parts.get().block
         (self.root / "fleet" / str(bad.pk)).write_bytes(bytes(bad.stored_size))
@@ -685,11 +707,9 @@ class NativeBackupTests(ULRMMTestCase):
         self.assertEqual(self.point([b"old"])[1], [0])
 
     def test_policy_delete_only_without_devices(self):
-        pk = self.client.post("/imaging/policies/", self.config, format="json").data[
-            "id"
-        ]
+        pk = self.post_policy().data["id"]
         uri = f"/imaging/policies/{pk}/"
         self.assertEqual(self.client.delete(uri).status_code, 409)
         Profile.objects.update(policy=None)
         self.assertEqual(self.client.delete(uri).status_code, 204)
-        self.assertFalse(BackupPolicy.objects.exists())
+        self.assertFalse(BackupPolicy.objects.filter(scope="assigned").exists())

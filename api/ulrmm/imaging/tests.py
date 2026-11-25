@@ -38,6 +38,7 @@ from .models import (
     ImageStatus,
     Pairing,
     Profile,
+    StorageTarget,
     Transfer,
 )
 from . import storage
@@ -65,7 +66,9 @@ PUBLIC = {"HTTP_HOST": "api.example.com"}
 class ImagingTests(ULRMMTestCase):
     def setUp(self):
         self.authenticate()
-        self.agent = baker.make("agents.Agent", plat="linux", goarch="amd64")
+        self.agent = baker.make(
+            "agents.Agent", plat="linux", goarch="amd64", time_zone="UTC"
+        )
         self.uri = f"/imaging/agents/{self.agent.agent_id}/"
         self.root = self.enterContext(TemporaryDirectory())
         self.enterContext(
@@ -90,7 +93,14 @@ class ImagingTests(ULRMMTestCase):
             "timezone": "UTC",
             **overrides,
         }
-        return self.client.put(self.uri, data, format="json")
+        name = data.pop("destination")
+        at = data.pop("schedule_time")
+        target = StorageTarget.objects.filter(name=name).first()
+        if target is None and storage.DESTINATION.fullmatch(name):
+            target = StorageTarget.objects.create(name=name)
+        data["target"] = target.pk if target else 0
+        data["schedule"] = {"kind": "daily", "time": at} if at else {"kind": "none"}
+        return self.client.put(self.uri, {"set": data}, format="json")
 
     def _queue(self):
         response = self.client.post(self.uri + "capture/", {}, format="json")
@@ -347,7 +357,7 @@ class ImagingTests(ULRMMTestCase):
             with override_settings(**missing):
                 response = self._config(network_mode="internal")
             self.assertEqual(response.status_code, 400)
-            self.assertEqual(response.json(), {"network_mode": [NO_INTERNAL]})
+            self.assertEqual(response.json(), {"set": {"network_mode": [NO_INTERNAL]}})
         self.assertFalse(Profile.objects.exists())
         self.assertEqual(self._config(network_mode="internal").status_code, 200)
 
@@ -414,7 +424,7 @@ class ImagingTests(ULRMMTestCase):
 
     def test_scheduler_daily_timezone_coalesces_without_an_online_agent(self):
         with patch(
-            "imaging.views.timezone.now",
+            "imaging.resolver.timezone.now",
             return_value=datetime(2026, 3, 28, 10, tzinfo=UTC),
         ):
             self.assertEqual(
@@ -426,7 +436,8 @@ class ImagingTests(ULRMMTestCase):
         profile = Profile.objects.get(agent=self.agent)
         self.assertEqual(profile.next_run, datetime(2026, 3, 29, 1, 30, tzinfo=UTC))
         now = profile.next_run + timedelta(minutes=1)
-        with patch("imaging.tasks.timezone.now", return_value=now):
+        # the new point's created_at sets the spacing floor, so it follows the clock
+        with patch("django.utils.timezone.now", return_value=now):
             imaging_tick()
             imaging_tick()
         self.assertEqual(Image.objects.filter(agent=self.agent).count(), 1)

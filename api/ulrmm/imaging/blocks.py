@@ -38,6 +38,9 @@ from .storage import (
 
 BLOCK = 2 * 1024**2
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+PARTS_MAX = 512
+PARTS_BODY_MAX = 128 * 1024
+BATCH_GAP = "Batch entries must continue at the committed block."
 REPORT = {"entries", "changed", "vanished", "skipped", "reappended", "padding_bytes"}
 
 
@@ -129,17 +132,8 @@ def verify_point(image):
     )
 
 
-def append_part(request, image):
-    index = request.query_params.get("i", "")
-    size = request.query_params.get("size", "")
-    digest = request.query_params.get("sha256", "")
-    if not (
-        re.fullmatch(r"[0-9]{1,9}", index)
-        and re.fullmatch(r"[0-9]{1,8}", size)
-        and DIGEST.fullmatch(digest)
-    ):
-        raise ValidationError("Invalid block index, length or SHA-256.")
-    index, size = int(index), int(size)
+def _refused(image, index, size):
+    """The bounds of one block entry; a refusal of the source size ends the point."""
     if not 0 < size <= BLOCK or index * BLOCK + size > settings.ULRMM_IMAGING_MAX_BYTES:
         raise ValidationError("Block exceeds the image size limit.")
     # Restarted maps keep new_bytes, so the second bound also holds across begin.
@@ -156,10 +150,10 @@ def append_part(request, image):
         )
         audit(image.agent, "imaging", f"Image {image.id} failed: {image.reason}")
         return Response({"detail": image.reason}, status=400)
-    if index * BLOCK != image.offset:
-        return Response(
-            {"detail": "Block offset differs from the active capture."}, status=409
-        )
+    return None
+
+
+def _namespace(image):
     # A namespace cannot be probed across devices, destinations, compression settings or routes.
     scope = (
         image.agent_id,
@@ -168,7 +162,102 @@ def append_part(request, image):
         image.compression,
         image.compression_level,
     )
-    namespace = hashlib.sha256(repr(scope).encode()).hexdigest()
+    return hashlib.sha256(repr(scope).encode()).hexdigest()
+
+
+def append_parts(request, image):
+    """POST parts/: attach known blocks in order until the first unknown one
+    (contract 5.6.2)."""
+    length = str(request.META.get("CONTENT_LENGTH") or "")
+    if not re.fullmatch(r"[0-9]{1,9}", length) or int(length) > PARTS_BODY_MAX:
+        return Response({"detail": "A batch body is at most 128 KiB."}, status=413)
+    entries = request.data.get("parts") if isinstance(request.data, dict) else None
+    if (
+        not isinstance(entries, list)
+        or not 0 < len(entries) <= PARTS_MAX
+        or not all(
+            isinstance(e, dict)
+            and set(e) == {"i", "size", "id"}
+            and type(e["i"]) is int
+            and type(e["size"]) is int
+            and 0 <= e["i"] < 10**9
+            and isinstance(e["id"], str)
+            and DIGEST.fullmatch(e["id"])
+            for e in entries
+        )
+    ):
+        raise ValidationError("Send 1-512 entries of block index, length and SHA-256.")
+    if any(b["i"] != a["i"] + 1 for a, b in zip(entries, entries[1:])):
+        raise ValidationError(BATCH_GAP)
+    if entries[0]["i"] != image.offset // BLOCK:
+        return Response({"detail": BATCH_GAP, "offset": image.offset}, status=409)
+    for e in entries:
+        refused = _refused(image, e["i"], e["size"])
+        if refused:
+            return refused
+    namespace = _namespace(image)
+    # one query for the whole batch, so a repeated id costs nothing more
+    known = {
+        b.digest: b
+        for b in ImageBlock.objects.select_for_update().filter(
+            namespace=namespace, digest__in={e["id"] for e in entries}
+        )
+    }
+    present = {}
+    attached = []
+    for e in entries:
+        block = known.get(e["id"])
+        if block is None or e["i"] * BLOCK != image.offset:
+            break
+        if block.size != e["size"]:
+            raise ValidationError("Block length differs.")
+        if block.pk not in present:
+            try:
+                present[block.pk] = stored(image, block)
+            except StoreUnavailable:
+                set_status(image, ImageStatus.UPLOADING, OTHER_STORE)
+                return Response({"detail": image.reason}, status=503)
+            if not present[block.pk]:
+                report_corrupt_dependency(block)
+        if not present[block.pk]:
+            break
+        attached.append(ImagePart(image=image, index=e["i"], block=block))
+        image.offset += e["size"]
+        image.size = (image.size or 0) + block.stored_size
+    if attached:
+        ImagePart.objects.bulk_create(attached)
+        image.reason = NATIVE_RECEIVING_REASON
+        image.updated_at = timezone.now()
+        image.save(update_fields=["offset", "size", "reason", "updated_at"])
+    done = {p.index for p in attached}
+    return Response(
+        {
+            "attached": len(attached),
+            "missing": [e["i"] for e in entries if e["i"] not in done],
+            "offset": image.offset,
+        }
+    )
+
+
+def append_part(request, image):
+    index = request.query_params.get("i", "")
+    size = request.query_params.get("size", "")
+    digest = request.query_params.get("sha256", "")
+    if not (
+        re.fullmatch(r"[0-9]{1,9}", index)
+        and re.fullmatch(r"[0-9]{1,8}", size)
+        and DIGEST.fullmatch(digest)
+    ):
+        raise ValidationError("Invalid block index, length or SHA-256.")
+    index, size = int(index), int(size)
+    refused = _refused(image, index, size)
+    if refused:
+        return refused
+    if index * BLOCK != image.offset:
+        return Response(
+            {"detail": "Block offset differs from the active capture."}, status=409
+        )
+    namespace = _namespace(image)
     block = (
         ImageBlock.objects.select_for_update()
         .filter(namespace=namespace, digest=digest)
@@ -249,12 +338,15 @@ def capture(request, image, operation):
         )
         image.parts.all().delete()
         image.offset = image.size = 0
-        image.save(update_fields=["offset", "size"])
+        image.snapshot_at = timezone.now()
+        image.save(update_fields=["offset", "size", "snapshot_at"])
         set_status(image, ImageStatus.UPLOADING, NATIVE_RECEIVING_REASON)
         return Response(status=204)
     if image.status == ImageStatus.UPLOADING:
         if operation == "part" and request.method in ("POST", "PUT"):
             return append_part(request, image)
+        if operation == "parts" and request.method == "POST":
+            return append_parts(request, image)
         if operation == "seal" and request.method == "POST":
             size, digest = request.data.get("size"), request.data.get("sha256")
             if (

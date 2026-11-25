@@ -413,11 +413,16 @@ class GetUpdateDeleteAgent(APIView):
         fields = self._custom_fields(request, agent)
 
         old_name = agent.display_name
+        old_site = agent.site_id
         with transaction.atomic():
             with _patch_policy_guard(request, Agent.objects.filter(pk=agent.pk)):
                 agent = serializer.save()
                 if policy is not None:
                     policy.save()
+            if agent.site_id != old_site:
+                from imaging.resolver import resolve_many
+
+                resolve_many([agent.pk], cause="site_move", author=request.user)
             for field in fields:
                 save_or_update_existing(
                     field,

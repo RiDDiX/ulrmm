@@ -17,6 +17,7 @@ from rest_framework.test import APIClient
 
 from logs.models import AuditLog
 from ulrmm.test import ULRMMTestCase
+from . import resolver
 from .blocks import BLOCK
 from .models import (
     LINUX_OFFLINE_METHOD,
@@ -26,6 +27,7 @@ from .models import (
     NativeInventory,
     Pairing,
     Profile,
+    StorageTarget,
     Transfer,
 )
 from .service import capability
@@ -96,11 +98,10 @@ CAP = {
     ],
 }
 CONFIG = {
-    "destination": "fleet",
     "compression": "gzip",
     "compression_level": 6,
     "network_mode": "internet",
-    "schedule_time": None,
+    "schedule": {"kind": "none"},
     "timezone": "UTC",
 }
 REPORT = {
@@ -119,11 +120,23 @@ def block_list(blocks):
     return sha256(b"".join(sha256(b).digest() for b in blocks)).hexdigest()
 
 
+def keep_one():
+    # the prune reads the effective settings, not the legacy column
+    for profile in Profile.objects.all():
+        profile.effective = {**profile.effective, "keep_last": 1}
+        profile.save(update_fields=["effective"])
+
+
 class LinuxFilesTests(ULRMMTestCase):
     def setUp(self):
         self.authenticate()
+        self.fleet = StorageTarget.objects.create(name="fleet")
         self.agent = baker.make(
-            "agents.Agent", agent_id="test-files-agent", plat="linux", goarch="amd64"
+            "agents.Agent",
+            agent_id="test-files-agent",
+            plat="linux",
+            goarch="amd64",
+            time_zone="UTC",
         )
         self.authenticate_agent(self.agent)
         self.worker = self.client
@@ -150,9 +163,13 @@ class LinuxFilesTests(ULRMMTestCase):
         )
 
     def save(self, volumes=()):
-        return self.client.put(
-            self.uri, {**CONFIG, "volumes": list(volumes)}, format="json"
-        )
+        config = {**CONFIG, "target": self.fleet.pk, "volumes": list(volumes)}
+        return self.client.put(self.uri, {"set": config}, format="json")
+
+    def assign(self, config):
+        policy = BackupPolicy.objects.create(name="Fleet", config=config)
+        Profile.objects.update(policy=policy, overrides={})
+        resolver.resolve_device(self.agent, cause="policy")
 
     def capture(self):
         response = self.client.post(self.uri + "capture/", {}, format="json")
@@ -264,7 +281,13 @@ class LinuxFilesTests(ULRMMTestCase):
             self.assertEqual(response.status_code, 400)
             self.assertEqual(
                 response.json(),
-                {"volumes": [f"{selector} is not an extra volume on this device."]},
+                {
+                    "set": {
+                        "volumes": [
+                            f"{selector} is not an extra volume on this device."
+                        ]
+                    }
+                },
             )
         for bad in (
             ["media"],
@@ -278,7 +301,7 @@ class LinuxFilesTests(ULRMMTestCase):
         ):
             response = self.save(bad)
             self.assertEqual(response.status_code, 400)
-            self.assertIn("volumes", response.json())
+            self.assertIn("volumes", response.json()["set"])
         self.assertIn(SYNTAX, str(self.save(["media"]).data))
         self.assertEqual(Profile.objects.get().volumes, ["/media/frigate"])
         # a report without volumes accepts no selection
@@ -289,7 +312,9 @@ class LinuxFilesTests(ULRMMTestCase):
         self.assertEqual(self.save().status_code, 200)
 
     def test_policy_volumes_and_warnings(self):
-        windows = baker.make("agents.Agent", agent_id="test-files-win", plat="windows")
+        windows = baker.make(
+            "agents.Agent", agent_id="test-files-win", plat="windows", time_zone="UTC"
+        )
         NativeInventory.objects.create(
             agent=windows,
             capability={
@@ -302,16 +327,22 @@ class LinuxFilesTests(ULRMMTestCase):
         selectors = ["/media/frigate", "/media/old", "/mnt/backups"]
         policy = {
             "name": "Fleet",
-            "config": {**CONFIG, "volumes": selectors},
+            "scope": "assigned",
+            "config": {**CONFIG, "target": self.fleet.pk, "volumes": selectors},
             "agents": [self.agent.agent_id, windows.agent_id],
         }
-        response = self.client.post("/imaging/policies/", policy, format="json")
+        with (
+            patch("imaging.tasks.wake_imaging_agent.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            response = self.client.post("/imaging/policies/", policy, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(
             response.data["warnings"],
             [
                 {
                     "agent_id": self.agent.agent_id,
+                    "hostname": self.agent.hostname,
                     "unmatched": ["/media/old"],
                     "unusable": ["/mnt/backups"],
                 }
@@ -329,14 +360,13 @@ class LinuxFilesTests(ULRMMTestCase):
         self.assertIn(SYNTAX, str(response.data))
         BackupPolicy.objects.create(name="Old", config=CONFIG)
         listed = {p["name"]: p for p in self.client.get("/imaging/policies/").data}
-        self.assertEqual(listed["Old"]["config"]["volumes"], [])
+        self.assertNotIn("volumes", listed["Old"]["config"])
         self.assertEqual(listed["Fleet"]["config"]["volumes"], ["/media/frigate"])
 
     def test_queue_resolves_the_selection(self):
         self.save()
-        Profile.objects.update(
-            volumes=["/media/frigate", "/boot/efi", "/mnt/backups", "/media/old"],
-            policy=BackupPolicy.objects.create(name="Fleet", config=CONFIG),
+        self.assign(
+            {"volumes": ["/media/frigate", "/boot/efi", "/mnt/backups", "/media/old"]}
         )
         image = Image.objects.get(
             pk=self.client.post(self.uri + "capture/", {}, format="json").data["id"]
@@ -366,7 +396,7 @@ class LinuxFilesTests(ULRMMTestCase):
         image = Image.objects.get(pk=response.data["id"])
         self.assertEqual((image.status, image.reason), (ImageStatus.FAILED, GONE))
         self.assertEqual(image.native["missing"], ["/media/frigate"])
-        Profile.objects.update(keep_last=1)
+        keep_one()
         imaging_tick()
         older.refresh_from_db()
         self.assertEqual(older.status, ImageStatus.VERIFIED)
@@ -412,9 +442,7 @@ class LinuxFilesTests(ULRMMTestCase):
         self.assertEqual(len(Image.objects.get(pk=self.capture()).reason), 255)
 
         # a policy's selection does not fail the offline point, it is shown as missing
-        Profile.objects.update(
-            policy=BackupPolicy.objects.create(name="Fleet", config=CONFIG)
-        )
+        self.assign({"volumes": ["/media/frigate"]})
         image = Image.objects.get(pk=self.capture())
         self.assertEqual(
             (image.status, image.native["missing"]),
@@ -459,7 +487,7 @@ class LinuxFilesTests(ULRMMTestCase):
             self.assertFalse(Transfer.objects.filter(image=image).exists())
             self.report()
         # failed points never count for keep-last
-        Profile.objects.update(keep_last=1)
+        keep_one()
         imaging_tick()
         older.refresh_from_db()
         self.assertEqual(older.status, ImageStatus.VERIFIED)
@@ -528,6 +556,8 @@ class LinuxFilesTests(ULRMMTestCase):
         )
         offline = {**CAP, "method": LINUX_OFFLINE_METHOD, "volumes": [], "ready": False}
         self.assertEqual(self.report(offline).status_code, 204)
+        # the method default follows the next resolve, here the 5-minute beat
+        resolver.resolve_device(self.agent, cause="beat")
         self.assertEqual(
             self.client.get(self.uri).data["config"]["compression_level"], 6
         )

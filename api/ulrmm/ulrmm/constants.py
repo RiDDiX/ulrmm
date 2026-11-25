@@ -237,6 +237,7 @@ class AlertType(models.TextChoices):
     CUSTOM = "custom", "Custom"
     NETWORK = "network", "Network"
     AGENT = "agent", "Agent"
+    BACKUP = "backup", "Backup"
 
 
 class AlertTemplateActionType(models.TextChoices):
