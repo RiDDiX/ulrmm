@@ -1121,7 +1121,7 @@ steps of the update.
 
 ## Backups
 
-For a managed **device**, open **More → System images** on its detail page. Native Windows, Linux and macOS prerequisites, daily scheduling, storage and platform recovery are described in the [client imaging guide](docs/CLIENT_IMAGING.md).
+For a managed **device**, open **More → Backups** on its detail page; the **Backups** page in the navigation lists all devices and the backup policies. Native Windows, Linux and macOS prerequisites, policies and schedules, storage and platform recovery are described in the [client imaging guide](docs/CLIENT_IMAGING.md).
 
 The images go to `/rmmimages` on the server (the `images` volume in Docker), which `install.sh` and `update.sh` set up; the server keeps 10 GiB free there. Global Settings -> **System Images** moves them to another folder, Docker uses `IMAGING_VOLUME` in `.env` for that ([guide](docs/CLIENT_IMAGING.md#change-the-storage-folder)). Server backups do not include them.
 

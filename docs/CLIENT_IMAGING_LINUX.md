@@ -21,9 +21,21 @@ The device tab lists every volume:
 
 The backup reads files while the system runs. A file that changes while it is read is read again; if it still changes, it is stored as read and counted under "Changed while read" on the point. Files that change together, such as a database and its journal, can come from different moments. Stop such services or dump their data with a scheduled script shortly before the backup window, for example the SQLite backup API into a second file. Snapshots that give one point in time for all files follow in a later release.
 
-If a volume ticked on the device is missing or not mounted at backup time, the backup fails with the reason, for example "Selected volume ... is not mounted." Older backups stay and are not removed by **points to keep**. A volume named by a backup policy that a device does not have is skipped on that device and shown on the point. While offline capture is paired, the device's own schedule uses the offline method, and a backup with ticked volumes fails until you unpair or untick them.
+If a volume ticked on the device is missing or not mounted at backup time, the backup fails with the reason, for example "Selected volume ... is not mounted." Older backups stay and are not removed by retention. A volume named by a backup policy that a device does not have is skipped on that device and shown on the point. While offline capture is paired, the device's own schedule uses the offline method, and a backup with ticked volumes fails until you unpair or untick them.
 
 The stream is cut into the server's 2 MiB blocks. Unchanged files reuse their blocks, so a daily backup stores only what changed. New profiles use gzip level 1, which also compresses the alignment padding.
+
+## Hooks, readiness and power
+
+Hooks run as root. Before-the-snapshot hooks run right before the agent starts its file reader. A live backup has no snapshot, so after-the-snapshot hooks run once the reader has started, before the data is uploaded, and files can already be read while they run. Stop services and dump databases in a before-the-snapshot hook, and start them again in an after-the-backup hook, which always runs. See [Hooks](CLIENT_IMAGING.md#hooks) for the rules.
+
+| Check | Passes when |
+| --- | --- |
+| `method.linux-files-v1` or `method.linux-offline-disk-v1` | The method is ready. Otherwise the detail gives the reason, for example an unsupported layout. |
+| `linux.tools.base` | `lsblk` and `blkid`, and `dumpe2fs` when the device has an ext4 volume, are found through `PATH`. A missing tool is a manual step with the install command of the package manager found: `apt-get install -y util-linux e2fsprogs`, `dnf install -y util-linux e2fsprogs`, `zypper --non-interactive install util-linux e2fsprogs` or `pacman -S --noconfirm util-linux e2fsprogs`. Automatic setup installs no packages. |
+| `smart.source` | No disk reports a health or SMART warning. It blocks backups only when the SMART check is set to abort. |
+
+The file reader always uses the idle I/O class, and with priority **Background** it also runs at nice 10. A power supply of type `Battery` whose scope is not `Device` counts as a battery; a mains or USB supply that is online counts as AC, and a device without a battery counts as on AC.
 
 ## Reference configuration
 
@@ -68,7 +80,7 @@ The helper refuses a target that is not blank and never wipes a disk itself. If 
 
 ## Capture and restore with the offline method
 
-1. Open **System images** on the device. Review the capability report, choose compression and network access, and request an image or configure a schedule. A scheduled run waits for the chosen recovery window.
+1. Open the device's **Backups** tab. Review the capability report, choose compression and the transfer network, and request a backup or give the device a schedule. A scheduled point waits for the recovery boot.
 2. After a clean shutdown, boot the recovery media and verify the disk identity displayed by preflight. Request **Capture access** for the waiting image. Use the direction-specific URL and token displayed there.
 3. Run the following on the recovery system. Provide the token on standard input through a file owned and readable only by root. For internal-only transfers change to `--network-mode internal --interface wg0`. For a private CA add `--ca /path/to/ca.pem`.
 
@@ -80,7 +92,7 @@ ulrmm-agent imaging-capture --url "$transfer_url" --image "$image_id" \
 4. Check **Verified** on the selected image. If a transfer fails, keep the source disk unchanged and offline before retrying an interrupted transfer.
 5. Follow the [restore access, staging and readback procedure](CLIENT_IMAGING.md#linux-whole-disk-restore). Restore runs from trusted recovery media even when the old agent and disk are unavailable. Keep the original machine disconnected when restoring its identity. After boot, verify the user login, file data and ownership, and the existing agent's secure check-in. If the server no longer accepts the saved credentials, use the normal ULRMM agent enrollment procedure.
 
-For unattended recovery-window capture, the [paired offline poll command](CLIENT_IMAGING.md#daily-backups) passes native jobs and their scoped credentials to `/usr/bin/ulrmm-agent`. Native restore needs a separate staging filesystem with free space for one complete raw disk. The recovery helper validates all retrieved blocks and the assembled raw image, rechecks the live grant and disk, then compares the disk readback hash before reporting completion. It retries each request up to five times after a network error or an HTTP 502, 503 or 504 reply.
+For unattended recovery-window capture, the [paired offline poll command](CLIENT_IMAGING.md#unattended-offline-capture) passes native jobs and their scoped credentials to `/usr/bin/ulrmm-agent`. Native restore needs a separate staging filesystem with free space for one complete raw disk. The recovery helper validates all retrieved blocks and the assembled raw image, rechecks the live grant and disk, then compares the disk readback hash before reporting completion. It retries each request up to five times after a network error or an HTTP 502, 503 or 504 reply.
 
 ## Reference acceptance
 
